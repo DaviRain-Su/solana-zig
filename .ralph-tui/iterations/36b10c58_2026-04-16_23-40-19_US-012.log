@@ -1,0 +1,32 @@
+# Iteration 19 Log
+
+## Metadata
+
+- **Task ID**: US-012
+- **Task Title**: Websocket 重连与 Resubscribe 生产级硬化
+- **Description**: As a Zig 开发者, I want Websocket 客户端在断线后自动重连并恢复订阅 so that 生产环境可用。
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T15:40:19.066Z
+- **Ended At**: 2026-04-16T15:48:45.385Z
+- **Duration**: 8m 26s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-012 Complete
+
+- Implemented websocket reconnect hardening in `src/solana/rpc/ws_client.zig` / `src/solana/rpc/types.zig`: configurable exponential backoff, automatic reconnect on disconnect, active-subscription resubscribe, idempotent subscribe dedupe, and a pending-notification queue so resubscribe acks are not confused by interleaved notifications.
+- Added/adjusted mock coverage for disconnect/reconnect/resubscribe flows, plus a gated Devnet E2E in `src/e2e/devnet_e2e.zig` that uses `slotSubscribe`, forces a close handshake, and verifies notifications continue after reconnect.
+- Appended the US-012 entry and reusable patterns to `.ralph-tui/progress.md`.
+
+## Validation
+
+- `zig build test` ✅
+- `zig build bench` ✅
+- `zig build devnet-e2e` ✅  
+  - Live US-012 path was correctly **skipped** because `SOLANA_WS_URL` / `SOLANA_RPC_URL` were not set in this environment.
+
+<promise>COMPLETE</promise>
+]9;4;0;

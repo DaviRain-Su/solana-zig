@@ -20,6 +20,7 @@ after each iteration and it's included in prompts for context.
 - Websocket subscription coverage fits this repo best when each wrapper is exercised as `subscribe -> read*Notification -> *Unsubscribe`, asserting Solana’s canonical notification method names (`accountNotification`, `logsNotification`, etc.) and the typed parser fields in the same mock round-trip.
 - Websocket control-path reads (`subscribe` / `unsubscribe` / `resubscribe`) cannot assume Solana will deliver ack frames before notifications; queue any interleaved notification frames and drain them from `readNotification` later so multi-subscription reconnect flows stay lossless.
 - Live websocket recovery acceptance is easiest to keep deterministic with `slotSubscribe`: read one slot notification, send a close frame to trigger the automatic reconnect path, then assert the next slot notification arrives after resubscribe without needing funded Devnet state changes.
+- Websocket observability additions fit this client best when runtime health is exposed through a single `snapshot()` value object and all wire-message accounting flows through tracked send/read helpers; that keeps counters correct across subscribe acks, queued notifications, manual disconnects, and reconnect-driven resubscribe.
 
 ---
 
@@ -203,5 +204,18 @@ after each iteration and it's included in prompts for context.
   - Gotchas encountered
     - The current websocket transport only supports `ws://`; when Devnet access is exposed as `https://` / `wss://`, the E2E must skip unless `SOLANA_WS_URL` is provided with a non-TLS websocket endpoint.
     - Immediate-notify mock subscriptions exposed a real production hazard: without buffering interleaved notifications, `resubscribeAll` can misread a notification as the next subscribe ack and fail reconnect recovery.
+---
+
+## 2026-04-16 - US-013
+- Extended `WsRpcClient` observability to expose connection state plus sent/received websocket message counters through the existing `snapshot()` query interface, and added a direct `connectionState()` accessor for external integrations that only need health state.
+- Added websocket unit coverage for initial metrics, subscribe accounting, explicit connection state transitions, reconnect metric updates, duplicate-drop accounting, and failed reconnect/disconnected state reporting.
+- Files changed:
+  - `src/solana/rpc/ws_client.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Websocket runtime metrics stay trustworthy when every JSON-RPC control path (`subscribe`, `unsubscribe`, `reconnect`, manual close) goes through shared tracked send/read helpers instead of incrementing counters ad hoc in each feature method.
+  - Gotchas encountered
+    - Counting only `readNotification()` traffic under-reports websocket activity because subscribe/unsubscribe acknowledgements and reconnect resubscribe responses also consume frames; the accounting had to move down to the shared websocket read path.
 ---
 

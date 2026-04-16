@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T15:48:45.391Z",
-  "currentIteration": 18,
+  "updatedAt": "2026-04-16T15:54:51.989Z",
+  "currentIteration": 19,
   "maxIterations": 0,
-  "tasksCompleted": 11,
+  "tasksCompleted": 12,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -194,6 +194,16 @@
       "durationMs": 600047,
       "startedAt": "2026-04-16T15:30:13.998Z",
       "endedAt": "2026-04-16T15:40:14.045Z"
+    },
+    {
+      "iteration": 19,
+      "status": "completed",
+      "taskId": "US-012",
+      "taskTitle": "Websocket 重连与 Resubscribe 生产级硬化",
+      "taskCompleted": true,
+      "durationMs": 506319,
+      "startedAt": "2026-04-16T15:40:19.066Z",
+      "endedAt": "2026-04-16T15:48:45.385Z"
     }
   ],
   "skippedTaskIds": [],

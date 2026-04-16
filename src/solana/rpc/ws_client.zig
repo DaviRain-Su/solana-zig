@@ -355,11 +355,20 @@ pub const WsRpcClient = struct {
     pub const MAX_BACKOFF_MS: u64 = 30_000;
     pub const DEDUP_CACHE_SIZE: usize = 16;
 
+    pub const ConnectionState = enum {
+        connected,
+        disconnected,
+        reconnecting,
+    };
+
     // -- Observability snapshot schema (P2-23, frozen in docs/24) --
     pub const WsStats = struct {
+        connection_state: ConnectionState,
         reconnect_attempts_total: u32,
         active_subscriptions: u32,
         dedup_dropped_total: u32,
+        messages_sent_total: u64,
+        messages_received_total: u64,
         last_error_code: ?u16,
         last_error_message: ?[]const u8,
         last_reconnect_unix_ms: ?u64,
@@ -377,8 +386,10 @@ pub const WsRpcClient = struct {
     last_reconnect_attempts: u8 = 0,
 
     // -- Observability counters/state (P2-23) --
+    connection_state: ConnectionState = .connected,
     reconnect_attempts_total: u32 = 0,
     dedup_dropped_total: u32 = 0,
+    messages_sent_total: u64 = 0,
     messages_received_total: u64 = 0,
     last_error_code: ?u16 = null,
     last_error_message_buf: [128]u8 = [_]u8{0} ** 128,
@@ -551,13 +562,20 @@ pub const WsRpcClient = struct {
     }
 
     pub fn disconnect(self: *WsRpcClient) void {
-        _ = self.ws.sendClose() catch {};
+        if (self.ws.sendClose()) |_| {
+            self.messages_sent_total += 1;
+        } else |_| {}
         self.ws.deinit();
+        self.connection_state = .disconnected;
     }
 
     pub fn reconnect(self: *WsRpcClient) ReconnectError!void {
+        self.connection_state = .reconnecting;
         self.last_reconnect_attempts = 1;
-        try self.reconnectOnce();
+        self.reconnectOnce() catch |err| {
+            self.connection_state = .disconnected;
+            return err;
+        };
     }
 
     pub fn reconnectWithBackoff(self: *WsRpcClient, retries: u8, base_delay_ms: u64) ReconnectError!void {
@@ -569,6 +587,11 @@ pub const WsRpcClient = struct {
 
     pub fn sendPing(self: *WsRpcClient) WsClient.SendError!void {
         try self.ws.sendFrame(.ping, &[_]u8{});
+        self.messages_sent_total += 1;
+    }
+
+    pub fn connectionState(self: *const WsRpcClient) ConnectionState {
+        return self.connection_state;
     }
 
     pub fn subscriptionCount(self: *const WsRpcClient) usize {
@@ -577,9 +600,12 @@ pub const WsRpcClient = struct {
 
     pub fn snapshot(self: *const WsRpcClient) WsStats {
         return .{
+            .connection_state = self.connection_state,
             .reconnect_attempts_total = self.reconnect_attempts_total,
             .active_subscriptions = @intCast(self.subscriptions.items.len),
             .dedup_dropped_total = self.dedup_dropped_total,
+            .messages_sent_total = self.messages_sent_total,
+            .messages_received_total = self.messages_received_total,
             .last_error_code = self.last_error_code,
             .last_error_message = if (self.last_error_message_len > 0)
                 self.last_error_message_buf[0..self.last_error_message_len]
@@ -666,7 +692,7 @@ pub const WsRpcClient = struct {
             .{ self.nextRpcId(), method, subscription_id },
         );
         defer self.ws.allocator.free(payload);
-        try self.ws.sendText(payload);
+        try self.sendTextTracked(payload);
         try self.readUnsubscribeAck();
         self.removeSubscription(subscription_id);
     }
@@ -676,8 +702,9 @@ pub const WsRpcClient = struct {
             const msg = if (self.pending_messages.items.len > 0)
                 self.pending_messages.orderedRemove(0)
             else
-                self.ws.readMessage() catch |err| switch (err) {
+                self.readMessageTracked() catch |err| switch (err) {
                     error.ConnectionClosed => {
+                        self.connection_state = .disconnected;
                         try self.reconnectWithConfig(self.reconnect_config);
                         continue;
                     },
@@ -687,8 +714,6 @@ pub const WsRpcClient = struct {
                 self.ws.allocator.free(msg.data);
                 return error.WsProtocolError;
             }
-
-            self.messages_received_total += 1;
 
             const h = std.hash.Wyhash.hash(0, msg.data);
             if (self.isDuplicateNotification(h)) {
@@ -794,7 +819,7 @@ pub const WsRpcClient = struct {
 
     fn readSubscriptionResult(self: *WsRpcClient) SubscribeError!u64 {
         while (true) {
-            const msg = try self.ws.readMessage();
+            const msg = try self.readMessageTracked();
             var keep_message = false;
             defer if (!keep_message) self.ws.allocator.free(msg.data);
 
@@ -817,7 +842,7 @@ pub const WsRpcClient = struct {
 
     fn readUnsubscribeAck(self: *WsRpcClient) SubscribeError!void {
         while (true) {
-            const msg = try self.ws.readMessage();
+            const msg = try self.readMessageTracked();
             var keep_message = false;
             defer if (!keep_message) self.ws.allocator.free(msg.data);
 
@@ -857,7 +882,7 @@ pub const WsRpcClient = struct {
 
         const payload = try self.buildSubscribePayload(kind, value);
         defer self.ws.allocator.free(payload);
-        try self.ws.sendText(payload);
+        try self.sendTextTracked(payload);
         const id = try self.readSubscriptionResult();
 
         try self.subscriptions.append(self.ws.allocator, .{
@@ -912,7 +937,7 @@ pub const WsRpcClient = struct {
         for (self.subscriptions.items) |*sub| {
             const payload = try self.buildSubscribePayload(sub.kind, sub.value);
             defer self.ws.allocator.free(payload);
-            try self.ws.sendText(payload);
+            try self.sendTextTracked(payload);
             sub.id = try self.readSubscriptionResult();
         }
     }
@@ -922,6 +947,7 @@ pub const WsRpcClient = struct {
         self.ws.deinit();
         self.ws = try WsClient.connect(self.ws.allocator, self.ws.io, self.url);
         try self.resubscribeAll();
+        self.connection_state = .connected;
         self.recordReconnectTimestamp();
     }
 
@@ -929,10 +955,12 @@ pub const WsRpcClient = struct {
         const capped_retries = @min(reconnect_config.max_retries, MAX_RECONNECT_RETRIES);
         if (capped_retries == 0) {
             self.last_reconnect_attempts = 0;
+            self.connection_state = .disconnected;
             self.recordError(1, "reconnect_disabled");
             return error.ConnectionClosed;
         }
 
+        self.connection_state = .reconnecting;
         var attempt: u8 = 0;
         while (attempt < capped_retries) : (attempt += 1) {
             self.last_reconnect_attempts = attempt + 1;
@@ -940,12 +968,34 @@ pub const WsRpcClient = struct {
                 return;
             } else |err| {
                 self.recordError(1, "reconnect_failed");
-                if (attempt + 1 == capped_retries) return err;
+                self.connection_state = .reconnecting;
+                if (attempt + 1 == capped_retries) {
+                    self.connection_state = .disconnected;
+                    return err;
+                }
                 self.sleepBeforeReconnect(reconnect_config, attempt);
             }
         }
 
+        self.connection_state = .disconnected;
         return error.HandshakeFailed;
+    }
+
+    fn sendTextTracked(self: *WsRpcClient, payload: []const u8) WsClient.SendError!void {
+        try self.ws.sendText(payload);
+        self.messages_sent_total += 1;
+    }
+
+    fn readMessageTracked(self: *WsRpcClient) WsClient.ReadError!WsClient.Message {
+        const msg = self.ws.readMessage() catch |err| switch (err) {
+            error.ConnectionClosed => {
+                self.connection_state = .disconnected;
+                return error.ConnectionClosed;
+            },
+            else => return err,
+        };
+        self.messages_received_total += 1;
+        return msg;
     }
 
     fn sleepBeforeReconnect(self: *const WsRpcClient, reconnect_config: types.WsReconnectConfig, attempt: u8) void {
@@ -2273,9 +2323,12 @@ test "ws_observability_snapshot_initial_state" {
     defer client.deinit();
 
     const stats = client.snapshot();
+    try std.testing.expectEqual(WsRpcClient.ConnectionState.connected, stats.connection_state);
     try std.testing.expectEqual(@as(u32, 0), stats.reconnect_attempts_total);
     try std.testing.expectEqual(@as(u32, 0), stats.active_subscriptions);
     try std.testing.expectEqual(@as(u32, 0), stats.dedup_dropped_total);
+    try std.testing.expectEqual(@as(u64, 0), stats.messages_sent_total);
+    try std.testing.expectEqual(@as(u64, 0), stats.messages_received_total);
     try std.testing.expectEqual(@as(?u16, null), stats.last_error_code);
     try std.testing.expectEqual(@as(?[]const u8, null), stats.last_error_message);
     try std.testing.expectEqual(@as(?u64, null), stats.last_reconnect_unix_ms);
@@ -2296,8 +2349,33 @@ test "ws_observability_counters_after_subscribe" {
 
     _ = try client.accountSubscribe("11111111111111111111111111111111");
     const stats = client.snapshot();
+    try std.testing.expectEqual(WsRpcClient.ConnectionState.connected, stats.connection_state);
     try std.testing.expectEqual(@as(u32, 1), stats.active_subscriptions);
     try std.testing.expectEqual(@as(u32, 0), stats.reconnect_attempts_total);
+    try std.testing.expectEqual(@as(u64, 1), stats.messages_sent_total);
+    try std.testing.expectEqual(@as(u64, 1), stats.messages_received_total);
+}
+
+test "ws_observability_connection_state_changes" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.startMulti(allocator, 3);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    try std.testing.expectEqual(WsRpcClient.ConnectionState.connected, client.connectionState());
+
+    client.disconnect();
+    try std.testing.expectEqual(WsRpcClient.ConnectionState.disconnected, client.connectionState());
+
+    try client.reconnect();
+    try std.testing.expectEqual(WsRpcClient.ConnectionState.connected, client.connectionState());
 }
 
 test "ws_observability_reconnect_counter_increments" {
@@ -2325,10 +2403,14 @@ test "ws_observability_reconnect_counter_increments" {
 
     const before = client.snapshot();
     try std.testing.expectEqual(@as(u32, 0), before.reconnect_attempts_total);
+    try std.testing.expectEqual(WsRpcClient.ConnectionState.disconnected, before.connection_state);
 
     try client.reconnect();
     const after = client.snapshot();
+    try std.testing.expectEqual(WsRpcClient.ConnectionState.connected, after.connection_state);
     try std.testing.expectEqual(@as(u32, 1), after.reconnect_attempts_total);
+    try std.testing.expectEqual(@as(u64, 2), after.messages_sent_total);
+    try std.testing.expectEqual(@as(u64, 3), after.messages_received_total);
     try std.testing.expect(after.last_reconnect_unix_ms != null);
 }
 
@@ -2360,7 +2442,10 @@ test "ws_observability_dedup_dropped_counter" {
     try std.testing.expectError(error.ConnectionClosed, client.readNotification());
 
     const stats = client.snapshot();
+    try std.testing.expectEqual(WsRpcClient.ConnectionState.disconnected, stats.connection_state);
     try std.testing.expect(stats.dedup_dropped_total >= 1);
+    try std.testing.expectEqual(@as(u64, 1), stats.messages_sent_total);
+    try std.testing.expectEqual(@as(u64, 3), stats.messages_received_total);
 }
 
 test "ws_observability_backoff_error_state" {
@@ -2383,6 +2468,7 @@ test "ws_observability_backoff_error_state" {
     } else |_| {}
 
     const stats = client.snapshot();
+    try std.testing.expectEqual(WsRpcClient.ConnectionState.disconnected, stats.connection_state);
     try std.testing.expect(stats.reconnect_attempts_total >= 2);
     try std.testing.expect(stats.last_error_code != null);
     try std.testing.expect(stats.last_error_message != null);
