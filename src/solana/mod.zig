@@ -32,10 +32,12 @@ pub const rpc = struct {
     pub const transport = @import("rpc/transport.zig");
     pub const http_transport = @import("rpc/http_transport.zig");
     pub const client = @import("rpc/client.zig");
+    pub const ws_client = @import("rpc/ws_client.zig");
 
     pub const RpcClient = client.RpcClient;
     pub const Transport = transport.Transport;
     pub const OwnedJson = types.OwnedJson;
+    pub const WsClient = ws_client.WsClient;
 };
 
 pub const compat = struct {

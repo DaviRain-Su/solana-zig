@@ -19,3 +19,8 @@ test "public Message.DecodeResult type is usable through package exports" {
     const DecodeResult = tx.Message.DecodeResult;
     _ = DecodeResult;
 }
+
+test "websocket client compiles" {
+    _ = rpc.WsClient;
+    _ = rpc.ws_client.WsRpcClient;
+}
