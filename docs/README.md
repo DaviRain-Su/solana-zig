@@ -60,3 +60,5 @@
 - `31-phase3-batch1-release-readiness.md`：Phase 3 Batch 1 专属发布就绪清单（不覆盖 phase-level artifact）
 - `32-phase3-batch2-planning.md`：Product Phase 3 第二批规划（ATA helper + token-2022/memo/stake + exception 收敛）
 - `33-phase3-batch2-release-readiness.md`：Phase 3 Batch 2 专属发布就绪清单
+- `34-phase3-batch3-planning.md`：Product Phase 3 第三批规划（token-2022 + stake delegate + exception 收敛与判定升级评估）
+- `35-phase3-batch3-release-readiness.md`：Phase 3 Batch 3 专属发布就绪清单
