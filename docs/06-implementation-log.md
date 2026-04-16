@@ -73,6 +73,26 @@
 - `docs/07/08` 同步改为以 Product Phase 1~4 为主线表达审查与演进。
 - 新增 `docs/09-doc-consistency-checklist.md`，沉淀本次审查发现与维护规则。
 
+## 2026-04-16 第五次增量记录（覆盖矩阵与子规格落地）
+
+### 输入
+- 在命名统一后，仍缺少“能力状态全景图”和后续 Phase 2/3 的实体子规格文件。
+- `docs/03` 已声明 `03a/03b/03c`，但此前尚无对应落地文件。
+
+### 输出
+- 新增 `docs/10-coverage-matrix.md`，将 Rust 参考能力、Zig 模块、当前状态、测试/文档映射统一到单一矩阵。
+- 新增 `docs/03a-interfaces-spec.md`，沉淀 interfaces 层边界、模块顺序、错误模型与测试映射。
+- 新增 `docs/03b-signers-spec.md`，沉淀 signer 抽象、后端适配、敏感数据与测试映射。
+- 新增 `docs/03c-rpc-extended-spec.md`，沉淀扩展 RPC、Websocket、typed parse 与 Nonce 工作流约束。
+- `README.md`、`docs/00`、`docs/03`、`docs/08` 同步加入对上述文档的引用与维护规则。
+
+### 风险
+- coverage matrix 目前仍基于当前代码与文档判断状态，后续实现推进时需要持续回写，避免再次过期。
+- 子规格已能承接设计讨论，但仍属于“设计基线”，不是实现完成证明。
+
+### 验证
+- 文档引用链已补齐：`README -> 00 -> 03 -> 03a/03b/03c -> 10`。
+
 ### 风险
 - 当前变更主要是治理与命名统一，不直接提升实现覆盖率。
 - 如果后续 roadmap 再调整，仍需同步回写 `docs/01/04/05/08`。

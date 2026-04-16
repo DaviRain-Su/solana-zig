@@ -41,6 +41,12 @@ This keeps the current client path stable while making later expansion stages ex
 - Task Breakdown: `docs/04-task-breakdown.md`
 - Test Spec: `docs/05-test-spec.md`
 - Evolution: `docs/08-evolution.md`
+- Doc Consistency Checklist: `docs/09-doc-consistency-checklist.md`
+- Coverage Matrix: `docs/10-coverage-matrix.md`
+- Future Specs:
+  - Interfaces: `docs/03a-interfaces-spec.md`
+  - Signers: `docs/03b-signers-spec.md`
+  - RPC Extended: `docs/03c-rpc-extended-spec.md`
 
 ## Official Reference Repositories
 Aligned with Solana official Rust SDK page:

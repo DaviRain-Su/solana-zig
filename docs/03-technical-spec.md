@@ -348,6 +348,12 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 - `03b-signers-spec.md`：signer 抽象、后端适配、错误语义与生命周期契约（对应 Product Phase 3）
 - `03c-rpc-extended-spec.md`：高频以外 RPC 方法扩展、typed parse 策略与兼容策略（对应 Product Phase 2）
 
+当前已建立的子规格文件：
+- `docs/03a-interfaces-spec.md`
+- `docs/03b-signers-spec.md`
+- `docs/03c-rpc-extended-spec.md`
+
 要求：
 - 每个子规格必须包含：数据结构、接口、边界条件、错误模型、测试映射。
 - 子规格不可与本文件冲突；若冲突，以最新 ADR 决策为准并回写本文件。
+- 若子规格进入实现阶段，必须同步更新 `docs/04/05/10`。

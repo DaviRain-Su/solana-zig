@@ -93,3 +93,4 @@
 - 每次测试扩展同步更新 `docs/06-implementation-log.md`。
 - 发现的高风险缺口同步写入 `docs/07-review-report.md`。
 - 兼容矩阵变化同步写入 `docs/08-evolution.md`。
+- 能力状态变化同步回写 `docs/10-coverage-matrix.md`。

@@ -95,6 +95,15 @@
 
 ---
 
+## 交付跟踪文档
+
+- 一致性审查：`docs/09-doc-consistency-checklist.md`
+- 能力覆盖矩阵：`docs/10-coverage-matrix.md`
+- 子规格：
+  - `docs/03a-interfaces-spec.md`
+  - `docs/03b-signers-spec.md`
+  - `docs/03c-rpc-extended-spec.md`
+
 ## 横切关注点（贯穿所有 Phase）
 
 | 关注点 | 策略 |
@@ -103,4 +112,4 @@
 | 测试覆盖 | oracle 向量 + 单元测试 + Devnet E2E + CI 自动化 |
 | 内存安全 | `std.testing.allocator` leak 检测覆盖所有测试 |
 | 性能追踪 | 每 Phase 更新 benchmark 基线 |
-| 文档 | API 文档 + 迁移指南 + 示例代码 |
+| 文档 | API 文档 + 迁移指南 + 示例代码 + 覆盖矩阵维护 |

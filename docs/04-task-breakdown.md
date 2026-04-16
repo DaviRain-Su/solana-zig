@@ -77,7 +77,7 @@
 - 功能代码完成且可构建。
 - 至少 1 个 Happy + 1 个 Error 测试（文档任务除外）。
 - `zig build test` 全量通过。
-- 若接口变化，必须同步 `docs/03/05/README`。
+- 若接口变化，必须同步 `docs/03/05/10/README`。
 - 在 `docs/06-implementation-log.md` 记录输入/输出/风险/验证。
 
 ## 7. 风险与回滚

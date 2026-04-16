@@ -38,3 +38,4 @@
 2. 所有当前执行节点变更同步改 `docs/01`, `docs/04`, `docs/05`, `docs/06`, `docs/07`
 3. 所有 phase 命名变更必须回写 `README.md`
 4. 进入 Product Phase 2 / 3 前，先补对应子规格文件，再开实现任务
+5. 能力状态发生变化时，同步更新 `docs/10-coverage-matrix.md`
