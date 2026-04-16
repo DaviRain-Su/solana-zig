@@ -96,9 +96,10 @@
         "Devnet E2E 验证：成功请求并确认余额增加"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "labels": [],
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-007",
@@ -294,6 +295,6 @@
     "createdAt": "2026-04-16T13:19:37.279Z",
     "version": "1.0.0",
     "sourcePrd": "tasks/prd-phase-2-solana-zig-sdk-rpcwebsocket.md",
-    "updatedAt": "2026-04-16T14:10:20.277Z"
+    "updatedAt": "2026-04-16T14:17:37.738Z"
   }
 }

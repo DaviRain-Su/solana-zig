@@ -40,6 +40,15 @@ const MAX_BALANCE_POLLS: u32 = 30;
 const MAX_CONFIRM_POLLS: u32 = 30;
 const MAX_GET_TRANSACTION_POLLS: u32 = 30;
 
+fn isRateLimitedRpcError(code: i64, message: []const u8) bool {
+    if (code == -32005) return true;
+    if (std.mem.indexOf(u8, message, "429") != null) return true;
+    if (std.mem.indexOf(u8, message, "rate limit") != null) return true;
+    if (std.mem.indexOf(u8, message, "Rate limit") != null) return true;
+    if (std.mem.indexOf(u8, message, "Too Many Requests") != null) return true;
+    return false;
+}
+
 // --- Mock Transport (scripted sequence) ---
 
 const ScriptedMock = struct {
@@ -823,4 +832,80 @@ test "US-005 live: getMinimumBalanceForRentExemption returns expected lamports f
             },
         }
     }
+}
+
+test "US-006 live: requestAirdrop returns a signature and increases balance" {
+    const gpa = std.testing.allocator;
+
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping US-006 live devnet E2E\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    std.debug.print("[US-006 live] endpoint: {s}\n", .{endpoint});
+
+    const AIRDROP_SEED = [_]u8{ 163, 94, 11, 207, 58, 149, 222, 17, 241, 76, 132, 9, 188, 45, 201, 114, 6, 173, 39, 250, 97, 140, 28, 219, 84, 161, 33, 246, 72, 119, 154, 5 };
+    const recipient = try Keypair.fromSeed(AIRDROP_SEED);
+    const recipient_b58 = try recipient.pubkey().toBase58Alloc(gpa);
+    defer gpa.free(recipient_b58);
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const before_result = try client.getBalance(recipient.pubkey());
+    const before_balance = switch (before_result) {
+        .ok => |balance| balance,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-006 live] initial getBalance rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    };
+    std.debug.print("[US-006 live] recipient: {s}, before_balance={d}\n", .{ recipient_b58, before_balance });
+
+    const lamports: u64 = 1_000_000;
+    const airdrop_result = try client.requestAirdrop(recipient.pubkey(), lamports);
+    switch (airdrop_result) {
+        .ok => |airdrop| {
+            const sig_b58 = try airdrop.signature.toBase58Alloc(gpa);
+            defer gpa.free(sig_b58);
+            try std.testing.expect(sig_b58.len > 0);
+            std.debug.print("[US-006 live] requestAirdrop .ok — sig={s}, lamports={d}\n", .{ sig_b58, lamports });
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            if (isRateLimitedRpcError(rpc_err.code, rpc_err.message)) {
+                std.debug.print("[US-006 live] skip: requestAirdrop rate-limited: {s}\n", .{rpc_err.message});
+                return;
+            }
+            std.debug.print("[US-006 live] requestAirdrop rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
+
+    var after_balance = before_balance;
+    var attempts: u32 = 0;
+    while (attempts < MAX_BALANCE_POLLS) : (attempts += 1) {
+        const balance_result = try client.getBalance(recipient.pubkey());
+        switch (balance_result) {
+            .ok => |balance| {
+                after_balance = balance;
+                if (after_balance > before_balance) break;
+            },
+            .rpc_error => |rpc_err| {
+                defer rpc_err.deinit(gpa);
+                std.debug.print("[US-006 live] balance poll {d}: rpc_error: {s}\n", .{ attempts, rpc_err.message });
+            },
+        }
+    }
+
+    try std.testing.expect(after_balance > before_balance);
+    std.debug.print(
+        "[US-006 live] balance increased: before={d}, after={d}, delta={d}\n",
+        .{ before_balance, after_balance, after_balance - before_balance },
+    );
 }

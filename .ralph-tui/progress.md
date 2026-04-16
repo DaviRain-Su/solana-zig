@@ -12,6 +12,7 @@ after each iteration and it's included in prompts for context.
 - Batch-style RPC lookups should preserve Solana’s positional response semantics with `[]?T` result items; single-signature confirmation helpers can still layer on top by reading `items[0]`, while tests assert both payload shape and null-slot mapping.
 - For scalar/object read RPCs that only need a configurable `commitment`, prefer a tiny `*Options` struct plus a convenience wrapper that forwards to `WithOptions`; this keeps the public API uniform with richer RPC methods and makes payload-capture tests straightforward.
 - For scalar RPCs with stable public-cluster economics (for example rent-exemption quotes), combine payload-capture unit tests with a table-driven Devnet E2E that asserts a few canonical input/output pairs; this catches both wire-shape regressions and semantic drift without needing funded accounts.
+- For live Devnet RPCs that mutate state and can be faucet-limited, prefer a typed end-to-end assertion that captures the returned signature, polls the affected account for a before/after state delta, and explicitly treats rate-limit RPC errors as a logged skip path instead of a hard failure.
 
 ---
 
@@ -91,5 +92,18 @@ after each iteration and it's included in prompts for context.
     - Stable scalar RPCs benefit from table-driven live assertions of a few canonical values, which gives stronger coverage than only checking for positive/non-zero outputs.
   - Gotchas encountered
     - The previous mock fixture for the 128-byte rent quote did not match current Devnet economics, so the unit fixture and live expectations needed to be aligned separately instead of assuming arbitrary mock numbers were safe as acceptance evidence.
+---
+
+## 2026-04-16 - US-006
+- Verified `requestAirdrop` was already implemented in `RpcClient`, then added the missing payload-capture regression test and a dedicated Devnet E2E that uses the typed RPC method, records the returned signature, and polls `getBalance` until the recipient balance increases.
+- Files changed:
+  - `src/solana/rpc/client.zig`
+  - `src/e2e/devnet_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Live faucet-backed RPC acceptance is more robust when it proves a concrete account-state delta (`before_balance -> after_balance`) instead of only checking that the RPC returned success.
+  - Gotchas encountered
+    - Zig 0.16 in this repo does not expose `std.crypto.random`, so a dedicated deterministic seed is the safer choice for stable Devnet E2E accounts unless a different randomness source is wired explicitly.
 ---
 

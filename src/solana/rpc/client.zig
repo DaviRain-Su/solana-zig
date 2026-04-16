@@ -2361,6 +2361,38 @@ test "rpc client getMinimumBalanceForRentExemption returns InvalidRpcResponse on
     try std.testing.expectError(error.InvalidRpcResponse, client.getMinimumBalanceForRentExemption(8));
 }
 
+test "rpc client requestAirdrop encodes recipient and lamports" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"5FtkHfQ5N62hCV7Wz4NQTRz5fWPQjY7Y9YByK7GfP4Hbw7jV4kD5mYTHPwo2fhtxQzpgLQ8vndqaM8UZz2xM4V5d\"}",
+        .capture_payload = true,
+    };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
+
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const recipient = pubkey_mod.Pubkey.init([_]u8{31} ** 32);
+    const expected_pubkey = try recipient.toBase58Alloc(gpa);
+    defer gpa.free(expected_pubkey);
+
+    const result = try client.requestAirdrop(recipient, 1_000_000);
+    switch (result) {
+        .ok => |airdrop| {
+            const sig_b58 = try airdrop.signature.toBase58Alloc(gpa);
+            defer gpa.free(sig_b58);
+            try std.testing.expect(sig_b58.len > 0);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"method\":\"requestAirdrop\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, expected_pubkey) != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, ",1000000]") != null);
+}
+
 test "rpc client requestAirdrop typed parse happy path" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{

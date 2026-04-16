@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T14:10:20.278Z",
-  "currentIteration": 5,
+  "updatedAt": "2026-04-16T14:17:37.740Z",
+  "currentIteration": 6,
   "maxIterations": 0,
-  "tasksCompleted": 4,
+  "tasksCompleted": 5,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -64,6 +64,16 @@
       "durationMs": 486357,
       "startedAt": "2026-04-16T13:53:25.953Z",
       "endedAt": "2026-04-16T14:01:32.310Z"
+    },
+    {
+      "iteration": 6,
+      "status": "completed",
+      "taskId": "US-005",
+      "taskTitle": "getMinimumBalanceForRentExemption RPC 方法",
+      "taskCompleted": true,
+      "durationMs": 526865,
+      "startedAt": "2026-04-16T14:01:33.407Z",
+      "endedAt": "2026-04-16T14:10:20.272Z"
     }
   ],
   "skippedTaskIds": [],
