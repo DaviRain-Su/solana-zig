@@ -1,7 +1,9 @@
 # Phase 8 - Evolution
 
+> 全面重写路线图见 [00-roadmap.md](./00-roadmap.md)。本文档聚焦 Phase 1 收尾和近期演进。
+
 ## Compatibility Tracking
-- **当前基线**：`solana-sdk 4.0.1`
+- **当前基线**：`solana-sdk 4.0.1`（拆分后 crate 体系）
 - 未来版本升级时对比 crate 拆分与消息/交易语义变化
 - 使用 oracle 向量回归验证兼容性（`scripts/oracle/generate_vectors.rs` 更新依赖版本后重新生成）
 
