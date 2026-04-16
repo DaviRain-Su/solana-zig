@@ -1359,3 +1359,34 @@
   - `G-P3C-03` ✅
   - `G-P3C-04` ✅
   - `G-P3C-05`（本轮 docs/gate 收口）由 `#77` 执行最终对账
+
+## 2026-04-17 第四十五次增量记录（PRD Batch 3 复核与文档校正）
+
+### 输入
+- 用户要求复核 `docs/prd-phase-3-batch-3-solana-zig-sdk-signersc-abi-stake.md` 是否已经全部实现，并把结论回写到相关文档。
+- 现有文档把 signers / C ABI / stake 统一记为“done”，但代码级验收粒度未区分“主体已落地”和“PRD 验收完全闭环”。
+
+### 输出
+- 回写 `docs/prd-phase-3-batch-3-solana-zig-sdk-signersc-abi-stake.md`：
+  - 状态从 `PLANNING` 更新为 `REVIEWED — PARTIALLY IMPLEMENTED`
+  - 为 US-019 ~ US-028 增加逐项复核结论与剩余缺口
+- 回写 `docs/10-coverage-matrix.md`：
+  - 将 signer / external signer / stake / C ABI 的状态按 PRD 验收粒度重新区分为 `done` / `partial`
+  - 新增 PRD 复核专节，避免“能力已存在”与“验收已闭环”混淆
+- 回写 `docs/17-quickstart-and-api-examples.md`：
+  - 修正 signer 示例命名空间，改为实际可用的 `sol.solana.signers`
+- 回写 `docs/cabi-guide.md`：
+  - 明确 C ABI 当前是“core + transaction 可用，RPC surface 仅完成句柄/错误码骨架”，避免误导为可直接发真实 RPC
+
+### 复核结论
+- 已实现并可直接认定完成：US-019、US-020、US-022、US-024、US-027、US-028。
+- 仅部分闭环：US-021、US-023、US-025、US-026。
+- 关键未闭环项：
+  - `MockExternalSigner` 当前对输入消息签名不正确，且 `pubkey mismatch` 未独立落实；
+  - C ABI 缺 live RPC transport、`solana_hash_equal` 与仓内 C 集成测试工件；
+  - stake builder 缺非法参数 / 缺失 authority 负路径测试，且 `buildCreateStakeAccountInstruction(...)` 的 API/实现契约仍需对齐。
+
+### 验证
+- `zig build test`
+- `zig build bench`
+- `clang -I /Users/davirian/dev/active/solana-zig/include -fsyntax-only <temp>.c`

@@ -51,6 +51,21 @@ pub const interfaces = struct {
     pub const token_2022 = @import("interfaces/token_2022.zig");
     pub const memo = @import("interfaces/memo.zig");
     pub const ata = @import("interfaces/ata.zig");
+    pub const stake = @import("interfaces/stake.zig");
+};
+
+pub const signers = struct {
+    pub const Signer = @import("signers/signer.zig").Signer;
+    pub const SignerError = @import("signers/signer.zig").SignerError;
+    pub const InMemorySigner = @import("signers/in_memory.zig").InMemorySigner;
+    pub const MockExternalSigner = @import("signers/mock_external.zig").MockExternalSigner;
+};
+
+pub const cabi = struct {
+    pub const core = @import("cabi/core.zig");
+    pub const transaction = @import("cabi/transaction.zig");
+    pub const rpc = @import("cabi/rpc.zig");
+    pub const errors = @import("cabi/errors.zig");
 };
 
 pub const compat = struct {

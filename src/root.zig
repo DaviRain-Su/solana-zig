@@ -46,6 +46,10 @@ test "ata interface compiles" {
     _ = interfaces.ata;
 }
 
+test "stake interface compiles" {
+    _ = interfaces.stake;
+}
+
 test "websocket client compiles" {
     _ = rpc.WsClient;
     _ = rpc.WsRpcClient;

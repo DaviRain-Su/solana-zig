@@ -28,6 +28,10 @@ pub const Pubkey = struct {
     pub fn eql(self: Pubkey, other: Pubkey) bool {
         return std.mem.eql(u8, &self.bytes, &other.bytes);
     }
+
+    pub fn default() Pubkey {
+        return init([_]u8{0} ** LENGTH);
+    }
 };
 
 /// Derive a program address from seeds and a program id.

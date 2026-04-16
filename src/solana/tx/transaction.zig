@@ -3,6 +3,7 @@ const shortvec = @import("../core/shortvec.zig");
 const signature_mod = @import("../core/signature.zig");
 const keypair_mod = @import("../core/keypair.zig");
 const message_mod = @import("message.zig");
+const signer_mod = @import("../signers/signer.zig");
 
 pub const VersionedTransaction = struct {
     allocator: std.mem.Allocator,
@@ -27,23 +28,42 @@ pub const VersionedTransaction = struct {
         self.message.deinit();
     }
 
-    pub fn sign(self: *VersionedTransaction, signers: []const keypair_mod.Keypair) !void {
+    pub fn sign(self: *VersionedTransaction, keypairs: []const keypair_mod.Keypair) !void {
+        if (keypairs.len == 0) {
+            try self.signWithSigners(&.{});
+            return;
+        }
+        var signer_wrappers = try self.allocator.alloc(signer_mod.Signer, keypairs.len);
+        defer self.allocator.free(signer_wrappers);
+
+        var in_memory_signers = try self.allocator.alloc(@import("../signers/in_memory.zig").InMemorySigner, keypairs.len);
+        defer self.allocator.free(in_memory_signers);
+
+        for (keypairs, 0..) |kp, i| {
+            in_memory_signers[i] = @import("../signers/in_memory.zig").InMemorySigner.init(kp);
+            signer_wrappers[i] = in_memory_signers[i].asSigner();
+        }
+
+        try self.signWithSigners(signer_wrappers);
+    }
+
+    pub fn signWithSigners(self: *VersionedTransaction, signers: []const signer_mod.Signer) !void {
         try self.message.validateHeader();
 
         const required = @as(usize, self.message.header.num_required_signatures);
-        if (required != self.signatures.len) return error.SignatureCountMismatch;
+        if (required != self.signatures.len) return signer_mod.SignerError.SignatureCountMismatch;
 
         const msg_bytes = try self.message.serialize(self.allocator);
         defer self.allocator.free(msg_bytes);
 
         for (signers) |signer| {
-            const signer_key = signer.pubkey();
+            const signer_key = try signer.getPubkey();
             const signer_index = findSignerIndex(self.message, signer_key) orelse continue;
-            self.signatures[signer_index] = try signer.sign(msg_bytes);
+            self.signatures[signer_index] = try signer.signMessage(self.allocator, msg_bytes);
         }
 
         for (self.signatures) |sig| {
-            if (sig.isZero()) return error.MissingRequiredSignature;
+            if (sig.isZero()) return signer_mod.SignerError.MissingRequiredSignature;
         }
     }
 
@@ -177,7 +197,71 @@ test "transaction sign fails when required signer missing" {
     var tx = try VersionedTransaction.initUnsigned(gpa, msg);
     defer tx.deinit();
 
-    try std.testing.expectError(error.MissingRequiredSignature, tx.sign(&.{}));
+    try std.testing.expectError(signer_mod.SignerError.MissingRequiredSignature, tx.sign(&.{}));
+}
+
+test "transaction signWithSigners matches keypair path" {
+    const gpa = std.testing.allocator;
+    const pubkey_mod = @import("../core/pubkey.zig");
+    const hash_mod = @import("../core/hash.zig");
+    const instruction_mod = @import("instruction.zig");
+    const InMemorySigner = @import("../signers/in_memory.zig").InMemorySigner;
+
+    const payer = try keypair_mod.Keypair.fromSeed([_]u8{61} ** 32);
+    const receiver = pubkey_mod.Pubkey.init([_]u8{62} ** 32);
+    const program = pubkey_mod.Pubkey.init([_]u8{63} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{64} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer.pubkey(), .is_signer = true, .is_writable = true },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program, .accounts = &accounts, .data = &[_]u8{0xAB} },
+    };
+
+    var msg1 = try message_mod.Message.compileLegacy(gpa, payer.pubkey(), &ixs, blockhash);
+    errdefer msg1.deinit();
+    var tx1 = try VersionedTransaction.initUnsigned(gpa, msg1);
+    defer tx1.deinit();
+    try tx1.sign(&[_]keypair_mod.Keypair{payer});
+
+    var msg2 = try message_mod.Message.compileLegacy(gpa, payer.pubkey(), &ixs, blockhash);
+    errdefer msg2.deinit();
+    var tx2 = try VersionedTransaction.initUnsigned(gpa, msg2);
+    defer tx2.deinit();
+
+    var im_signer = InMemorySigner.init(payer);
+    try tx2.signWithSigners(&[_]signer_mod.Signer{im_signer.asSigner()});
+
+    try std.testing.expectEqualSlices(u8, &tx1.signatures[0].bytes, &tx2.signatures[0].bytes);
+}
+
+test "transaction signWithSigners fails when required signer missing" {
+    const gpa = std.testing.allocator;
+    const pubkey_mod = @import("../core/pubkey.zig");
+    const hash_mod = @import("../core/hash.zig");
+    const instruction_mod = @import("instruction.zig");
+
+    const payer = try keypair_mod.Keypair.fromSeed([_]u8{71} ** 32);
+    const receiver = pubkey_mod.Pubkey.init([_]u8{72} ** 32);
+    const program = pubkey_mod.Pubkey.init([_]u8{73} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{74} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer.pubkey(), .is_signer = true, .is_writable = true },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program, .accounts = &accounts, .data = &.{} },
+    };
+
+    var msg = try message_mod.Message.compileLegacy(gpa, payer.pubkey(), &ixs, blockhash);
+    errdefer msg.deinit();
+    var tx = try VersionedTransaction.initUnsigned(gpa, msg);
+    defer tx.deinit();
+
+    try std.testing.expectError(signer_mod.SignerError.MissingRequiredSignature, tx.signWithSigners(&.{}));
 }
 
 test "verify signatures rejects malformed message header before indexing account keys" {

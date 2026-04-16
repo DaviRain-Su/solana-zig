@@ -829,5 +829,48 @@ pub fn main() !void {
     try runWsProgramNotificationParseBenchmark(allocator, ws_program_notification);
     try runWsLogsNotificationParseBenchmark(allocator, ws_logs_notification);
 
+    // --- signer benchmarks ---
+    std.debug.print("\n--- signer benchmarks ---\n", .{});
+    {
+        const InMemorySigner = solana.signers.InMemorySigner;
+        var im_signer = InMemorySigner.init(payer);
+        const signer = im_signer.asSigner();
+        var sign_msg = try buildLegacyMessage(allocator, payer);
+        const msg_bytes = try sign_msg.serialize(allocator);
+        sign_msg.deinit();
+        defer allocator.free(msg_bytes);
+
+        for (0..WARMUP_ITERS) |_| {
+            const sig = signer.signMessage(allocator, msg_bytes) catch continue;
+            std.mem.doNotOptimizeAway(&sig);
+        }
+        const start = nowNs();
+        for (0..BENCH_ITERS) |_| {
+            const sig = signer.signMessage(allocator, msg_bytes) catch continue;
+            std.mem.doNotOptimizeAway(&sig);
+        }
+        printResult("signer_in_memory_sign", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
+    }
+
+    // --- C ABI benchmarks ---
+    std.debug.print("\n--- C ABI benchmarks ---\n", .{});
+    {
+        const pk = Pubkey.init([_]u8{0x0D} ** 32);
+        for (0..WARMUP_ITERS) |_| {
+            var str: [*c]u8 = undefined;
+            var len: usize = 0;
+            _ = @import("solana/cabi/core.zig").solana_pubkey_to_base58(&pk, &str, &len);
+            @import("solana/cabi/core.zig").solana_string_free(str, len);
+        }
+        const start = nowNs();
+        for (0..BENCH_ITERS) |_| {
+            var str: [*c]u8 = undefined;
+            var len: usize = 0;
+            _ = @import("solana/cabi/core.zig").solana_pubkey_to_base58(&pk, &str, &len);
+            @import("solana/cabi/core.zig").solana_string_free(str, len);
+        }
+        printResult("cabi_pubkey_to_base58", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
+    }
+
     std.debug.print("\n=== benchmark complete ===\n", .{});
 }
