@@ -27,6 +27,11 @@ pub const Commitment = enum {
     }
 };
 
+pub const SendTransactionOptions = struct {
+    skip_preflight: bool = false,
+    preflight_commitment: Commitment = .confirmed,
+};
+
 pub const AccountInfo = struct {
     lamports: u64,
     owner: pubkey_mod.Pubkey,
@@ -123,6 +128,20 @@ pub const TransactionInfo = struct {
     }
 };
 
+pub const EpochInfo = struct {
+    absolute_slot: u64,
+    block_height: ?u64 = null,
+    epoch: u64,
+    slot_index: u64,
+    slots_in_epoch: u64,
+    transaction_count: ?u64 = null,
+    raw_json: ?[]const u8 = null,
+
+    pub fn deinit(self: *EpochInfo, allocator: std.mem.Allocator) void {
+        if (self.raw_json) |raw| allocator.free(raw);
+    }
+};
+
 pub const TokenAccountInfo = struct {
     pubkey: pubkey_mod.Pubkey,
     owner: pubkey_mod.Pubkey,
@@ -156,5 +175,32 @@ pub const TokenAmount = struct {
     pub fn deinit(self: *TokenAmount, allocator: std.mem.Allocator) void {
         allocator.free(self.ui_amount_string);
         if (self.raw_json) |raw| allocator.free(raw);
+    }
+};
+
+pub const RequestAirdropResult = struct {
+    signature: signature_mod.Signature,
+};
+
+pub const AddressLookupTableInfo = struct {
+    deactivation_slot: u64,
+    last_extended_slot: u64,
+    last_extended_slot_start_index: u8,
+    authority: ?pubkey_mod.Pubkey = null,
+    addresses: []pubkey_mod.Pubkey,
+    raw_json: ?[]const u8 = null,
+
+    pub fn deinit(self: *AddressLookupTableInfo, allocator: std.mem.Allocator) void {
+        allocator.free(self.addresses);
+        if (self.raw_json) |raw| allocator.free(raw);
+    }
+};
+
+pub const AddressLookupTableResult = struct {
+    context_slot: u64,
+    value: ?AddressLookupTableInfo,
+
+    pub fn deinit(self: *AddressLookupTableResult, allocator: std.mem.Allocator) void {
+        if (self.value) |*v| v.deinit(allocator);
     }
 };

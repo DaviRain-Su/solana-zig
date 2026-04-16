@@ -118,6 +118,163 @@ pub const RpcClient = struct {
         return .{ .ok = slot };
     }
 
+    pub fn getEpochInfo(self: *RpcClient) !types.RpcResult(types.EpochInfo) {
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getEpochInfo\",\"params\":[{{\"commitment\":\"confirmed\"}}]}}",
+            .{self.nextRpcId()},
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            response.parsed.deinit();
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        if (result.* != .object) return error.InvalidRpcResponse;
+
+        const absolute_slot = getU64Field(result, "absoluteSlot") orelse return error.InvalidRpcResponse;
+        const block_height = getU64Field(result, "blockHeight");
+        const epoch = getU64Field(result, "epoch") orelse return error.InvalidRpcResponse;
+        const slot_index = getU64Field(result, "slotIndex") orelse return error.InvalidRpcResponse;
+        const slots_in_epoch = getU64Field(result, "slotsInEpoch") orelse return error.InvalidRpcResponse;
+        const transaction_count = getU64Field(result, "transactionCount");
+        const raw_json = try stringifyValue(self.allocator, result.*);
+
+        response.parsed.deinit();
+        return .{ .ok = .{
+            .absolute_slot = absolute_slot,
+            .block_height = block_height,
+            .epoch = epoch,
+            .slot_index = slot_index,
+            .slots_in_epoch = slots_in_epoch,
+            .transaction_count = transaction_count,
+            .raw_json = raw_json,
+        } };
+    }
+
+    pub fn getMinimumBalanceForRentExemption(self: *RpcClient, data_len: u64) !types.RpcResult(u64) {
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getMinimumBalanceForRentExemption\",\"params\":[{d}]}}",
+            .{ self.nextRpcId(), data_len },
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        defer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const lamports_value = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        const lamports = parseIntegerAsU64(lamports_value) orelse return error.InvalidRpcResponse;
+        return .{ .ok = lamports };
+    }
+
+    pub fn requestAirdrop(self: *RpcClient, pubkey: pubkey_mod.Pubkey, lamports: u64) !types.RpcResult(types.RequestAirdropResult) {
+        const address = try pubkey.toBase58Alloc(self.allocator);
+        defer self.allocator.free(address);
+
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"requestAirdrop\",\"params\":[\"{s}\",{d}]}}",
+            .{ self.nextRpcId(), address, lamports },
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        defer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const sig_text = getStringField(root, "result") orelse return error.InvalidRpcResponse;
+        const signature = try @import("../core/signature.zig").Signature.fromBase58(sig_text);
+        return .{ .ok = .{ .signature = signature } };
+    }
+
+    pub fn getAddressLookupTable(self: *RpcClient, table_address: pubkey_mod.Pubkey) !types.RpcResult(types.AddressLookupTableResult) {
+        const table_b58 = try table_address.toBase58Alloc(self.allocator);
+        defer self.allocator.free(table_b58);
+
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getAddressLookupTable\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+            .{ self.nextRpcId(), table_b58 },
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            response.parsed.deinit();
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        const context = getObjectField(result, "context") orelse return error.InvalidRpcResponse;
+        const context_slot = getU64Field(context, "slot") orelse return error.InvalidRpcResponse;
+        const value = getObjectField(result, "value") orelse return error.InvalidRpcResponse;
+
+        if (value.* == .null) {
+            response.parsed.deinit();
+            return .{ .ok = .{ .context_slot = context_slot, .value = null } };
+        }
+        if (value.* != .object) return error.InvalidRpcResponse;
+
+        const deactivation_slot = getU64Field(value, "deactivationSlot") orelse return error.InvalidRpcResponse;
+        const last_extended_slot = getU64Field(value, "lastExtendedSlot") orelse return error.InvalidRpcResponse;
+        const start_index_u64 = getU64Field(value, "lastExtendedSlotStartIndex") orelse return error.InvalidRpcResponse;
+        if (start_index_u64 > std.math.maxInt(u8)) return error.InvalidRpcResponse;
+
+        var authority: ?pubkey_mod.Pubkey = null;
+        if (getObjectField(value, "authority")) |authority_field| {
+            if (authority_field.* == .string) {
+                authority = try pubkey_mod.Pubkey.fromBase58(authority_field.string);
+            } else if (authority_field.* != .null) {
+                return error.InvalidRpcResponse;
+            }
+        }
+
+        const addresses_field = getObjectField(value, "addresses") orelse return error.InvalidRpcResponse;
+        if (addresses_field.* != .array) return error.InvalidRpcResponse;
+        const addresses = try self.allocator.alloc(pubkey_mod.Pubkey, addresses_field.array.items.len);
+        errdefer self.allocator.free(addresses);
+
+        for (addresses_field.array.items, 0..) |addr, i| {
+            if (addr != .string) return error.InvalidRpcResponse;
+            addresses[i] = try pubkey_mod.Pubkey.fromBase58(addr.string);
+        }
+
+        const raw_json = try stringifyValue(self.allocator, value.*);
+        errdefer self.allocator.free(raw_json);
+
+        response.parsed.deinit();
+        return .{ .ok = .{
+            .context_slot = context_slot,
+            .value = .{
+                .deactivation_slot = deactivation_slot,
+                .last_extended_slot = last_extended_slot,
+                .last_extended_slot_start_index = @intCast(start_index_u64),
+                .authority = authority,
+                .addresses = addresses,
+                .raw_json = raw_json,
+            },
+        } };
+    }
+
     pub fn getSignaturesForAddress(self: *RpcClient, pubkey: pubkey_mod.Pubkey, limit: ?u32) !types.RpcResult(types.SignaturesForAddressResult) {
         const address = try pubkey.toBase58Alloc(self.allocator);
         defer self.allocator.free(address);
@@ -538,6 +695,14 @@ pub const RpcClient = struct {
     }
 
     pub fn sendTransaction(self: *RpcClient, tx: transaction_mod.VersionedTransaction) !types.RpcResult(types.SendTransactionResult) {
+        return self.sendTransactionWithOptions(tx, .{});
+    }
+
+    pub fn sendTransactionWithOptions(
+        self: *RpcClient,
+        tx: transaction_mod.VersionedTransaction,
+        options: types.SendTransactionOptions,
+    ) !types.RpcResult(types.SendTransactionResult) {
         const tx_bytes = try tx.serialize(self.allocator);
         defer self.allocator.free(tx_bytes);
 
@@ -546,8 +711,13 @@ pub const RpcClient = struct {
 
         const payload = try std.fmt.allocPrint(
             self.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"sendTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"skipPreflight\":false,\"preflightCommitment\":\"confirmed\"}}]}}",
-            .{ self.nextRpcId(), tx_base64 },
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"sendTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"skipPreflight\":{s},\"preflightCommitment\":\"{s}\"}}]}}",
+            .{
+                self.nextRpcId(),
+                tx_base64,
+                if (options.skip_preflight) "true" else "false",
+                options.preflight_commitment.jsonString(),
+            },
         );
         defer self.allocator.free(payload);
 
@@ -1647,4 +1817,305 @@ test "rpc client getTokenSupply returns InvalidRpcResponse on malformed success"
 
     const mint = pubkey_mod.Pubkey.init([_]u8{50} ** 32);
     try std.testing.expectError(error.InvalidRpcResponse, client.getTokenSupply(mint));
+}
+
+test "rpc client getEpochInfo typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"absoluteSlot\":1234,\"blockHeight\":1200,\"epoch\":10,\"slotIndex\":34,\"slotsInEpoch\":432000,\"transactionCount\":5678}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const result = try client.getEpochInfo();
+    switch (result) {
+        .ok => |epoch_info| {
+            var owned = epoch_info;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 1234), owned.absolute_slot);
+            try std.testing.expectEqual(@as(u64, 1200), owned.block_height.?);
+            try std.testing.expectEqual(@as(u64, 10), owned.epoch);
+            try std.testing.expectEqual(@as(u64, 34), owned.slot_index);
+            try std.testing.expectEqual(@as(u64, 432000), owned.slots_in_epoch);
+            try std.testing.expectEqual(@as(u64, 5678), owned.transaction_count.?);
+            try std.testing.expect(owned.raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getEpochInfo preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32010,\"message\":\"epoch unavailable\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const result = try client.getEpochInfo();
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32010), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getEpochInfo returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"epoch\":1}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    try std.testing.expectError(error.InvalidRpcResponse, client.getEpochInfo());
+}
+
+test "rpc client getMinimumBalanceForRentExemption typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":2039280}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const result = try client.getMinimumBalanceForRentExemption(128);
+    switch (result) {
+        .ok => |lamports| try std.testing.expectEqual(@as(u64, 2039280), lamports),
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getMinimumBalanceForRentExemption preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"invalid data length\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const result = try client.getMinimumBalanceForRentExemption(0);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getMinimumBalanceForRentExemption returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"lamports\":1}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    try std.testing.expectError(error.InvalidRpcResponse, client.getMinimumBalanceForRentExemption(8));
+}
+
+test "rpc client requestAirdrop typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"5FtkHfQ5N62hCV7Wz4NQTRz5fWPQjY7Y9YByK7GfP4Hbw7jV4kD5mYTHPwo2fhtxQzpgLQ8vndqaM8UZz2xM4V5d\"}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const recipient = pubkey_mod.Pubkey.init([_]u8{31} ** 32);
+    const result = try client.requestAirdrop(recipient, 1_000_000);
+    switch (result) {
+        .ok => |airdrop| {
+            const b58 = try airdrop.signature.toBase58Alloc(gpa);
+            defer gpa.free(b58);
+            try std.testing.expectEqualStrings("5FtkHfQ5N62hCV7Wz4NQTRz5fWPQjY7Y9YByK7GfP4Hbw7jV4kD5mYTHPwo2fhtxQzpgLQ8vndqaM8UZz2xM4V5d", b58);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client requestAirdrop preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32005,\"message\":\"airdrop disabled\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const recipient = pubkey_mod.Pubkey.init([_]u8{32} ** 32);
+    const result = try client.requestAirdrop(recipient, 1);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32005), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client requestAirdrop returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":123}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const recipient = pubkey_mod.Pubkey.init([_]u8{33} ** 32);
+    try std.testing.expectError(error.InvalidRpcResponse, client.requestAirdrop(recipient, 1));
+}
+
+test "rpc client getAddressLookupTable typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":88},\"value\":{\"deactivationSlot\":18446744073709551615,\"lastExtendedSlot\":80,\"lastExtendedSlotStartIndex\":2,\"authority\":\"11111111111111111111111111111111\",\"addresses\":[\"11111111111111111111111111111111\",\"11111111111111111111111111111111\"]}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const table_address = pubkey_mod.Pubkey.init([_]u8{34} ** 32);
+    const result = try client.getAddressLookupTable(table_address);
+    switch (result) {
+        .ok => |table_result| {
+            var owned = table_result;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 88), owned.context_slot);
+            try std.testing.expect(owned.value != null);
+            const value = owned.value.?;
+            try std.testing.expectEqual(@as(u64, std.math.maxInt(u64)), value.deactivation_slot);
+            try std.testing.expectEqual(@as(u64, 80), value.last_extended_slot);
+            try std.testing.expectEqual(@as(u8, 2), value.last_extended_slot_start_index);
+            try std.testing.expect(value.authority != null);
+            try std.testing.expectEqual(@as(usize, 2), value.addresses.len);
+            try std.testing.expect(value.raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getAddressLookupTable preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32007,\"message\":\"lookup table not found\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const table_address = pubkey_mod.Pubkey.init([_]u8{35} ** 32);
+    const result = try client.getAddressLookupTable(table_address);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32007), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getAddressLookupTable returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":{\"lastExtendedSlot\":10}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const table_address = pubkey_mod.Pubkey.init([_]u8{36} ** 32);
+    try std.testing.expectError(error.InvalidRpcResponse, client.getAddressLookupTable(table_address));
+}
+
+test "rpc client batch b read methods local-live evidence (gated)" {
+    const gpa = std.testing.allocator;
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping Batch B local-live evidence\\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const epoch_info = try client.getEpochInfo();
+    switch (epoch_info) {
+        .ok => |info| {
+            var owned = info;
+            defer owned.deinit(gpa);
+            try std.testing.expect(owned.epoch > 0);
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            return error.UnexpectedRpcError;
+        },
+    }
+
+    const min_balance = try client.getMinimumBalanceForRentExemption(0);
+    switch (min_balance) {
+        .ok => {},
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            return error.UnexpectedRpcError;
+        },
+    }
+
+    const table_address = pubkey_mod.Pubkey.init([_]u8{37} ** 32);
+    const table_result = try client.getAddressLookupTable(table_address);
+    switch (table_result) {
+        .ok => |result| {
+            var owned = result;
+            defer owned.deinit(gpa);
+            _ = owned.context_slot;
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            return error.UnexpectedRpcError;
+        },
+    }
+}
+
+test "rpc client requestAirdrop live evidence (gated)" {
+    const gpa = std.testing.allocator;
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping requestAirdrop live evidence\\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const recipient = try @import("../core/keypair.zig").Keypair.fromSeed([_]u8{57} ** 32);
+    const result = try client.requestAirdrop(recipient.pubkey(), 1_000_000);
+    switch (result) {
+        .ok => |airdrop| {
+            const sig_b58 = try airdrop.signature.toBase58Alloc(gpa);
+            defer gpa.free(sig_b58);
+            try std.testing.expect(sig_b58.len > 0);
+            std.debug.print("[batch-b live] requestAirdrop signature: {s}\\n", .{sig_b58});
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            return error.UnexpectedRpcError;
+        },
+    }
 }
