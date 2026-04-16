@@ -218,7 +218,10 @@ fn extractRpcError(allocator: std.mem.Allocator, root: std.json.Value) !?types.R
 
 fn getObjectField(root: *const std.json.Value, field: []const u8) ?*const std.json.Value {
     if (root.* != .object) return null;
-    return root.object.get(field);
+    // Zig 0.16: ObjectMap.get() returns ?V (by value); use getPtr() for ?*V.
+    // We need to access via the mutable alias since getPtr requires non-const.
+    const obj_ptr: *std.json.ObjectMap = @constCast(&root.object);
+    return obj_ptr.getPtr(field);
 }
 
 fn getStringField(root: *const std.json.Value, field: []const u8) ?[]const u8 {

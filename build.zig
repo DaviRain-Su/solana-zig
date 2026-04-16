@@ -142,6 +142,55 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
 
+    // Surfpool E2E tests for Phase 1 closeout (docs/18)
+    const e2e_mod = b.createModule(.{
+        .root_source_file = b.path("src/e2e/surfpool.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "solana_zig", .module = mod },
+        },
+    });
+    const e2e_tests = b.addTest(.{
+        .root_module = e2e_mod,
+    });
+    const run_e2e_tests = b.addRunArtifact(e2e_tests);
+    const e2e_step = b.step("e2e", "Run surfpool local E2E tests (requires SURFPOOL_RPC_URL)");
+    e2e_step.dependOn(&run_e2e_tests.step);
+
+    // Devnet E2E tests for Phase 1 closeout (docs/14)
+    const devnet_e2e_mod = b.createModule(.{
+        .root_source_file = b.path("src/e2e/devnet_e2e.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "solana_zig", .module = mod },
+        },
+    });
+    const devnet_e2e_tests = b.addTest(.{
+        .root_module = devnet_e2e_mod,
+    });
+    const run_devnet_e2e = b.addRunArtifact(devnet_e2e_tests);
+    const devnet_e2e_step = b.step("devnet-e2e", "Run Devnet E2E tests (mock always; live when SOLANA_RPC_URL set)");
+    devnet_e2e_step.dependOn(&run_devnet_e2e.step);
+
+    // Benchmark executable for Phase 1 baseline (docs/13)
+    const bench_exe = b.addExecutable(.{
+        .name = "benchmark",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/benchmark.zig"),
+            .target = target,
+            .optimize = .ReleaseFast,
+            .link_libc = true,
+        }),
+    });
+    b.installArtifact(bench_exe);
+
+    const bench_run = b.addRunArtifact(bench_exe);
+    bench_run.step.dependOn(b.getInstallStep());
+    const bench_step = b.step("bench", "Run Phase 1 benchmark baseline");
+    bench_step.dependOn(&bench_run.step);
+
     // Just like flags, top level steps are also listed in the `--help` menu.
     //
     // The Zig build system is entirely implemented in userland, which means
