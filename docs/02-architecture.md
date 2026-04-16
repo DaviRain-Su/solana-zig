@@ -124,6 +124,21 @@
   - `rpc` 反向依赖 `interfaces/signers`
 - `compat` 可读取各层数据但不反向成为核心依赖
 
+## 5.1 Zig 原生优先原则（强制）
+
+**第一优先级必须使用 Zig 原生方式实现，禁止直接使用 C API。**
+
+具体约束：
+- **禁止** `@cImport` / `@cInclude` 引入 C 头文件。
+- **禁止** 直接调用 `std.c.*` 函数（如 `std.c.read`、`std.c.write`、`std.c.socket` 等）。
+- **优先** 使用 `std.Io`、`std.net`、`std.json`、`std.crypto` 等 Zig 标准库高层抽象。
+- **次选** 使用 `std.posix.*` 或 `std.posix.system.*` 作为 POSIX 系统调用的 Zig 封装入口（这比直接 `std.c.*` 更符合 Zig 原生风格）。
+- **例外**：与外部 C 库（如 libsodium、secp256k1）的显式 FFI 边界可保留 C ABI，但需在 ADR 中记录并尽量隔离到独立模块。
+
+审查规则：
+- 任何 PR 若引入新的 `std.c.*` 调用或 `@cImport`，必须在 review 中被 challenge 并要求给出无法使用 Zig 原生方式的证据。
+- 现有代码中的 `std.c.*` 遗留应在后续重构中逐步迁移到 `std.posix.system.*` 或纯 Zig 实现。
+
 ## 6. 测试架构
 
 - L1：core 单元测试

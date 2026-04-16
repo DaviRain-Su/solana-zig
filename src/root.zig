@@ -28,3 +28,8 @@ test "compute budget interface compiles" {
 test "system interface compiles" {
     _ = interfaces.system;
 }
+
+test "websocket client compiles" {
+    _ = rpc.WsClient;
+    _ = rpc.WsRpcClient;
+}

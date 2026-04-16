@@ -42,7 +42,7 @@
 
 | # | 动作 | API |
 |---|---|---|
-| S1 | 初始化 RPC client | `var client = try RpcClient.init(allocator, .default, endpoint); defer client.deinit();` |
+| S1 | 初始化 RPC client | `var client = try RpcClient.init(allocator, io, endpoint); defer client.deinit();` |
 | S2 | 获取最新 blockhash | `const bh = try client.getLatestBlockhash();` |
 | S3 | 构造 legacy message | `var msg = try Message.compileLegacy(allocator, payer.pubkey(), &ixs, bh.ok.blockhash);` |
 | S4 | 构造 unsigned tx | `var tx = try VersionedTransaction.initUnsigned(allocator, msg); defer tx.deinit();` |
@@ -78,7 +78,7 @@
 
 | # | 动作 | API |
 |---|---|---|
-| S1 | 初始化 RPC client | `var client = try RpcClient.init(allocator, .default, endpoint); defer client.deinit();` |
+| S1 | 初始化 RPC client | `var client = try RpcClient.init(allocator, io, endpoint); defer client.deinit();` |
 | S2 | 获取最新 blockhash | `const bh = try client.getLatestBlockhash();` |
 | S3 | 构造 legacy message | `var msg = try Message.compileLegacy(allocator, payer.pubkey(), &ixs, bh.ok.blockhash);` |
 | S4 | 构造 unsigned tx | `var tx = try VersionedTransaction.initUnsigned(allocator, msg); defer tx.deinit();` |

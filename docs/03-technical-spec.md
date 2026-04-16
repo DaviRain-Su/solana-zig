@@ -7,8 +7,11 @@
 本规格覆盖当前 `Phase 1` 的 Zig 实现边界：
 - core: `base58/shortvec/Pubkey/Signature/Keypair/Hash`
 - tx: `Instruction/Message(legacy+v0)/VersionedTransaction`
-- rpc: `HttpTransport/RpcClient` 及 5 个高频方法
+- rpc: `HttpTransport/RpcClient` 及 9 个公开方法（5 个 Phase 1 高频方法 + 4 个 Phase 2 扩展方法）
 - compat: `oracle_vector` / `bincode_compat`
+
+实现约束：
+- 优先使用 Zig 原生方式；禁止直接使用 C API（详见 `docs/02-architecture.md` §5.1）。
 
 不覆盖：
 - on-chain `no_std/SBF` 运行时语义
@@ -135,6 +138,10 @@ pub fn RpcClient.getAccountInfo(self: *RpcClient, pubkey: Pubkey) !RpcResult(Acc
 pub fn RpcClient.getBalance(self: *RpcClient, pubkey: Pubkey) !RpcResult(u64)
 pub fn RpcClient.simulateTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(SimulateTransactionResult)
 pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(SendTransactionResult)
+pub fn RpcClient.getSlot(self: *RpcClient) !RpcResult(u64)
+pub fn RpcClient.getSignaturesForAddress(self: *RpcClient, pubkey: Pubkey, limit: ?u32) !RpcResult(SignaturesForAddressResult)
+pub fn RpcClient.getTransaction(self: *RpcClient, signature: Signature) !RpcResult(TransactionInfo)
+pub fn RpcClient.getSignatureStatuses(self: *RpcClient, signatures: []const Signature) !RpcResult(?SignatureStatus)
 ```
 
 前置条件：

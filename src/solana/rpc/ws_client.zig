@@ -1,15 +1,13 @@
-const builtin = @import("builtin");
 const std = @import("std");
 const types = @import("types.zig");
+
+const c = std.c;
 
 pub const WsClient = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
     stream: std.Io.net.Stream,
-    read_buffer: [2048]u8,
-    write_buffer: [2048]u8,
-    reader: std.Io.net.Stream.Reader,
-    writer: std.Io.net.Stream.Writer,
+    fd: std.posix.fd_t,
     next_id: u64 = 1,
 
     pub const ConnectError = std.mem.Allocator.Error || std.Io.net.IpAddress.ConnectError || std.Io.net.Ip6Address.ResolveError || error{
@@ -53,13 +51,8 @@ pub const WsClient = struct {
             .allocator = allocator,
             .io = io,
             .stream = stream,
-            .read_buffer = undefined,
-            .write_buffer = undefined,
-            .reader = undefined,
-            .writer = undefined,
+            .fd = stream.socket.handle,
         };
-        client.reader = client.stream.reader(client.io, &client.read_buffer);
-        client.writer = client.stream.writer(client.io, &client.write_buffer);
 
         try client.performHandshake(parsed.host, parsed.port, parsed.path);
         return client;
@@ -163,23 +156,29 @@ pub const WsClient = struct {
         };
     }
 
-    fn readAll(self: *WsClient, buf: []u8) !void {
-        self.reader.interface.readSliceAll(buf) catch |err| switch (err) {
-            error.EndOfStream => return error.ConnectionClosed,
-            else => return error.WsProtocolError,
-        };
+    fn posixReadAll(fd: std.posix.fd_t, buf: []u8) !void {
+        var off: usize = 0;
+        while (off < buf.len) {
+            const n = c.read(fd, buf[off..].ptr, buf.len - off);
+            if (n == 0) return error.ConnectionClosed;
+            if (n < 0) return error.WsProtocolError;
+            off += @intCast(n);
+        }
     }
 
-    fn readSome(self: *WsClient, buf: []u8) !usize {
-        return self.reader.interface.readSliceShort(buf) catch |err| switch (err) {
-            error.EndOfStream => return 0,
-            else => return error.WsProtocolError,
-        };
+    fn posixRead(fd: std.posix.fd_t, buf: []u8) !usize {
+        const n = c.read(fd, buf.ptr, buf.len);
+        if (n <= 0) return 0;
+        return @intCast(n);
     }
 
-    fn writeAll(self: *WsClient, data: []const u8) !void {
-        self.writer.interface.writeAll(data) catch return error.WsProtocolError;
-        self.writer.interface.flush() catch return error.WsProtocolError;
+    fn posixWriteAll(fd: std.posix.fd_t, data: []const u8) !void {
+        var off: usize = 0;
+        while (off < data.len) {
+            const n = c.write(fd, data[off..].ptr, data.len - off);
+            if (n <= 0) return error.WsProtocolError;
+            off += @intCast(n);
+        }
     }
 
     fn performHandshake(self: *WsClient, host: []const u8, port: u16, path: []const u8) ConnectError!void {
@@ -199,12 +198,12 @@ pub const WsClient = struct {
         );
         defer self.allocator.free(request);
 
-        self.writeAll(request) catch return error.HandshakeFailed;
+        posixWriteAll(self.fd, request) catch return error.HandshakeFailed;
 
         var response_buf: [1024]u8 = undefined;
         var response_len: usize = 0;
         while (response_len < response_buf.len) {
-            const n = self.readSome(response_buf[response_len..]) catch return error.HandshakeFailed;
+            const n = posixRead(self.fd, response_buf[response_len..]) catch return error.HandshakeFailed;
             if (n == 0) return error.HandshakeFailed;
             response_len += n;
             if (std.mem.indexOf(u8, response_buf[0..response_len], "\r\n\r\n")) |_| break;
@@ -277,14 +276,14 @@ pub const WsClient = struct {
         @memcpy(header[header_len..][0..4], &mask_key);
         header_len += 4;
 
-        self.writeAll(header[0..header_len]) catch return error.WsProtocolError;
+        posixWriteAll(self.fd, header[0..header_len]) catch return error.WsProtocolError;
 
         const masked_buf = self.allocator.alloc(u8, payload.len) catch return error.WsProtocolError;
         defer self.allocator.free(masked_buf);
         for (masked_buf, 0..) |*b, i| {
             b.* = payload[i] ^ mask_key[i % 4];
         }
-        self.writeAll(masked_buf) catch return error.WsProtocolError;
+        posixWriteAll(self.fd, masked_buf) catch return error.WsProtocolError;
     }
 
     const Frame = struct {
@@ -293,14 +292,12 @@ pub const WsClient = struct {
         payload: []const u8,
     };
 
-    fn mapReadErr(err: anyerror) ReadError {
-        if (err == error.ConnectionClosed) return error.ConnectionClosed;
-        return error.WsProtocolError;
-    }
-
     fn readFrame(self: *WsClient) ReadError!Frame {
         var buf: [2]u8 = undefined;
-        self.readAll(&buf) catch |e| return mapReadErr(e);
+        posixReadAll(self.fd, &buf) catch |err| switch (err) {
+            error.ConnectionClosed => return error.ConnectionClosed,
+            else => return error.WsProtocolError,
+        };
 
         const fin = (buf[0] & 0x80) != 0;
         const opcode: Message.Opcode = @enumFromInt(buf[0] & 0x0F);
@@ -309,11 +306,11 @@ pub const WsClient = struct {
 
         if (payload_len == 126) {
             var len_buf: [2]u8 = undefined;
-            self.readAll(&len_buf) catch |e| return mapReadErr(e);
+            posixReadAll(self.fd, &len_buf) catch return error.WsProtocolError;
             payload_len = (@as(u64, len_buf[0]) << 8) | @as(u64, len_buf[1]);
         } else if (payload_len == 127) {
             var len_buf: [8]u8 = undefined;
-            self.readAll(&len_buf) catch |e| return mapReadErr(e);
+            posixReadAll(self.fd, &len_buf) catch return error.WsProtocolError;
             payload_len = 0;
             for (len_buf) |b| {
                 payload_len = (payload_len << 8) | @as(u64, b);
@@ -322,13 +319,13 @@ pub const WsClient = struct {
 
         var mask_key: [4]u8 = undefined;
         if (masked) {
-            self.readAll(&mask_key) catch |e| return mapReadErr(e);
+            posixReadAll(self.fd, &mask_key) catch return error.WsProtocolError;
         }
 
         const payload = self.allocator.alloc(u8, @intCast(payload_len)) catch return error.WsProtocolError;
         errdefer self.allocator.free(payload);
 
-        self.readAll(payload) catch |e| return mapReadErr(e);
+        posixReadAll(self.fd, payload) catch return error.WsProtocolError;
 
         if (masked) {
             for (payload, 0..) |*b, i| {
@@ -352,6 +349,9 @@ pub const WsRpcClient = struct {
     ws: WsClient,
     url: []const u8,
     next_id: u64 = 1,
+    subscriptions: std.ArrayList(Subscription) = .empty,
+    last_notification_hash: ?u64 = null,
+    last_reconnect_attempts: u8 = 0,
 
     pub const SubscribeError = WsClient.SendError || WsClient.ReadError || error{InvalidSubscriptionResponse};
     pub const Notification = struct {
@@ -364,6 +364,18 @@ pub const WsRpcClient = struct {
             self.allocator.free(self.method);
             self.result.deinit();
         }
+    };
+
+    const SubscriptionKind = enum {
+        account,
+        logs,
+        signature,
+    };
+
+    const Subscription = struct {
+        kind: SubscriptionKind,
+        value: []u8,
+        id: u64,
     };
 
     pub fn connect(allocator: std.mem.Allocator, io: std.Io, url: []const u8) WsClient.ConnectError!WsRpcClient {
@@ -487,39 +499,33 @@ pub const WsRpcClient = struct {
 fn rawReadAll(fd: std.posix.fd_t, buf: []u8) !void {
     var off: usize = 0;
     while (off < buf.len) {
-        const n = std.posix.read(fd, buf[off..]) catch return error.WsProtocolError;
-        if (n == 0) return error.WsProtocolError;
-        off += n;
-    }
-}
-
-fn rawRead(fd: std.posix.fd_t, buf: []u8) !usize {
-    const n = std.posix.read(fd, buf) catch return error.WsProtocolError;
-    return n;
-}
-
-fn rawWriteAll(fd: std.posix.fd_t, data: []const u8) !void {
-    var off: usize = 0;
-    while (off < data.len) {
-        const n = std.posix.system.write(fd, data[off..].ptr, data.len - off);
+        const n = std.c.read(fd, buf[off..].ptr, buf.len - off);
         if (n <= 0) return error.WsProtocolError;
         off += @intCast(n);
     }
 }
 
-const MockWsServer = if (builtin.os.tag == .windows) struct {
-    port: u16 = 0,
+fn rawRead(fd: std.posix.fd_t, buf: []u8) !usize {
+    const n = std.c.read(fd, buf.ptr, buf.len);
+    if (n <= 0) return error.WsProtocolError;
+    return @intCast(n);
+}
 
-    fn start(_: std.mem.Allocator) !MockWsServer {
-        return error.SkipZigTest;
+fn rawWriteAll(fd: std.posix.fd_t, data: []const u8) !void {
+    var off: usize = 0;
+    while (off < data.len) {
+        const n = std.c.write(fd, data[off..].ptr, data.len - off);
+        if (n <= 0) return error.WsProtocolError;
+        off += @intCast(n);
     }
+}
 
-    fn stop(_: *MockWsServer) void {}
-} else struct {
+const MockWsServer = struct {
     const ServerContext = struct {
-        stopped: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
-        conn_fd: std.atomic.Value(c_int) = std.atomic.Value(c_int).init(-1),
+        mutex: std.atomic.Mutex = .unlocked,
         listen_fd: std.posix.fd_t,
+        conn_fd: std.posix.fd_t = -1,
+        stopped: bool = false,
     };
 
     ctx: *ServerContext,
@@ -528,23 +534,23 @@ const MockWsServer = if (builtin.os.tag == .windows) struct {
     allocator: std.mem.Allocator,
 
     fn start(allocator: std.mem.Allocator) !MockWsServer {
-        const listen_fd = std.posix.system.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0);
+        const listen_fd = c.socket(c.AF.INET, c.SOCK.STREAM, 0);
         if (listen_fd < 0) return error.WsProtocolError;
 
         var opt: c_int = 1;
-        _ = std.posix.system.setsockopt(listen_fd, std.posix.SOL.SOCKET, std.posix.SO.REUSEADDR, @ptrCast(&opt), @sizeOf(c_int));
+        _ = c.setsockopt(listen_fd, c.SOL.SOCKET, c.SO.REUSEADDR, std.mem.asBytes(&opt), @sizeOf(c_int));
 
-        var addr: std.posix.sockaddr.in = std.mem.zeroes(std.posix.sockaddr.in);
-        addr.family = std.posix.AF.INET;
+        var addr: c.sockaddr.in = std.mem.zeroes(c.sockaddr.in);
+        addr.family = c.AF.INET;
         addr.addr = std.mem.nativeToBig(u32, 0x7f000001);
         addr.port = std.mem.nativeToBig(u16, 0);
 
-        if (std.posix.system.bind(listen_fd, @ptrCast(&addr), @sizeOf(std.posix.sockaddr.in)) < 0) return error.WsProtocolError;
-        if (std.posix.system.listen(listen_fd, 2) < 0) return error.WsProtocolError;
+        if (c.bind(listen_fd, @ptrCast(&addr), @sizeOf(c.sockaddr.in)) < 0) return error.WsProtocolError;
+        if (c.listen(listen_fd, 2) < 0) return error.WsProtocolError;
 
-        var bound_addr: std.posix.sockaddr.in = std.mem.zeroes(std.posix.sockaddr.in);
-        var addr_len: std.posix.socklen_t = @sizeOf(std.posix.sockaddr.in);
-        if (std.posix.system.getsockname(listen_fd, @ptrCast(&bound_addr), &addr_len) < 0) return error.WsProtocolError;
+        var bound_addr: c.sockaddr.in = std.mem.zeroes(c.sockaddr.in);
+        var addr_len: c.socklen_t = @sizeOf(c.sockaddr.in);
+        if (c.getsockname(listen_fd, @ptrCast(&bound_addr), &addr_len) < 0) return error.WsProtocolError;
         const port = std.mem.bigToNative(u16, bound_addr.port);
 
         const ctx = try allocator.create(ServerContext);
@@ -561,46 +567,59 @@ const MockWsServer = if (builtin.os.tag == .windows) struct {
     }
 
     fn stop(self: *MockWsServer) void {
-        self.ctx.stopped.store(true, .release);
-
-        // Shutdown active connection if any
-        const cfd = self.ctx.conn_fd.swap(-1, .acq_rel);
-        if (cfd >= 0) {
-            _ = std.posix.system.shutdown(cfd, 2);
-            _ = std.posix.system.close(cfd);
+        {
+            lockAtomicMutex(&self.ctx.mutex);
+            defer self.ctx.mutex.unlock();
+            self.ctx.stopped = true;
+            if (self.ctx.conn_fd >= 0) {
+                _ = std.c.shutdown(self.ctx.conn_fd, 2);
+                _ = std.c.close(self.ctx.conn_fd);
+                self.ctx.conn_fd = -1;
+            }
         }
 
-        // Connect to unblock accept()
-        const dummy_fd = std.posix.system.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0);
+        const dummy_fd = c.socket(c.AF.INET, c.SOCK.STREAM, 0);
         if (dummy_fd >= 0) {
-            var addr: std.posix.sockaddr.in = std.mem.zeroes(std.posix.sockaddr.in);
-            addr.family = std.posix.AF.INET;
+            var addr: c.sockaddr.in = std.mem.zeroes(c.sockaddr.in);
+            addr.family = c.AF.INET;
             addr.addr = std.mem.nativeToBig(u32, 0x7f000001);
             addr.port = std.mem.nativeToBig(u16, self.port);
-            _ = std.posix.system.connect(dummy_fd, @ptrCast(&addr), @sizeOf(std.posix.sockaddr.in));
-            _ = std.posix.system.close(dummy_fd);
+            _ = c.connect(dummy_fd, @ptrCast(&addr), @sizeOf(c.sockaddr.in));
+            _ = std.c.close(dummy_fd);
         }
 
         self.thread.join();
-        _ = std.posix.system.shutdown(self.ctx.listen_fd, 2);
-        _ = std.posix.system.close(self.ctx.listen_fd);
+        _ = std.c.shutdown(self.ctx.listen_fd, 2);
+        _ = std.c.close(self.ctx.listen_fd);
         self.allocator.destroy(self.ctx);
     }
 
     fn run(allocator: std.mem.Allocator, ctx: *ServerContext) void {
         for (0..2) |_| {
-            const conn_fd = std.posix.system.accept(ctx.listen_fd, null, null);
+            const conn_fd = c.accept(ctx.listen_fd, null, null);
             if (conn_fd < 0) return;
 
-            if (ctx.stopped.load(.acquire)) {
-                _ = std.posix.system.close(conn_fd);
-                return;
+            {
+                lockAtomicMutex(&ctx.mutex);
+                defer ctx.mutex.unlock();
+                if (ctx.stopped) {
+                    _ = std.c.close(conn_fd);
+                    return;
+                }
+                ctx.conn_fd = conn_fd;
             }
-            ctx.conn_fd.store(conn_fd, .release);
 
             handleConnection(allocator, conn_fd) catch {};
 
-            _ = ctx.conn_fd.swap(-1, .acq_rel);
+            {
+                lockAtomicMutex(&ctx.mutex);
+                defer ctx.mutex.unlock();
+                if (ctx.conn_fd >= 0) {
+                    _ = std.c.shutdown(ctx.conn_fd, 2);
+                    _ = std.c.close(ctx.conn_fd);
+                    ctx.conn_fd = -1;
+                }
+            }
         }
     }
 
@@ -685,7 +704,6 @@ const MockWsServer = if (builtin.os.tag == .windows) struct {
                 sendFrameRaw(fd, .text, notif) catch break;
 
                 if (force_disconnect_after_notify) {
-                    sendFrameRaw(fd, .close, &[_]u8{}) catch {};
                     break;
                 }
             }
@@ -927,4 +945,9 @@ test "computeWebSocketAccept" {
     const accept = try WsClient.computeWebSocketAccept(allocator, "dGhlIHNhbXBsZSBub25jZQ==");
     defer allocator.free(accept);
     try std.testing.expectEqualStrings("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", accept);
+}
+fn lockAtomicMutex(m: *std.atomic.Mutex) void {
+    while (!m.tryLock()) {
+        std.atomic.spinLoopHint();
+    }
 }

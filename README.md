@@ -87,7 +87,7 @@ const std = @import("std");
 const sol = @import("solana_zig");
 
 // RPC: get latest blockhash
-var client = try sol.rpc.RpcClient.init(std.heap.page_allocator, .default, "https://api.devnet.solana.com");
+var client = try sol.rpc.RpcClient.init(std.heap.page_allocator, std.io.default, "https://api.devnet.solana.com");
 defer client.deinit();
 
 const latest = try client.getLatestBlockhash();
