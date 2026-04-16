@@ -17,6 +17,7 @@ after each iteration and it's included in prompts for context.
 - For token-account live acceptance, prefer discovering a sample token account via raw helper RPCs (for example `getTokenLargestAccounts`), then decode the canonical SPL Token account layout through the typed `getAccountInfo` path to derive a reusable owner/mint fixture before asserting higher-level typed RPC filters.
 - For token-amount live acceptance, reuse a discovery flow that starts from a stable mint (for example wrapped SOL), derives a current token account via `getTokenLargestAccounts`, and then validates both `getTokenAccountBalance` and `getTokenSupply` against the same mint/account pair; this avoids brittle hardcoded fixtures while keeping decimal assertions stable.
 - Retry-aware RPC tests fit this codebase best when they drive `RpcClient` through a staged mock transport that returns `{ status, body }` responses, sets retry delays to zero, and asserts both call counts and identical payload replay across attempts.
+- Websocket subscription coverage fits this repo best when each wrapper is exercised as `subscribe -> read*Notification -> *Unsubscribe`, asserting Solana’s canonical notification method names (`accountNotification`, `logsNotification`, etc.) and the typed parser fields in the same mock round-trip.
 
 ---
 
@@ -169,5 +170,19 @@ after each iteration and it's included in prompts for context.
   - Gotchas encountered
     - After the transport abstraction started returning `PostJsonResponse`, every scripted/mock transport and raw helper needed to wrap JSON bodies with an HTTP status and call `response.deinit(...)`; otherwise unrelated test/E2E targets fail at compile time.
     - Zig 0.16 in this repo does not expose a stdlib sleep helper on `std.Thread`, so the blocking backoff path needs to use libc `nanosleep` in this `-lc` build configuration.
+---
+
+## 2026-04-16 - US-011
+- Completed websocket subscription family coverage by validating all seven subscribe/unsubscribe wrappers, adding typed notification round-trip tests for account/program/signature/slot/root/logs/block flows, and fixing `readNotification` to retain frame-backed JSON ownership so typed parsers can safely inspect notification payloads.
+- Hardened the mock websocket server path by fixing raw frame serialization for payloads larger than 125 bytes, which is required for realistic `programNotification` fixtures.
+- Files changed:
+  - `src/solana/rpc/ws_client.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Websocket story coverage is strongest when each subscription family is tested end-to-end with its typed reader and unsubscribe wrapper, instead of only asserting generic notification envelopes.
+  - Gotchas encountered
+    - `std.json` notification values can borrow from the original websocket frame buffer, so `WsRpcClient.Notification` must keep the raw frame and parsed root alive until `deinit`; otherwise typed readers crash on use-after-free.
+    - Mock websocket helpers must branch on payload length before narrowing to an 8-bit frame header field, or larger notification fixtures panic during test sends.
 ---
 

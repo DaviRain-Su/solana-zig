@@ -183,9 +183,10 @@
         "Mock 测试覆盖订阅、通知、取消订阅流程"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "labels": [],
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-012",
@@ -299,6 +300,6 @@
     "createdAt": "2026-04-16T13:19:37.279Z",
     "version": "1.0.0",
     "sourcePrd": "tasks/prd-phase-2-solana-zig-sdk-rpcwebsocket.md",
-    "updatedAt": "2026-04-16T15:08:01.343Z"
+    "updatedAt": "2026-04-16T15:30:12.905Z"
   }
 }

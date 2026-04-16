@@ -385,22 +385,132 @@ pub const WsRpcClient = struct {
 
     pub const SubscribeError = WsClient.SendError || WsClient.ReadError || error{InvalidSubscriptionResponse};
     pub const ReconnectError = WsClient.ConnectError || SubscribeError;
+    pub const NotificationReadError = SubscribeError || WsClient.ReadError || error{OutOfMemory, WriteFailed};
+
+    pub const NotificationAccountInfo = struct {
+        lamports: u64,
+        owner: []const u8,
+        executable: bool,
+        rent_epoch: u64,
+        data_encoding: ?[]const u8 = null,
+
+        pub fn deinit(self: *NotificationAccountInfo, allocator: std.mem.Allocator) void {
+            allocator.free(self.owner);
+            if (self.data_encoding) |encoding| allocator.free(encoding);
+        }
+    };
+
+    pub const AccountNotification = struct {
+        subscription_id: u64,
+        context_slot: u64,
+        account: NotificationAccountInfo,
+
+        pub fn deinit(self: *AccountNotification, allocator: std.mem.Allocator) void {
+            self.account.deinit(allocator);
+        }
+    };
+
+    pub const ProgramNotification = struct {
+        subscription_id: u64,
+        context_slot: u64,
+        pubkey: []const u8,
+        account: NotificationAccountInfo,
+
+        pub fn deinit(self: *ProgramNotification, allocator: std.mem.Allocator) void {
+            allocator.free(self.pubkey);
+            self.account.deinit(allocator);
+        }
+    };
+
+    pub const SignatureNotification = struct {
+        subscription_id: u64,
+        context_slot: u64,
+        err_json: ?[]const u8 = null,
+
+        pub fn deinit(self: *SignatureNotification, allocator: std.mem.Allocator) void {
+            if (self.err_json) |err_json| allocator.free(err_json);
+        }
+    };
+
+    pub const SlotNotification = struct {
+        subscription_id: u64,
+        parent: u64,
+        slot: u64,
+        root: u64,
+
+        pub fn deinit(self: *SlotNotification, allocator: std.mem.Allocator) void {
+            _ = self;
+            _ = allocator;
+        }
+    };
+
+    pub const RootNotification = struct {
+        subscription_id: u64,
+        root: u64,
+
+        pub fn deinit(self: *RootNotification, allocator: std.mem.Allocator) void {
+            _ = self;
+            _ = allocator;
+        }
+    };
+
+    pub const LogsNotification = struct {
+        subscription_id: u64,
+        context_slot: u64,
+        signature: ?[]const u8 = null,
+        err_json: ?[]const u8 = null,
+        logs: [][]const u8,
+
+        pub fn deinit(self: *LogsNotification, allocator: std.mem.Allocator) void {
+            if (self.signature) |signature| allocator.free(signature);
+            if (self.err_json) |err_json| allocator.free(err_json);
+            for (self.logs) |log| allocator.free(log);
+            allocator.free(self.logs);
+        }
+    };
+
+    pub const BlockNotification = struct {
+        subscription_id: u64,
+        context_slot: u64,
+        slot: u64,
+        err_json: ?[]const u8 = null,
+
+        pub fn deinit(self: *BlockNotification, allocator: std.mem.Allocator) void {
+            if (self.err_json) |err_json| allocator.free(err_json);
+        }
+    };
+
+    pub const AccountNotificationCallback = *const fn (notification: *const AccountNotification) void;
+    pub const ProgramNotificationCallback = *const fn (notification: *const ProgramNotification) void;
+    pub const SignatureNotificationCallback = *const fn (notification: *const SignatureNotification) void;
+    pub const SlotNotificationCallback = *const fn (notification: *const SlotNotification) void;
+    pub const RootNotificationCallback = *const fn (notification: *const RootNotification) void;
+    pub const LogsNotificationCallback = *const fn (notification: *const LogsNotification) void;
+    pub const BlockNotificationCallback = *const fn (notification: *const BlockNotification) void;
+
     pub const Notification = struct {
         allocator: std.mem.Allocator,
+        raw_message: []const u8,
         method: []const u8,
         subscription_id: u64,
-        result: std.json.Parsed(std.json.Value),
+        parsed: std.json.Parsed(std.json.Value),
+        result: std.json.Value,
 
         pub fn deinit(self: *Notification) void {
             self.allocator.free(self.method);
-            self.result.deinit();
+            self.parsed.deinit();
+            self.allocator.free(self.raw_message);
         }
     };
 
     const SubscriptionKind = enum {
         account,
+        program,
         logs,
         signature,
+        slot,
+        root,
+        block,
     };
 
     const Subscription = struct {
@@ -506,12 +616,56 @@ pub const WsRpcClient = struct {
         return try self.ensureSubscribed(.account, pubkey_base58);
     }
 
+    pub fn programSubscribe(self: *WsRpcClient, program_id_base58: []const u8) SubscribeError!u64 {
+        return try self.ensureSubscribed(.program, program_id_base58);
+    }
+
     pub fn logsSubscribe(self: *WsRpcClient, filter: []const u8) SubscribeError!u64 {
         return try self.ensureSubscribed(.logs, filter);
     }
 
     pub fn signatureSubscribe(self: *WsRpcClient, signature_base58: []const u8) SubscribeError!u64 {
         return try self.ensureSubscribed(.signature, signature_base58);
+    }
+
+    pub fn slotSubscribe(self: *WsRpcClient) SubscribeError!u64 {
+        return try self.ensureSubscribed(.slot, "");
+    }
+
+    pub fn rootSubscribe(self: *WsRpcClient) SubscribeError!u64 {
+        return try self.ensureSubscribed(.root, "");
+    }
+
+    pub fn blockSubscribe(self: *WsRpcClient, filter: []const u8) SubscribeError!u64 {
+        return try self.ensureSubscribed(.block, filter);
+    }
+
+    pub fn accountUnsubscribe(self: *WsRpcClient, subscription_id: u64) SubscribeError!void {
+        try self.unsubscribe(subscription_id, "accountUnsubscribe");
+    }
+
+    pub fn programUnsubscribe(self: *WsRpcClient, subscription_id: u64) SubscribeError!void {
+        try self.unsubscribe(subscription_id, "programUnsubscribe");
+    }
+
+    pub fn logsUnsubscribe(self: *WsRpcClient, subscription_id: u64) SubscribeError!void {
+        try self.unsubscribe(subscription_id, "logsUnsubscribe");
+    }
+
+    pub fn signatureUnsubscribe(self: *WsRpcClient, subscription_id: u64) SubscribeError!void {
+        try self.unsubscribe(subscription_id, "signatureUnsubscribe");
+    }
+
+    pub fn slotUnsubscribe(self: *WsRpcClient, subscription_id: u64) SubscribeError!void {
+        try self.unsubscribe(subscription_id, "slotUnsubscribe");
+    }
+
+    pub fn rootUnsubscribe(self: *WsRpcClient, subscription_id: u64) SubscribeError!void {
+        try self.unsubscribe(subscription_id, "rootUnsubscribe");
+    }
+
+    pub fn blockUnsubscribe(self: *WsRpcClient, subscription_id: u64) SubscribeError!void {
+        try self.unsubscribe(subscription_id, "blockUnsubscribe");
     }
 
     pub fn unsubscribe(self: *WsRpcClient, subscription_id: u64, method: []const u8) SubscribeError!void {
@@ -522,15 +676,15 @@ pub const WsRpcClient = struct {
         );
         defer self.ws.allocator.free(payload);
         try self.ws.sendText(payload);
-        _ = try self.readSubscriptionResult();
+        try self.readUnsubscribeAck();
         self.removeSubscription(subscription_id);
     }
 
-    pub fn readNotification(self: *WsRpcClient) (SubscribeError || WsClient.ReadError || error{OutOfMemory})!Notification {
+    pub fn readNotification(self: *WsRpcClient) NotificationReadError!Notification {
         while (true) {
             const msg = try self.ws.readMessage();
-            defer self.ws.allocator.free(msg.data);
             if (msg.opcode != .text and msg.opcode != .binary) {
+                self.ws.allocator.free(msg.data);
                 return error.WsProtocolError;
             }
 
@@ -539,12 +693,20 @@ pub const WsRpcClient = struct {
             const h = std.hash.Wyhash.hash(0, msg.data);
             if (self.isDuplicateNotification(h)) {
                 self.dedup_dropped_total += 1;
+                self.ws.allocator.free(msg.data);
                 continue;
             }
             self.recordNotificationHash(h);
 
-            var parsed = std.json.parseFromSlice(std.json.Value, self.ws.allocator, msg.data, .{}) catch return error.InvalidSubscriptionResponse;
-            defer parsed.deinit();
+            const raw_message = msg.data;
+            var parsed = std.json.parseFromSlice(std.json.Value, self.ws.allocator, raw_message, .{}) catch {
+                self.ws.allocator.free(raw_message);
+                return error.InvalidSubscriptionResponse;
+            };
+            errdefer {
+                parsed.deinit();
+                self.ws.allocator.free(raw_message);
+            }
 
             const root = parsed.value;
             const method_val = root.object.get("method") orelse return error.InvalidSubscriptionResponse;
@@ -553,15 +715,59 @@ pub const WsRpcClient = struct {
 
             const params = root.object.get("params") orelse return error.InvalidSubscriptionResponse;
             const subscription_id = @as(u64, @intCast(params.object.get("subscription").?.integer));
-            const result = std.json.parseFromValue(std.json.Value, self.ws.allocator, params.object.get("result").?, .{}) catch return error.InvalidSubscriptionResponse;
+            const result = params.object.get("result").?;
 
             return .{
                 .allocator = self.ws.allocator,
+                .raw_message = raw_message,
                 .method = method,
                 .subscription_id = subscription_id,
+                .parsed = parsed,
                 .result = result,
             };
         }
+    }
+
+    pub fn readAccountNotification(self: *WsRpcClient) NotificationReadError!AccountNotification {
+        var notification = try self.readNotificationForMethod("accountNotification");
+        defer notification.deinit();
+        return try parseAccountNotification(self.ws.allocator, notification.subscription_id, &notification.result);
+    }
+
+    pub fn readProgramNotification(self: *WsRpcClient) NotificationReadError!ProgramNotification {
+        var notification = try self.readNotificationForMethod("programNotification");
+        defer notification.deinit();
+        return try parseProgramNotification(self.ws.allocator, notification.subscription_id, &notification.result);
+    }
+
+    pub fn readSignatureNotification(self: *WsRpcClient) NotificationReadError!SignatureNotification {
+        var notification = try self.readNotificationForMethod("signatureNotification");
+        defer notification.deinit();
+        return try parseSignatureNotification(self.ws.allocator, notification.subscription_id, &notification.result);
+    }
+
+    pub fn readSlotNotification(self: *WsRpcClient) NotificationReadError!SlotNotification {
+        var notification = try self.readNotificationForMethod("slotNotification");
+        defer notification.deinit();
+        return try parseSlotNotification(notification.subscription_id, &notification.result);
+    }
+
+    pub fn readRootNotification(self: *WsRpcClient) NotificationReadError!RootNotification {
+        var notification = try self.readNotificationForMethod("rootNotification");
+        defer notification.deinit();
+        return try parseRootNotification(notification.subscription_id, &notification.result);
+    }
+
+    pub fn readLogsNotification(self: *WsRpcClient) NotificationReadError!LogsNotification {
+        var notification = try self.readNotificationForMethod("logsNotification");
+        defer notification.deinit();
+        return try parseLogsNotification(self.ws.allocator, notification.subscription_id, &notification.result);
+    }
+
+    pub fn readBlockNotification(self: *WsRpcClient) NotificationReadError!BlockNotification {
+        var notification = try self.readNotificationForMethod("blockNotification");
+        defer notification.deinit();
+        return try parseBlockNotification(self.ws.allocator, notification.subscription_id, &notification.result);
     }
 
     fn isDuplicateNotification(self: *const WsRpcClient, h: u64) bool {
@@ -595,6 +801,24 @@ pub const WsRpcClient = struct {
         return @intCast(result.integer);
     }
 
+    fn readUnsubscribeAck(self: *WsRpcClient) SubscribeError!void {
+        const msg = try self.ws.readMessage();
+        defer self.ws.allocator.free(msg.data);
+        var parsed = std.json.parseFromSlice(std.json.Value, self.ws.allocator, msg.data, .{}) catch return error.InvalidSubscriptionResponse;
+        defer parsed.deinit();
+        const result = parsed.value.object.get("result") orelse return error.InvalidSubscriptionResponse;
+        if (result != .bool or !result.bool) return error.InvalidSubscriptionResponse;
+    }
+
+    fn readNotificationForMethod(self: *WsRpcClient, expected_method: []const u8) NotificationReadError!Notification {
+        var notification = try self.readNotification();
+        errdefer notification.deinit();
+        if (!std.mem.eql(u8, notification.method, expected_method)) {
+            return error.InvalidSubscriptionResponse;
+        }
+        return notification;
+    }
+
     fn ensureSubscribed(self: *WsRpcClient, kind: SubscriptionKind, value: []const u8) SubscribeError!u64 {
         for (self.subscriptions.items) |sub| {
             if (sub.kind == kind and std.mem.eql(u8, sub.value, value)) {
@@ -622,6 +846,11 @@ pub const WsRpcClient = struct {
                 "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"accountSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
                 .{ self.nextRpcId(), value },
             ),
+            .program => std.fmt.allocPrint(
+                self.ws.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"programSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
+                .{ self.nextRpcId(), value },
+            ),
             .logs => std.fmt.allocPrint(
                 self.ws.allocator,
                 "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"logsSubscribe\",\"params\":[\"{s}\"]}}",
@@ -630,6 +859,21 @@ pub const WsRpcClient = struct {
             .signature => std.fmt.allocPrint(
                 self.ws.allocator,
                 "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"signatureSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+                .{ self.nextRpcId(), value },
+            ),
+            .slot => std.fmt.allocPrint(
+                self.ws.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"slotSubscribe\",\"params\":[]}}",
+                .{self.nextRpcId()},
+            ),
+            .root => std.fmt.allocPrint(
+                self.ws.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"rootSubscribe\",\"params\":[]}}",
+                .{self.nextRpcId()},
+            ),
+            .block => std.fmt.allocPrint(
+                self.ws.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"blockSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
                 .{ self.nextRpcId(), value },
             ),
         };
@@ -660,6 +904,200 @@ pub const WsRpcClient = struct {
         }
     }
 };
+
+fn stringifyValue(allocator: std.mem.Allocator, value: std.json.Value) ![]u8 {
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    defer out.deinit();
+
+    try std.json.Stringify.value(value, .{}, &out.writer);
+    return allocator.dupe(u8, out.written());
+}
+
+fn getObjectField(root: *const std.json.Value, field: []const u8) ?*const std.json.Value {
+    if (root.* != .object) return null;
+    const obj_ptr: *std.json.ObjectMap = @constCast(&root.object);
+    return obj_ptr.getPtr(field);
+}
+
+fn getStringField(root: *const std.json.Value, field: []const u8) ?[]const u8 {
+    const value = getObjectField(root, field) orelse return null;
+    if (value.* != .string) return null;
+    return value.string;
+}
+
+fn getBoolField(root: *const std.json.Value, field: []const u8) ?bool {
+    const value = getObjectField(root, field) orelse return null;
+    if (value.* != .bool) return null;
+    return value.bool;
+}
+
+fn parseIntegerAsU64(value: *const std.json.Value) ?u64 {
+    return switch (value.*) {
+        .integer => |n| if (n >= 0) @as(u64, @intCast(n)) else null,
+        .number_string => |s| std.fmt.parseInt(u64, s, 10) catch null,
+        else => null,
+    };
+}
+
+fn getU64Field(root: *const std.json.Value, field: []const u8) ?u64 {
+    const value = getObjectField(root, field) orelse return null;
+    return parseIntegerAsU64(value);
+}
+
+fn extractOptionalFieldJson(allocator: std.mem.Allocator, root: *const std.json.Value, field: []const u8) !?[]const u8 {
+    const value = getObjectField(root, field) orelse return null;
+    if (value.* == .null) return null;
+    return try stringifyValue(allocator, value.*);
+}
+
+fn parseStringArrayValue(allocator: std.mem.Allocator, value: *const std.json.Value) ![][]const u8 {
+    if (value.* != .array) return error.InvalidSubscriptionResponse;
+    const logs = try allocator.alloc([]const u8, value.array.items.len);
+    errdefer allocator.free(logs);
+    for (value.array.items, 0..) |item, i| {
+        if (item != .string) {
+            for (logs[0..i]) |log| allocator.free(log);
+            return error.InvalidSubscriptionResponse;
+        }
+        logs[i] = try allocator.dupe(u8, item.string);
+    }
+    return logs;
+}
+
+fn parseNotificationAccountInfo(allocator: std.mem.Allocator, value: *const std.json.Value) !WsRpcClient.NotificationAccountInfo {
+    if (value.* != .object) return error.InvalidSubscriptionResponse;
+
+    const lamports = getU64Field(value, "lamports") orelse return error.InvalidSubscriptionResponse;
+    const owner = getStringField(value, "owner") orelse return error.InvalidSubscriptionResponse;
+    const executable = getBoolField(value, "executable") orelse return error.InvalidSubscriptionResponse;
+    const rent_epoch = getU64Field(value, "rentEpoch") orelse return error.InvalidSubscriptionResponse;
+    const owner_copy = try allocator.dupe(u8, owner);
+    errdefer allocator.free(owner_copy);
+
+    const data_encoding = if (getObjectField(value, "data")) |data| blk: {
+        if (data.* != .array or data.array.items.len < 2) break :blk null;
+        if (data.array.items[1] != .string) return error.InvalidSubscriptionResponse;
+        break :blk try allocator.dupe(u8, data.array.items[1].string);
+    } else null;
+    errdefer if (data_encoding) |encoding| allocator.free(encoding);
+
+    return .{
+        .lamports = lamports,
+        .owner = owner_copy,
+        .executable = executable,
+        .rent_epoch = rent_epoch,
+        .data_encoding = data_encoding,
+    };
+}
+
+fn parseAccountNotification(allocator: std.mem.Allocator, subscription_id: u64, result: *const std.json.Value) !WsRpcClient.AccountNotification {
+    const context = getObjectField(result, "context") orelse return error.InvalidSubscriptionResponse;
+    const context_slot = getU64Field(context, "slot") orelse return error.InvalidSubscriptionResponse;
+    const account_value = getObjectField(result, "value") orelse return error.InvalidSubscriptionResponse;
+    const account = try parseNotificationAccountInfo(allocator, account_value);
+    return .{
+        .subscription_id = subscription_id,
+        .context_slot = context_slot,
+        .account = account,
+    };
+}
+
+fn parseProgramNotification(allocator: std.mem.Allocator, subscription_id: u64, result: *const std.json.Value) !WsRpcClient.ProgramNotification {
+    const context = getObjectField(result, "context") orelse return error.InvalidSubscriptionResponse;
+    const context_slot = getU64Field(context, "slot") orelse return error.InvalidSubscriptionResponse;
+    const value = getObjectField(result, "value") orelse return error.InvalidSubscriptionResponse;
+    const pubkey = getStringField(value, "pubkey") orelse return error.InvalidSubscriptionResponse;
+    const pubkey_copy = try allocator.dupe(u8, pubkey);
+    errdefer allocator.free(pubkey_copy);
+    const account_value = getObjectField(value, "account") orelse return error.InvalidSubscriptionResponse;
+    const account = try parseNotificationAccountInfo(allocator, account_value);
+    errdefer {
+        var owned_account = account;
+        owned_account.deinit(allocator);
+    }
+    return .{
+        .subscription_id = subscription_id,
+        .context_slot = context_slot,
+        .pubkey = pubkey_copy,
+        .account = account,
+    };
+}
+
+fn parseSignatureNotification(allocator: std.mem.Allocator, subscription_id: u64, result: *const std.json.Value) !WsRpcClient.SignatureNotification {
+    const context = getObjectField(result, "context") orelse return error.InvalidSubscriptionResponse;
+    const context_slot = getU64Field(context, "slot") orelse return error.InvalidSubscriptionResponse;
+    const value = getObjectField(result, "value") orelse return error.InvalidSubscriptionResponse;
+    const err_json = try extractOptionalFieldJson(allocator, value, "err");
+    errdefer if (err_json) |owned| allocator.free(owned);
+    return .{
+        .subscription_id = subscription_id,
+        .context_slot = context_slot,
+        .err_json = err_json,
+    };
+}
+
+fn parseSlotNotification(subscription_id: u64, result: *const std.json.Value) !WsRpcClient.SlotNotification {
+    if (result.* != .object) return error.InvalidSubscriptionResponse;
+    return .{
+        .subscription_id = subscription_id,
+        .parent = getU64Field(result, "parent") orelse return error.InvalidSubscriptionResponse,
+        .slot = getU64Field(result, "slot") orelse return error.InvalidSubscriptionResponse,
+        .root = getU64Field(result, "root") orelse return error.InvalidSubscriptionResponse,
+    };
+}
+
+fn parseRootNotification(subscription_id: u64, result: *const std.json.Value) !WsRpcClient.RootNotification {
+    const root = parseIntegerAsU64(result) orelse return error.InvalidSubscriptionResponse;
+    return .{
+        .subscription_id = subscription_id,
+        .root = root,
+    };
+}
+
+fn parseLogsNotification(allocator: std.mem.Allocator, subscription_id: u64, result: *const std.json.Value) !WsRpcClient.LogsNotification {
+    const context = getObjectField(result, "context") orelse return error.InvalidSubscriptionResponse;
+    const context_slot = getU64Field(context, "slot") orelse return error.InvalidSubscriptionResponse;
+    const value = getObjectField(result, "value") orelse return error.InvalidSubscriptionResponse;
+
+    const signature = if (getStringField(value, "signature")) |owned|
+        try allocator.dupe(u8, owned)
+    else
+        null;
+    errdefer if (signature) |owned| allocator.free(owned);
+
+    const err_json = try extractOptionalFieldJson(allocator, value, "err");
+    errdefer if (err_json) |owned| allocator.free(owned);
+
+    const logs_value = getObjectField(value, "logs") orelse return error.InvalidSubscriptionResponse;
+    const logs = try parseStringArrayValue(allocator, logs_value);
+    errdefer {
+        for (logs) |log| allocator.free(log);
+        allocator.free(logs);
+    }
+
+    return .{
+        .subscription_id = subscription_id,
+        .context_slot = context_slot,
+        .signature = signature,
+        .err_json = err_json,
+        .logs = logs,
+    };
+}
+
+fn parseBlockNotification(allocator: std.mem.Allocator, subscription_id: u64, result: *const std.json.Value) !WsRpcClient.BlockNotification {
+    const context = getObjectField(result, "context") orelse return error.InvalidSubscriptionResponse;
+    const context_slot = getU64Field(context, "slot") orelse return error.InvalidSubscriptionResponse;
+    const value = getObjectField(result, "value") orelse return error.InvalidSubscriptionResponse;
+    const slot = getU64Field(value, "slot") orelse return error.InvalidSubscriptionResponse;
+    const err_json = try extractOptionalFieldJson(allocator, value, "err");
+    errdefer if (err_json) |owned| allocator.free(owned);
+    return .{
+        .subscription_id = subscription_id,
+        .context_slot = context_slot,
+        .slot = slot,
+        .err_json = err_json,
+    };
+}
 
 // ------------------------------------------------------------------
 // Mock WebSocket Server (for tests)
@@ -849,6 +1287,7 @@ const MockWsServer = struct {
             const method = parsed.value.object.get("method") orelse continue;
             const id = parsed.value.object.get("id") orelse continue;
             const is_subscribe = std.mem.endsWith(u8, method.string, "Subscribe");
+            const is_unsubscribe = std.mem.endsWith(u8, method.string, "Unsubscribe");
             const force_disconnect_after_notify = std.mem.indexOf(u8, frame.payload, "force_disconnect_after_notify") != null;
             const malformed_subscribe_response = std.mem.indexOf(u8, frame.payload, "malformed_sub_reply") != null;
             const duplicate_notifications = std.mem.indexOf(u8, frame.payload, "duplicate_notify") != null;
@@ -857,6 +1296,17 @@ const MockWsServer = struct {
 
             if (is_subscribe and malformed_subscribe_response) {
                 const reply = "{\"jsonrpc\":\"2.0\",\"result\":";
+                sendFrameRaw(fd, .text, reply) catch break;
+                continue;
+            }
+
+            if (is_unsubscribe) {
+                const reply = std.fmt.allocPrint(
+                    allocator,
+                    "{{\"jsonrpc\":\"2.0\",\"result\":true,\"id\":{d}}}",
+                    .{id.integer},
+                ) catch break;
+                defer allocator.free(reply);
                 sendFrameRaw(fd, .text, reply) catch break;
                 continue;
             }
@@ -870,11 +1320,7 @@ const MockWsServer = struct {
             sendFrameRaw(fd, .text, reply) catch break;
 
             if (is_subscribe) {
-                const notif = std.fmt.allocPrint(
-                    allocator,
-                    "{{\"jsonrpc\":\"2.0\",\"method\":\"{s}Notification\",\"params\":{{\"result\":{{\"mock\":true}},\"subscription\":{d}}}}}",
-                    .{ method.string, sub_id },
-                ) catch break;
+                const notif = buildMockNotification(allocator, method.string, sub_id) catch break;
                 defer allocator.free(notif);
                 sendFrameRaw(fd, .text, notif) catch break;
 
@@ -936,8 +1382,9 @@ const MockWsServer = struct {
         var header: [14]u8 = undefined;
         var header_len: usize = 2;
         header[0] = @as(u8, 0x80) | @as(u8, @intFromEnum(opcode));
-        header[1] = @intCast(payload.len);
-        if (payload.len > 125) {
+        if (payload.len <= 125) {
+            header[1] = @intCast(payload.len);
+        } else {
             if (payload.len <= 65535) {
                 header[1] = 126;
                 header[2] = @intCast(payload.len >> 8);
@@ -962,9 +1409,140 @@ const MockWsServer = struct {
     }
 };
 
+fn buildMockNotification(allocator: std.mem.Allocator, subscribe_method: []const u8, subscription_id: u64) ![]u8 {
+    if (std.mem.eql(u8, subscribe_method, "accountSubscribe")) {
+        return std.fmt.allocPrint(
+            allocator,
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"accountNotification\",\"params\":{{\"result\":{{\"context\":{{\"slot\":42}},\"value\":{{\"lamports\":1234,\"owner\":\"11111111111111111111111111111111\",\"executable\":false,\"rentEpoch\":7,\"data\":[\"AQID\",\"base64\"]}}}},\"subscription\":{d}}}}}",
+            .{subscription_id},
+        );
+    }
+    if (std.mem.eql(u8, subscribe_method, "programSubscribe")) {
+        return std.fmt.allocPrint(
+            allocator,
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"programNotification\",\"params\":{{\"result\":{{\"context\":{{\"slot\":43}},\"value\":{{\"pubkey\":\"ProgramDerived1111111111111111111111111111\",\"account\":{{\"lamports\":5678,\"owner\":\"BPFLoaderUpgradeab1e11111111111111111111111\",\"executable\":false,\"rentEpoch\":8,\"data\":[\"BAUG\",\"base64\"]}}}}}},\"subscription\":{d}}}}}",
+            .{subscription_id},
+        );
+    }
+    if (std.mem.eql(u8, subscribe_method, "signatureSubscribe")) {
+        return std.fmt.allocPrint(
+            allocator,
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"signatureNotification\",\"params\":{{\"result\":{{\"context\":{{\"slot\":44}},\"value\":{{\"err\":null}}}},\"subscription\":{d}}}}}",
+            .{subscription_id},
+        );
+    }
+    if (std.mem.eql(u8, subscribe_method, "slotSubscribe")) {
+        return std.fmt.allocPrint(
+            allocator,
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"slotNotification\",\"params\":{{\"result\":{{\"parent\":40,\"slot\":41,\"root\":39}},\"subscription\":{d}}}}}",
+            .{subscription_id},
+        );
+    }
+    if (std.mem.eql(u8, subscribe_method, "rootSubscribe")) {
+        return std.fmt.allocPrint(
+            allocator,
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"rootNotification\",\"params\":{{\"result\":45,\"subscription\":{d}}}}}",
+            .{subscription_id},
+        );
+    }
+    if (std.mem.eql(u8, subscribe_method, "logsSubscribe")) {
+        return std.fmt.allocPrint(
+            allocator,
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"logsNotification\",\"params\":{{\"result\":{{\"context\":{{\"slot\":46}},\"value\":{{\"signature\":\"deadbeef\",\"err\":null,\"logs\":[\"Program log: mock\"]}}}},\"subscription\":{d}}}}}",
+            .{subscription_id},
+        );
+    }
+    if (std.mem.eql(u8, subscribe_method, "blockSubscribe")) {
+        return std.fmt.allocPrint(
+            allocator,
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"blockNotification\",\"params\":{{\"result\":{{\"context\":{{\"slot\":47}},\"value\":{{\"slot\":47,\"err\":null,\"block\":{{\"blockhash\":\"mock-blockhash\"}}}}}},\"subscription\":{d}}}}}",
+            .{subscription_id},
+        );
+    }
+    return error.InvalidSubscriptionResponse;
+}
+
 // ------------------------------------------------------------------
 // Tests
 // ------------------------------------------------------------------
+
+const TypedWsTestHarness = struct {
+    server: MockWsServer,
+    client: WsRpcClient,
+    url: []const u8,
+    allocator: std.mem.Allocator,
+
+    fn init(allocator: std.mem.Allocator, io: std.Io) !TypedWsTestHarness {
+        var server = try MockWsServer.start(allocator);
+        errdefer server.stop();
+
+        const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+        errdefer allocator.free(url);
+
+        const client = try WsRpcClient.connect(allocator, io, url);
+        errdefer {
+            var owned_client = client;
+            owned_client.deinit();
+        }
+
+        return .{
+            .server = server,
+            .client = client,
+            .url = url,
+            .allocator = allocator,
+        };
+    }
+
+    fn deinit(self: *TypedWsTestHarness) void {
+        self.client.deinit();
+        self.allocator.free(self.url);
+        self.server.stop();
+    }
+};
+
+const CallbackRecorder = struct {
+    account_context_slot: ?u64 = null,
+    program_context_slot: ?u64 = null,
+    signature_context_slot: ?u64 = null,
+    slot_value: ?u64 = null,
+    root_value: ?u64 = null,
+    logs_context_slot: ?u64 = null,
+    block_slot: ?u64 = null,
+};
+
+var callback_recorder = CallbackRecorder{};
+
+fn resetCallbackRecorder() void {
+    callback_recorder = .{};
+}
+
+fn recordAccountNotification(notification: *const WsRpcClient.AccountNotification) void {
+    callback_recorder.account_context_slot = notification.context_slot;
+}
+
+fn recordProgramNotification(notification: *const WsRpcClient.ProgramNotification) void {
+    callback_recorder.program_context_slot = notification.context_slot;
+}
+
+fn recordSignatureNotification(notification: *const WsRpcClient.SignatureNotification) void {
+    callback_recorder.signature_context_slot = notification.context_slot;
+}
+
+fn recordSlotNotification(notification: *const WsRpcClient.SlotNotification) void {
+    callback_recorder.slot_value = notification.slot;
+}
+
+fn recordRootNotification(notification: *const WsRpcClient.RootNotification) void {
+    callback_recorder.root_value = notification.root;
+}
+
+fn recordLogsNotification(notification: *const WsRpcClient.LogsNotification) void {
+    callback_recorder.logs_context_slot = notification.context_slot;
+}
+
+fn recordBlockNotification(notification: *const WsRpcClient.BlockNotification) void {
+    callback_recorder.block_slot = notification.slot;
+}
 
 test "WsRpcClient subscribe and receive notification" {
     const allocator = std.testing.allocator;
@@ -984,8 +1562,208 @@ test "WsRpcClient subscribe and receive notification" {
 
     var notif = try client.readNotification();
     defer notif.deinit();
-    try std.testing.expectEqualStrings("accountSubscribeNotification", notif.method);
+    try std.testing.expectEqualStrings("accountNotification", notif.method);
     try std.testing.expectEqual(sub_id, notif.subscription_id);
+}
+
+test "ws_account_subscribe_typed_notify_unsubscribe" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var harness = try TypedWsTestHarness.init(allocator, io);
+    defer harness.deinit();
+
+    const sub_id = try harness.client.accountSubscribe("11111111111111111111111111111111");
+    try std.testing.expect(sub_id > 0);
+    try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
+
+    var notification = try harness.client.readAccountNotification();
+    defer notification.deinit(allocator);
+
+    try std.testing.expectEqual(sub_id, notification.subscription_id);
+    try std.testing.expectEqual(@as(u64, 42), notification.context_slot);
+    try std.testing.expectEqual(@as(u64, 1234), notification.account.lamports);
+    try std.testing.expectEqualStrings("11111111111111111111111111111111", notification.account.owner);
+    try std.testing.expectEqual(false, notification.account.executable);
+    try std.testing.expectEqual(@as(u64, 7), notification.account.rent_epoch);
+    try std.testing.expectEqualStrings("base64", notification.account.data_encoding.?);
+
+    resetCallbackRecorder();
+    const callback: WsRpcClient.AccountNotificationCallback = recordAccountNotification;
+    callback(&notification);
+    try std.testing.expectEqual(@as(?u64, notification.context_slot), callback_recorder.account_context_slot);
+
+    try harness.client.accountUnsubscribe(sub_id);
+    try std.testing.expectEqual(@as(usize, 0), harness.client.subscriptionCount());
+}
+
+test "ws_program_subscribe_typed_notify_unsubscribe" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var harness = try TypedWsTestHarness.init(allocator, io);
+    defer harness.deinit();
+
+    const sub_id = try harness.client.programSubscribe("BPFLoaderUpgradeab1e11111111111111111111111");
+    try std.testing.expect(sub_id > 0);
+    try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
+
+    var notification = try harness.client.readProgramNotification();
+    defer notification.deinit(allocator);
+
+    try std.testing.expectEqual(sub_id, notification.subscription_id);
+    try std.testing.expectEqual(@as(u64, 43), notification.context_slot);
+    try std.testing.expectEqualStrings("ProgramDerived1111111111111111111111111111", notification.pubkey);
+    try std.testing.expectEqual(@as(u64, 5678), notification.account.lamports);
+    try std.testing.expectEqualStrings("BPFLoaderUpgradeab1e11111111111111111111111", notification.account.owner);
+    try std.testing.expectEqualStrings("base64", notification.account.data_encoding.?);
+
+    resetCallbackRecorder();
+    const callback: WsRpcClient.ProgramNotificationCallback = recordProgramNotification;
+    callback(&notification);
+    try std.testing.expectEqual(@as(?u64, notification.context_slot), callback_recorder.program_context_slot);
+
+    try harness.client.programUnsubscribe(sub_id);
+    try std.testing.expectEqual(@as(usize, 0), harness.client.subscriptionCount());
+}
+
+test "ws_signature_subscribe_typed_notify_unsubscribe" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var harness = try TypedWsTestHarness.init(allocator, io);
+    defer harness.deinit();
+
+    const sub_id = try harness.client.signatureSubscribe("deadbeef");
+    try std.testing.expect(sub_id > 0);
+    try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
+
+    var notification = try harness.client.readSignatureNotification();
+    defer notification.deinit(allocator);
+
+    try std.testing.expectEqual(sub_id, notification.subscription_id);
+    try std.testing.expectEqual(@as(u64, 44), notification.context_slot);
+    try std.testing.expectEqual(@as(?[]const u8, null), notification.err_json);
+
+    resetCallbackRecorder();
+    const callback: WsRpcClient.SignatureNotificationCallback = recordSignatureNotification;
+    callback(&notification);
+    try std.testing.expectEqual(@as(?u64, notification.context_slot), callback_recorder.signature_context_slot);
+
+    try harness.client.signatureUnsubscribe(sub_id);
+    try std.testing.expectEqual(@as(usize, 0), harness.client.subscriptionCount());
+}
+
+test "ws_slot_subscribe_typed_notify_unsubscribe" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var harness = try TypedWsTestHarness.init(allocator, io);
+    defer harness.deinit();
+
+    const sub_id = try harness.client.slotSubscribe();
+    try std.testing.expect(sub_id > 0);
+    try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
+
+    var notification = try harness.client.readSlotNotification();
+    defer notification.deinit(allocator);
+
+    try std.testing.expectEqual(sub_id, notification.subscription_id);
+    try std.testing.expectEqual(@as(u64, 40), notification.parent);
+    try std.testing.expectEqual(@as(u64, 41), notification.slot);
+    try std.testing.expectEqual(@as(u64, 39), notification.root);
+
+    resetCallbackRecorder();
+    const callback: WsRpcClient.SlotNotificationCallback = recordSlotNotification;
+    callback(&notification);
+    try std.testing.expectEqual(@as(?u64, notification.slot), callback_recorder.slot_value);
+
+    try harness.client.slotUnsubscribe(sub_id);
+    try std.testing.expectEqual(@as(usize, 0), harness.client.subscriptionCount());
+}
+
+test "ws_root_subscribe_typed_notify_unsubscribe" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var harness = try TypedWsTestHarness.init(allocator, io);
+    defer harness.deinit();
+
+    const sub_id = try harness.client.rootSubscribe();
+    try std.testing.expect(sub_id > 0);
+    try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
+
+    var notification = try harness.client.readRootNotification();
+    defer notification.deinit(allocator);
+
+    try std.testing.expectEqual(sub_id, notification.subscription_id);
+    try std.testing.expectEqual(@as(u64, 45), notification.root);
+
+    resetCallbackRecorder();
+    const callback: WsRpcClient.RootNotificationCallback = recordRootNotification;
+    callback(&notification);
+    try std.testing.expectEqual(@as(?u64, notification.root), callback_recorder.root_value);
+
+    try harness.client.rootUnsubscribe(sub_id);
+    try std.testing.expectEqual(@as(usize, 0), harness.client.subscriptionCount());
+}
+
+test "ws_logs_subscribe_typed_notify_unsubscribe" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var harness = try TypedWsTestHarness.init(allocator, io);
+    defer harness.deinit();
+
+    const sub_id = try harness.client.logsSubscribe("all");
+    try std.testing.expect(sub_id > 0);
+    try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
+
+    var notification = try harness.client.readLogsNotification();
+    defer notification.deinit(allocator);
+
+    try std.testing.expectEqual(sub_id, notification.subscription_id);
+    try std.testing.expectEqual(@as(u64, 46), notification.context_slot);
+    try std.testing.expectEqualStrings("deadbeef", notification.signature.?);
+    try std.testing.expectEqual(@as(?[]const u8, null), notification.err_json);
+    try std.testing.expectEqual(@as(usize, 1), notification.logs.len);
+    try std.testing.expectEqualStrings("Program log: mock", notification.logs[0]);
+
+    resetCallbackRecorder();
+    const callback: WsRpcClient.LogsNotificationCallback = recordLogsNotification;
+    callback(&notification);
+    try std.testing.expectEqual(@as(?u64, notification.context_slot), callback_recorder.logs_context_slot);
+
+    try harness.client.logsUnsubscribe(sub_id);
+    try std.testing.expectEqual(@as(usize, 0), harness.client.subscriptionCount());
+}
+
+test "ws_block_subscribe_typed_notify_unsubscribe" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var harness = try TypedWsTestHarness.init(allocator, io);
+    defer harness.deinit();
+
+    const sub_id = try harness.client.blockSubscribe("all");
+    try std.testing.expect(sub_id > 0);
+    try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
+
+    var notification = try harness.client.readBlockNotification();
+    defer notification.deinit(allocator);
+
+    try std.testing.expectEqual(sub_id, notification.subscription_id);
+    try std.testing.expectEqual(@as(u64, 47), notification.context_slot);
+    try std.testing.expectEqual(@as(u64, 47), notification.slot);
+    try std.testing.expectEqual(@as(?[]const u8, null), notification.err_json);
+
+    resetCallbackRecorder();
+    const callback: WsRpcClient.BlockNotificationCallback = recordBlockNotification;
+    callback(&notification);
+    try std.testing.expectEqual(@as(?u64, notification.slot), callback_recorder.block_slot);
+
+    try harness.client.blockUnsubscribe(sub_id);
+    try std.testing.expectEqual(@as(usize, 0), harness.client.subscriptionCount());
 }
 
 test "WsRpcClient disconnect detect and reconnect" {
@@ -1051,7 +1829,7 @@ test "ws_reconnect_detect_disconnect_then_reconnect" {
 
     var notif = try client.readNotification();
     defer notif.deinit();
-    try std.testing.expectEqualStrings("logsSubscribeNotification", notif.method);
+    try std.testing.expectEqualStrings("logsNotification", notif.method);
 
     try std.testing.expectError(error.ConnectionClosed, client.readNotification());
 
@@ -1081,7 +1859,7 @@ test "ws_reconnect_resubscribe_after_reconnect" {
     try std.testing.expect(sub_id2 > 0);
     var second_notif = try client.readNotification();
     defer second_notif.deinit();
-    try std.testing.expectEqualStrings("signatureSubscribeNotification", second_notif.method);
+    try std.testing.expectEqualStrings("signatureNotification", second_notif.method);
 }
 
 test "ws_reconnect_subscription_response_malformed" {
