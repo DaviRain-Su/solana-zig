@@ -34,6 +34,10 @@ test "system interface compiles" {
     _ = interfaces.system;
 }
 
+test "token interface compiles" {
+    _ = interfaces.token;
+}
+
 test "websocket client compiles" {
     _ = rpc.WsClient;
     _ = rpc.WsRpcClient;
