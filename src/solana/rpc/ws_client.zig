@@ -350,11 +350,18 @@ pub const WsClient = struct {
 // ------------------------------------------------------------------
 
 pub const WsRpcClient = struct {
+    // -- Production hardening constants (P2-18, frozen in #36) --
+    pub const MAX_RECONNECT_RETRIES: u8 = 5;
+    pub const MAX_BACKOFF_MS: u64 = 30_000;
+    pub const DEDUP_CACHE_SIZE: usize = 16;
+
     ws: WsClient,
     url: []const u8,
     next_id: u64 = 1,
     subscriptions: std.ArrayList(Subscription) = .empty,
-    last_notification_hash: ?u64 = null,
+    dedup_ring: [DEDUP_CACHE_SIZE]u64 = [_]u64{0} ** DEDUP_CACHE_SIZE,
+    dedup_ring_len: usize = 0,
+    dedup_ring_pos: usize = 0,
     last_reconnect_attempts: u8 = 0,
 
     pub const SubscribeError = WsClient.SendError || WsClient.ReadError || error{InvalidSubscriptionResponse};
@@ -415,13 +422,15 @@ pub const WsRpcClient = struct {
     }
 
     pub fn reconnectWithBackoff(self: *WsRpcClient, retries: u8, base_delay_ms: u64) ReconnectError!void {
+        const capped_retries = @min(retries, MAX_RECONNECT_RETRIES);
         var attempt: u8 = 0;
         self.last_reconnect_attempts = 0;
-        while (attempt < retries) : (attempt += 1) {
+        while (attempt < capped_retries) : (attempt += 1) {
             self.last_reconnect_attempts = attempt + 1;
             if (self.reconnectAndResubscribe()) |_| return else |err| {
-                if (attempt + 1 == retries) return err;
-                const delay_ms = base_delay_ms << @intCast(attempt);
+                if (attempt + 1 == capped_retries) return err;
+                const raw_delay = base_delay_ms << @intCast(attempt);
+                const delay_ms = @min(raw_delay, MAX_BACKOFF_MS);
                 var spins: u64 = delay_ms * 10_000;
                 while (spins > 0) : (spins -= 1) {
                     std.atomic.spinLoopHint();
@@ -429,6 +438,14 @@ pub const WsRpcClient = struct {
             }
         }
         return error.HandshakeFailed;
+    }
+
+    pub fn sendPing(self: *WsRpcClient) WsClient.SendError!void {
+        try self.ws.sendFrame(.ping, &[_]u8{});
+    }
+
+    pub fn subscriptionCount(self: *const WsRpcClient) usize {
+        return self.subscriptions.items.len;
     }
 
     pub fn accountSubscribe(self: *WsRpcClient, pubkey_base58: []const u8) SubscribeError!u64 {
@@ -464,10 +481,8 @@ pub const WsRpcClient = struct {
             }
 
             const h = std.hash.Wyhash.hash(0, msg.data);
-            if (self.last_notification_hash) |last| {
-                if (last == h) continue;
-            }
-            self.last_notification_hash = h;
+            if (self.isDuplicateNotification(h)) continue;
+            self.recordNotificationHash(h);
 
             var parsed = std.json.parseFromSlice(std.json.Value, self.ws.allocator, msg.data, .{}) catch return error.InvalidSubscriptionResponse;
             defer parsed.deinit();
@@ -487,6 +502,22 @@ pub const WsRpcClient = struct {
                 .subscription_id = subscription_id,
                 .result = result,
             };
+        }
+    }
+
+    fn isDuplicateNotification(self: *const WsRpcClient, h: u64) bool {
+        const len = self.dedup_ring_len;
+        for (0..len) |i| {
+            if (self.dedup_ring[i] == h) return true;
+        }
+        return false;
+    }
+
+    fn recordNotificationHash(self: *WsRpcClient, h: u64) void {
+        self.dedup_ring[self.dedup_ring_pos] = h;
+        self.dedup_ring_pos = (self.dedup_ring_pos + 1) % DEDUP_CACHE_SIZE;
+        if (self.dedup_ring_len < DEDUP_CACHE_SIZE) {
+            self.dedup_ring_len += 1;
         }
     }
 
@@ -1109,6 +1140,98 @@ test "computeWebSocketAccept" {
     defer allocator.free(accept);
     try std.testing.expectEqualStrings("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", accept);
 }
+test "ws_production_heartbeat_ping_pong" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    // sendPing should succeed (server responds with pong automatically)
+    try client.sendPing();
+}
+
+test "ws_production_backoff_hard_limit" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    server.stop();
+
+    // Request 10 retries but MAX_RECONNECT_RETRIES = 5 caps it
+    if (client.reconnectWithBackoff(10, 0)) |_| {
+        return error.TestUnexpectedResult;
+    } else |_| {}
+    try std.testing.expectEqual(WsRpcClient.MAX_RECONNECT_RETRIES, client.last_reconnect_attempts);
+}
+
+test "ws_production_cleanup_state_consistency" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    // Subscribe to one filter, consume its notification
+    _ = try client.logsSubscribe("force_disconnect_after_notify");
+    const count_before = client.subscriptionCount();
+    try std.testing.expectEqual(@as(usize, 1), count_before);
+
+    var n1 = try client.readNotification();
+    n1.deinit();
+
+    // Server disconnects after notification; detect it
+    try std.testing.expectError(error.ConnectionClosed, client.readNotification());
+
+    // Reconnect — resubscribeAll should preserve subscription count
+    try client.reconnect();
+    const count_after = client.subscriptionCount();
+    try std.testing.expectEqual(count_before, count_after);
+}
+
+test "ws_production_dedup_cache_boundary" {
+    // Verify dedup ring buffer has fixed size and doesn't grow unbounded
+    var client: WsRpcClient = undefined;
+    client.dedup_ring = [_]u64{0} ** WsRpcClient.DEDUP_CACHE_SIZE;
+    client.dedup_ring_len = 0;
+    client.dedup_ring_pos = 0;
+
+    // Fill the ring buffer beyond capacity
+    for (0..WsRpcClient.DEDUP_CACHE_SIZE + 4) |i| {
+        client.recordNotificationHash(@as(u64, @intCast(i + 1)));
+    }
+
+    // Ring length should be capped at DEDUP_CACHE_SIZE
+    try std.testing.expectEqual(WsRpcClient.DEDUP_CACHE_SIZE, client.dedup_ring_len);
+
+    // Oldest entries should have been evicted — hash 1..4 gone
+    try std.testing.expect(!client.isDuplicateNotification(1));
+    try std.testing.expect(!client.isDuplicateNotification(2));
+
+    // Recent entries should still be present
+    const recent = @as(u64, @intCast(WsRpcClient.DEDUP_CACHE_SIZE + 4));
+    try std.testing.expect(client.isDuplicateNotification(recent));
+}
+
 fn lockAtomicMutex(m: *std.atomic.Mutex) void {
     while (!m.tryLock()) {
         std.atomic.spinLoopHint();
