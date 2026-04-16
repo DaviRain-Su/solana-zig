@@ -12,6 +12,8 @@ pub fn build(b: *std.Build) void {
     // means any target is allowed, and the default is native. Other options
     // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
+    const host = b.graph.host;
+    const can_run_target = target.result.os.tag == host.result.os.tag and target.result.cpu.arch == host.result.cpu.arch and target.result.abi == host.result.abi;
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
@@ -139,8 +141,13 @@ pub fn build(b: *std.Build) void {
     // times and since the two run steps do not depend on one another, this will
     // make the two of them run in parallel.
     const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_mod_tests.step);
-    test_step.dependOn(&run_exe_tests.step);
+    if (can_run_target) {
+        test_step.dependOn(&run_mod_tests.step);
+        test_step.dependOn(&run_exe_tests.step);
+    } else {
+        test_step.dependOn(&mod_tests.step);
+        test_step.dependOn(&exe_tests.step);
+    }
 
     // Surfpool E2E tests for Phase 1 closeout (docs/18)
     const e2e_mod = b.createModule(.{

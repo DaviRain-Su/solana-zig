@@ -1,14 +1,14 @@
-# Product Phase 2 Planning
+# Product Phase 2 Planning (Batch 1)
 
 **Date**: 2026-04-16
-**Status**: Planning snapshot（`#17/#18` 已落地，`#20` 已有最小 bootstrap，但生命周期仍待收口）
+**Status**: Planning snapshot（`#17/#18` 已落地；`#20` 仅保留实验性 websocket prototype，待按 zig-native-first / target portability 约束重做后再提审）
 **Owner**: `#16 P2-1`
 
 > 本文用于锁定 Product Phase 2 第一批实现范围、DoD 与执行顺序。  
-> 当前应将本文视为**规划快照与 DoD 参考**：
+> 当前应将本文视为 **规划快照与 DoD 参考**：
 > - `#17` 已完成（send/confirm live evidence）
 > - `#18` 已完成（Batch A typed parse 第一批）
-> - `#20` 已有最小 websocket bootstrap（低层 client + 基础测试），但 subscription lifecycle / reconnect / unsubscribe 的产品级收口仍待执行
+> - `#20` 当前仅有仓内 prototype；已撤出公开包面，不应视为已完成/已放行能力
 
 ## 1. 背景与目标
 
@@ -51,7 +51,7 @@ Batch A 固定为 3 个方法（与 `docs/00` / `docs/03c` 对齐）：
 - `rpc_error`
 - `malformed/invalid response`
 
-### 2.3 `#20 P2-4b` — Websocket 最小可用（已 bootstrap；订阅目标以文档定义为准）
+### 2.3 `#20 P2-4b` — Websocket 最小可用（当前仅实验性 prototype；订阅目标以文档定义为准）
 
 最低订阅集合：
 
@@ -67,9 +67,12 @@ Batch A 固定为 3 个方法（与 `docs/00` / `docs/03c` 对齐）：
 - unsubscribe
 
 当前状态：
-- 低层 `WsClient / WsRpcClient` 已进入公开包面
-- 基础订阅/通知/重连测试已存在
-- 但作为 Product Phase 2 可宣称能力时，`subscription lifecycle / reconnect / unsubscribe` 仍需按本节 DoD 完成最终收口
+- 仓内仍保留 websocket prototype 文件，便于后续继续演进
+- 该原型 **已撤出公开包面**，不再作为默认/公开能力承诺
+- 后续若要重新进入公开能力面，必须先满足：
+  - zig-native-first 主路径
+  - target portability 不因 websocket 默认引入额外 libc / POSIX blocker
+  - `subscription lifecycle / reconnect / unsubscribe` 按本节 DoD 完成最终收口
 
 ## 3. 非目标（Out of Scope for Batch 1）
 
@@ -123,6 +126,8 @@ Batch A 固定为 3 个方法（与 `docs/00` / `docs/03c` 对齐）：
 
 - 三类订阅可建立、可重连、可取消
 - 至少 1 条断线重连路径验证
+- 默认实现必须遵守 zig-native-first；若存在 POSIX/libc fallback，必须被严格隔离为非默认、非公开承诺路径
+- 默认 `zig build test` / 常见 cross-target smoke test 不应因 websocket 而新增 libc / POSIX 编译 blocker
 
 ## G-P2-05 Docs Gate
 

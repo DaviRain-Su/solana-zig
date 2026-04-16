@@ -13,8 +13,8 @@
 ### High
 
 - H-01: Product Phase 2 / 3 范围（扩展 RPC、Websocket、interfaces、signers、C ABI）尚未形成完整可宣称能力面
-- 影响：当前仅能宣称 Product Phase 1 / M1-M3 能力，不可对外宣称“全量实现”；即使已有部分 Phase 2 bootstrap，也不等于 Phase 2 已整体可用
-- 状态：已在 `docs/04` / `docs/10` / `docs/19` 中区分“已落地 bootstrap / partial”与“仍待产品级收口”的边界
+- 影响：当前仅能宣称 Product Phase 1 / M1-M3 能力，不可对外宣称“全量实现”；即使已有部分 Phase 2 bootstrap / prototype，也不等于 Phase 2 已整体可用
+- 状态：已在 `docs/04` / `docs/10` / `docs/19` 中区分“内部 prototype / partial”与“公开可承诺能力面”的边界；websocket 原型已撤出公开包面，待满足 zig-native-first / target portability 要求后再重新提审
 
 ### Medium
 
@@ -28,9 +28,9 @@
 
 ### Low
 
-- L-01: oracle 向量集规模偏小
-- 影响：兼容回归信号有限
-- 状态：纳入 Product Phase 1 收口项
+- L-01: oracle 最低集合已满足，但样本规模仍可继续扩充
+- 影响：当前不再构成 Phase 1 gate blocker，但兼容回归信号仍可继续增强
+- 状态：作为非阻塞扩样本与维护项持续推进
 
 - L-02: 目标用户仍偏宽（嵌入式 / FFI / 高性能场景）
 - 影响：未来 Phase 3 设计若不进一步收敛，容易提前承诺过多非当前能力
@@ -57,7 +57,7 @@
 
 - 当前阶段可判定为：`Product Phase 1 路线可执行并在推进中`。
 - 当前对外表述应限定为：`Product Phase 1 / M1-M3`，即链下客户端核心与其收尾工作。
-- Product Phase 2 / 3 方向清晰；其中已有部分 Phase 2 bootstrap（如扩展 RPC 第一批、最小 websocket client），但产品级 websocket / 扩展 RPC 能力仍未最终收口，不能被写成“Phase 2 已完成”或“全量能力已落地”。
+- Product Phase 2 / 3 方向清晰；其中已有部分 Phase 2 bootstrap（如扩展 RPC 第一批），websocket 线当前仅保留仓内 prototype / backlog 状态，且已撤出公开包面；在满足 zig-native-first / target portability 约束前，不能被写成“Phase 2 已完成”或“全量能力已落地”。
 
 ## 6. 下一步审查门槛
 
@@ -78,7 +78,7 @@
 | G-CLOSE-03 RPC Gate | pass | `#7` (`892cfd8`): `getAccountInfo`/`simulateTransaction` typed 收敛 + happy/rpc_error/malformed 覆盖 |
 | G-CLOSE-04 v0/Tx Gate | pass | `#8` (`d905ca2` + `f546b03`): v0/ALT 与 versioned tx 失败路径补齐，泄漏修复 |
 | G-CLOSE-05 Devnet Gate | pass | `#10/#17`: 已有 `construct -> sign -> simulate` 与 `sendTransaction/confirm` 的 live 证据（见 `docs/14a` Run 2~5） |
-| G-CLOSE-06 Documentation Gate | in-progress | 当前主要残项已收敛为：oracle 相关 closeout 文档状态仍需完全统一，以及 `docs/15` 中若干条目尚未完成最终 `closed / documented exception` 处置 |
+| G-CLOSE-06 Documentation Gate | in-progress | 当前主要残项已收敛为：`docs/15` 中若干条目尚未完成最终 `closed / documented exception` 处置；其余 closeout 主线文档现以此为中心继续同步 |
 
 ### 7.2 当前结论
 

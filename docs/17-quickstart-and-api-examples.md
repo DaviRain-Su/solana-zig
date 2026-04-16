@@ -8,7 +8,7 @@ This guide is for **Product Phase 1 closeout scope only**:
 
 It does **not** claim Phase 2/3 capabilities (websocket/signers/C ABI/interfaces) as fully closed.
 
-Note: the repo now exposes a minimal low-level websocket client bootstrap (`rpc.WsClient` / `rpc.ws_client.WsRpcClient`), but subscription lifecycle / reconnect / unsubscribe is still tracked as Product Phase 2 work rather than Phase 1 closeout scope.
+Note: websocket is **not** part of the current public package/API contract. The repository may still contain websocket prototype work, but that line remains Product Phase 2 backlog until it satisfies zig-native-first and target-portability requirements.
 
 ---
 
@@ -134,14 +134,13 @@ test "legacy message + transaction example" {
 const std = @import("std");
 const sol = @import("solana_zig");
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const alloc = gpa.allocator();
+test "rpc getLatestBlockhash example" {
+    const alloc = std.testing.allocator;
+    const io = std.testing.io;
 
     var client = try sol.rpc.RpcClient.init(
         alloc,
-        .default,
+        io,
         "https://api.devnet.solana.com",
     );
     defer client.deinit();
@@ -151,14 +150,11 @@ pub fn main() !void {
         .ok => |v| {
             const b58 = try v.blockhash.toBase58Alloc(alloc);
             defer alloc.free(b58);
-            std.debug.print("blockhash={s} last_valid_block_height={d}\n", .{
-                b58,
-                v.last_valid_block_height,
-            });
+            try std.testing.expect(v.last_valid_block_height > 0);
+            try std.testing.expect(b58.len > 0);
         },
         .rpc_error => |e| {
             defer e.deinit(alloc);
-            std.debug.print("rpc error: code={d} message={s}\n", .{ e.code, e.message });
         },
     }
 }

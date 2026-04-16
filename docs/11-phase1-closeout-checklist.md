@@ -83,19 +83,17 @@
 
 ## 4. Current Closeout Blockers (as of 2026-04-16)
 
-- oracle 的 **Phase 1 最低集合已满足**，但文档仍需统一改写为“剩余为非阻塞扩样本”，避免继续把 oracle 误写成 blocker
 - benchmark baseline 首版记录已建立，但 closeout review 尚未最终固化
 - Devnet live 证据包虽已补齐到 `simulate/send/confirm`，但 execution matrix 中仍有多个 `open / in-progress / closeable` 条目未完成最终处置
 - execution matrix 中多个 `open / in-progress` 项仍未推进到 `closeable / closed`
 
 ## 5. Recommended Closeout Order
 
-1. 统一 oracle 文档口径：明确 Phase 1 最低集合已满足，剩余为非阻塞扩样本
-2. 补 v0 / tx / rpc partial 项测试覆盖
-3. 形成 benchmark 基线第一版真实记录
-4. 跑 Devnet E2E 验收并留档
-5. 更新 execution matrix 与 review report
-6. 执行一次 `Phase 1 Closeout Review`
+1. 补 v0 / tx / rpc partial 项测试覆盖
+2. 形成 benchmark 基线第一版真实记录
+3. 跑 Devnet E2E 验收并留档
+4. 更新 execution matrix 与 review report
+5. 执行一次 `Phase 1 Closeout Review`
 
 ## 6. Closeout Declaration Template
 

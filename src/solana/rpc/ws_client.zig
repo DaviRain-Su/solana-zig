@@ -1,3 +1,4 @@
+const builtin = @import("builtin");
 const std = @import("std");
 const types = @import("types.zig");
 
@@ -5,7 +6,10 @@ pub const WsClient = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
     stream: std.Io.net.Stream,
-    fd: std.posix.fd_t,
+    read_buffer: [2048]u8,
+    write_buffer: [2048]u8,
+    reader: std.Io.net.Stream.Reader,
+    writer: std.Io.net.Stream.Writer,
     next_id: u64 = 1,
 
     pub const ConnectError = std.mem.Allocator.Error || std.Io.net.IpAddress.ConnectError || std.Io.net.Ip6Address.ResolveError || error{
@@ -49,8 +53,13 @@ pub const WsClient = struct {
             .allocator = allocator,
             .io = io,
             .stream = stream,
-            .fd = stream.socket.handle,
+            .read_buffer = undefined,
+            .write_buffer = undefined,
+            .reader = undefined,
+            .writer = undefined,
         };
+        client.reader = client.stream.reader(client.io, &client.read_buffer);
+        client.writer = client.stream.writer(client.io, &client.write_buffer);
 
         try client.performHandshake(parsed.host, parsed.port, parsed.path);
         return client;
@@ -154,29 +163,23 @@ pub const WsClient = struct {
         };
     }
 
-    fn posixReadAll(fd: std.posix.fd_t, buf: []u8) !void {
-        var off: usize = 0;
-        while (off < buf.len) {
-            const n = std.c.read(fd, buf[off..].ptr, buf.len - off);
-            if (n == 0) return error.ConnectionClosed;
-            if (n < 0) return error.WsProtocolError;
-            off += @intCast(n);
-        }
+    fn readAll(self: *WsClient, buf: []u8) !void {
+        self.reader.interface.readSliceAll(buf) catch |err| switch (err) {
+            error.EndOfStream => return error.ConnectionClosed,
+            else => return error.WsProtocolError,
+        };
     }
 
-    fn posixRead(fd: std.posix.fd_t, buf: []u8) !usize {
-        const n = std.c.read(fd, buf.ptr, buf.len);
-        if (n < 0) return error.WsProtocolError;
-        return @intCast(n);
+    fn readSome(self: *WsClient, buf: []u8) !usize {
+        return self.reader.interface.readSliceShort(buf) catch |err| switch (err) {
+            error.EndOfStream => return 0,
+            else => return error.WsProtocolError,
+        };
     }
 
-    fn posixWriteAll(fd: std.posix.fd_t, data: []const u8) !void {
-        var off: usize = 0;
-        while (off < data.len) {
-            const n = std.c.write(fd, data[off..].ptr, data.len - off);
-            if (n <= 0) return error.WsProtocolError;
-            off += @intCast(n);
-        }
+    fn writeAll(self: *WsClient, data: []const u8) !void {
+        self.writer.interface.writeAll(data) catch return error.WsProtocolError;
+        self.writer.interface.flush() catch return error.WsProtocolError;
     }
 
     fn performHandshake(self: *WsClient, host: []const u8, port: u16, path: []const u8) ConnectError!void {
@@ -196,12 +199,12 @@ pub const WsClient = struct {
         );
         defer self.allocator.free(request);
 
-        posixWriteAll(self.fd, request) catch return error.HandshakeFailed;
+        self.writeAll(request) catch return error.HandshakeFailed;
 
         var response_buf: [1024]u8 = undefined;
         var response_len: usize = 0;
         while (response_len < response_buf.len) {
-            const n = posixRead(self.fd, response_buf[response_len..]) catch return error.HandshakeFailed;
+            const n = self.readSome(response_buf[response_len..]) catch return error.HandshakeFailed;
             if (n == 0) return error.HandshakeFailed;
             response_len += n;
             if (std.mem.indexOf(u8, response_buf[0..response_len], "\r\n\r\n")) |_| break;
@@ -274,14 +277,14 @@ pub const WsClient = struct {
         @memcpy(header[header_len..][0..4], &mask_key);
         header_len += 4;
 
-        posixWriteAll(self.fd, header[0..header_len]) catch return error.WsProtocolError;
+        self.writeAll(header[0..header_len]) catch return error.WsProtocolError;
 
         const masked_buf = self.allocator.alloc(u8, payload.len) catch return error.WsProtocolError;
         defer self.allocator.free(masked_buf);
         for (masked_buf, 0..) |*b, i| {
             b.* = payload[i] ^ mask_key[i % 4];
         }
-        posixWriteAll(self.fd, masked_buf) catch return error.WsProtocolError;
+        self.writeAll(masked_buf) catch return error.WsProtocolError;
     }
 
     const Frame = struct {
@@ -297,7 +300,7 @@ pub const WsClient = struct {
 
     fn readFrame(self: *WsClient) ReadError!Frame {
         var buf: [2]u8 = undefined;
-        posixReadAll(self.fd, &buf) catch |e| return mapReadErr(e);
+        self.readAll(&buf) catch |e| return mapReadErr(e);
 
         const fin = (buf[0] & 0x80) != 0;
         const opcode: Message.Opcode = @enumFromInt(buf[0] & 0x0F);
@@ -306,11 +309,11 @@ pub const WsClient = struct {
 
         if (payload_len == 126) {
             var len_buf: [2]u8 = undefined;
-            posixReadAll(self.fd, &len_buf) catch |e| return mapReadErr(e);
+            self.readAll(&len_buf) catch |e| return mapReadErr(e);
             payload_len = (@as(u64, len_buf[0]) << 8) | @as(u64, len_buf[1]);
         } else if (payload_len == 127) {
             var len_buf: [8]u8 = undefined;
-            posixReadAll(self.fd, &len_buf) catch |e| return mapReadErr(e);
+            self.readAll(&len_buf) catch |e| return mapReadErr(e);
             payload_len = 0;
             for (len_buf) |b| {
                 payload_len = (payload_len << 8) | @as(u64, b);
@@ -319,13 +322,13 @@ pub const WsClient = struct {
 
         var mask_key: [4]u8 = undefined;
         if (masked) {
-            posixReadAll(self.fd, &mask_key) catch |e| return mapReadErr(e);
+            self.readAll(&mask_key) catch |e| return mapReadErr(e);
         }
 
         const payload = self.allocator.alloc(u8, @intCast(payload_len)) catch return error.WsProtocolError;
         errdefer self.allocator.free(payload);
 
-        posixReadAll(self.fd, payload) catch |e| return mapReadErr(e);
+        self.readAll(payload) catch |e| return mapReadErr(e);
 
         if (masked) {
             for (payload, 0..) |*b, i| {
@@ -484,28 +487,35 @@ pub const WsRpcClient = struct {
 fn rawReadAll(fd: std.posix.fd_t, buf: []u8) !void {
     var off: usize = 0;
     while (off < buf.len) {
-        const n = std.c.read(fd, buf[off..].ptr, buf.len - off);
-        if (n <= 0) return error.WsProtocolError;
-        off += @intCast(n);
+        const n = std.posix.read(fd, buf[off..]) catch return error.WsProtocolError;
+        if (n == 0) return error.WsProtocolError;
+        off += n;
     }
 }
 
 fn rawRead(fd: std.posix.fd_t, buf: []u8) !usize {
-    const n = std.c.read(fd, buf.ptr, buf.len);
-    if (n <= 0) return error.WsProtocolError;
-    return @intCast(n);
+    const n = std.posix.read(fd, buf) catch return error.WsProtocolError;
+    return n;
 }
 
 fn rawWriteAll(fd: std.posix.fd_t, data: []const u8) !void {
     var off: usize = 0;
     while (off < data.len) {
-        const n = std.c.write(fd, data[off..].ptr, data.len - off);
+        const n = std.posix.system.write(fd, data[off..].ptr, data.len - off);
         if (n <= 0) return error.WsProtocolError;
         off += @intCast(n);
     }
 }
 
-const MockWsServer = struct {
+const MockWsServer = if (builtin.os.tag == .windows) struct {
+    port: u16 = 0,
+
+    fn start(_: std.mem.Allocator) !MockWsServer {
+        return error.SkipZigTest;
+    }
+
+    fn stop(_: *MockWsServer) void {}
+} else struct {
     const ServerContext = struct {
         stopped: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
         conn_fd: std.atomic.Value(c_int) = std.atomic.Value(c_int).init(-1),
@@ -518,23 +528,23 @@ const MockWsServer = struct {
     allocator: std.mem.Allocator,
 
     fn start(allocator: std.mem.Allocator) !MockWsServer {
-        const listen_fd = std.c.socket(std.c.AF.INET, std.c.SOCK.STREAM, 0);
+        const listen_fd = std.posix.system.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0);
         if (listen_fd < 0) return error.WsProtocolError;
 
         var opt: c_int = 1;
-        _ = std.c.setsockopt(listen_fd, std.c.SOL.SOCKET, std.c.SO.REUSEADDR, @ptrCast(&opt), @sizeOf(c_int));
+        _ = std.posix.system.setsockopt(listen_fd, std.posix.SOL.SOCKET, std.posix.SO.REUSEADDR, @ptrCast(&opt), @sizeOf(c_int));
 
-        var addr: std.c.sockaddr.in = std.mem.zeroes(std.c.sockaddr.in);
-        addr.family = std.c.AF.INET;
+        var addr: std.posix.sockaddr.in = std.mem.zeroes(std.posix.sockaddr.in);
+        addr.family = std.posix.AF.INET;
         addr.addr = std.mem.nativeToBig(u32, 0x7f000001);
         addr.port = std.mem.nativeToBig(u16, 0);
 
-        if (std.c.bind(listen_fd, @ptrCast(&addr), @sizeOf(std.c.sockaddr.in)) < 0) return error.WsProtocolError;
-        if (std.c.listen(listen_fd, 2) < 0) return error.WsProtocolError;
+        if (std.posix.system.bind(listen_fd, @ptrCast(&addr), @sizeOf(std.posix.sockaddr.in)) < 0) return error.WsProtocolError;
+        if (std.posix.system.listen(listen_fd, 2) < 0) return error.WsProtocolError;
 
-        var bound_addr: std.c.sockaddr.in = std.mem.zeroes(std.c.sockaddr.in);
-        var addr_len: std.c.socklen_t = @sizeOf(std.c.sockaddr.in);
-        if (std.c.getsockname(listen_fd, @ptrCast(&bound_addr), &addr_len) < 0) return error.WsProtocolError;
+        var bound_addr: std.posix.sockaddr.in = std.mem.zeroes(std.posix.sockaddr.in);
+        var addr_len: std.posix.socklen_t = @sizeOf(std.posix.sockaddr.in);
+        if (std.posix.system.getsockname(listen_fd, @ptrCast(&bound_addr), &addr_len) < 0) return error.WsProtocolError;
         const port = std.mem.bigToNative(u16, bound_addr.port);
 
         const ctx = try allocator.create(ServerContext);
@@ -556,45 +566,41 @@ const MockWsServer = struct {
         // Shutdown active connection if any
         const cfd = self.ctx.conn_fd.swap(-1, .acq_rel);
         if (cfd >= 0) {
-            _ = std.c.shutdown(cfd, 2);
-            _ = std.c.close(cfd);
+            _ = std.posix.system.shutdown(cfd, 2);
+            _ = std.posix.system.close(cfd);
         }
 
         // Connect to unblock accept()
-        const dummy_fd = std.c.socket(std.c.AF.INET, std.c.SOCK.STREAM, 0);
+        const dummy_fd = std.posix.system.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0);
         if (dummy_fd >= 0) {
-            var addr: std.c.sockaddr.in = std.mem.zeroes(std.c.sockaddr.in);
-            addr.family = std.c.AF.INET;
+            var addr: std.posix.sockaddr.in = std.mem.zeroes(std.posix.sockaddr.in);
+            addr.family = std.posix.AF.INET;
             addr.addr = std.mem.nativeToBig(u32, 0x7f000001);
             addr.port = std.mem.nativeToBig(u16, self.port);
-            _ = std.c.connect(dummy_fd, @ptrCast(&addr), @sizeOf(std.c.sockaddr.in));
-            _ = std.c.close(dummy_fd);
+            _ = std.posix.system.connect(dummy_fd, @ptrCast(&addr), @sizeOf(std.posix.sockaddr.in));
+            _ = std.posix.system.close(dummy_fd);
         }
 
         self.thread.join();
-        _ = std.c.shutdown(self.ctx.listen_fd, 2);
-        _ = std.c.close(self.ctx.listen_fd);
+        _ = std.posix.system.shutdown(self.ctx.listen_fd, 2);
+        _ = std.posix.system.close(self.ctx.listen_fd);
         self.allocator.destroy(self.ctx);
     }
 
     fn run(allocator: std.mem.Allocator, ctx: *ServerContext) void {
         for (0..2) |_| {
-            const conn_fd = std.c.accept(ctx.listen_fd, null, null);
+            const conn_fd = std.posix.system.accept(ctx.listen_fd, null, null);
             if (conn_fd < 0) return;
 
             if (ctx.stopped.load(.acquire)) {
-                _ = std.c.close(conn_fd);
+                _ = std.posix.system.close(conn_fd);
                 return;
             }
             ctx.conn_fd.store(conn_fd, .release);
 
             handleConnection(allocator, conn_fd) catch {};
 
-            const old = ctx.conn_fd.swap(-1, .acq_rel);
-            if (old >= 0) {
-                _ = std.c.shutdown(old, 2);
-                _ = std.c.close(old);
-            }
+            _ = ctx.conn_fd.swap(-1, .acq_rel);
         }
     }
 
@@ -679,6 +685,7 @@ const MockWsServer = struct {
                 sendFrameRaw(fd, .text, notif) catch break;
 
                 if (force_disconnect_after_notify) {
+                    sendFrameRaw(fd, .close, &[_]u8{}) catch {};
                     break;
                 }
             }
