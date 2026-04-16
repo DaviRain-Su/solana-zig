@@ -243,12 +243,15 @@ int main(void) {
 For hackathon/demo messaging, reflect the current shipped state:
 
 - Allowed:
-  - "full off-chain Zig Solana SDK — Phase 1/2/3 shipped"
+  - "off-chain Zig Solana SDK foundations + extended RPC/WebSocket shipped"
+  - "Phase 3 major surfaces are implemented and in final closeout review"
   - "16 RPC methods, 7 WebSocket subscription types"
   - "7 interface modules (system/token/token-2022/compute_budget/memo/stake/ata)"
-  - "Signer abstraction + C ABI export"
-  - "208 tests pass, zero memory leaks"
+  - "Signer abstraction + C ABI export surface landed"
+  - "current test suite passes with leak checks"
 - Not allowed:
+  - "Phase 3 is fully closed"
+  - "C ABI RPC is already production/live-ready"
   - "on-chain SBF/no_runtime support" (Phase 4, separate evaluation)
 
 ---
