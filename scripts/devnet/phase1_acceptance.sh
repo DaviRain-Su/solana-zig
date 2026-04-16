@@ -15,10 +15,12 @@ LOG_PATH="$OUT_DIR/phase1-devnet-${TIMESTAMP}-${COMMIT_SHA}.log"
 
 {
   echo "[phase1-devnet-acceptance] start"
+  echo "mode=wrapper-only"
   echo "timestamp=$TIMESTAMP"
   echo "commit=$COMMIT_SHA"
   echo "rpc_url=${SOLANA_RPC_URL}"
   echo "command=zig build test"
+  echo "note=this wrapper does not execute a true in-tree devnet construct/sign/simulate/send flow"
   echo
   zig build test
   echo

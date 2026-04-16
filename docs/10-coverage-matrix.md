@@ -1,6 +1,10 @@
 # Coverage Matrix
 
 **Date**: 2026-04-16
+**Last reviewed**: 2026-04-16
+**Docs baseline commit**: `2d0f937`
+
+> 注：本矩阵按最近一次文档同步基线维护；若工作区存在未提交代码改动，实际实现状态可能先于本文。
 
 > 本文档用于把“Rust 参考能力 → Zig 模块 → 当前状态 → 测试/文档映射”明确化，避免“已规划”与“已实现”混淆。
 >
@@ -49,7 +53,7 @@
 
 | Rust 参考能力 | Zig 模块 | 状态 | 代码入口 | 测试/文档映射 | 备注 |
 |---|---|---|---|---|---|
-| oracle vector loading | `compat.oracle_vector` | partial | `src/solana/compat/oracle_vector.zig` | `docs/05` 4.6 | 向量文件当前规模偏小 |
+| oracle vector loading | `compat.oracle_vector` | partial | `src/solana/compat/oracle_vector.zig` | `docs/05` 4.6 | 打包缺口已修复；向量文件当前规模仍偏小 |
 | bincode helper subset | `compat.bincode_compat` | partial | `src/solana/compat/bincode_compat.zig` | `docs/03` 1 / `docs/07` 2 | 当前仅最小辅助能力 |
 | Rust vector generator skeleton | `scripts/oracle/*` | partial | `scripts/oracle/generate_vectors.rs` | `README` / `docs/01` 11 | 生成链路已起步，向量集仍待扩充 |
 
@@ -86,7 +90,7 @@
 1. `oracle_vectors.json` 覆盖仍不足以支撑 Phase 1 兼容声明。
 2. `rpc/client.zig` 的 typed parse 收敛仍不够，`OwnedJson` 返回较多。
 3. v0 message / versioned transaction 仍需更完整的 oracle 与失败路径覆盖。
-4. Devnet E2E、benchmark baseline 还未形成 Phase 1 closeout 信号。
+4. Devnet 真正的 E2E harness 与 benchmark baseline 还未形成 Phase 1 closeout 信号；当前仅有包装式验收脚本。
 
 ## 9. 配套文档
 

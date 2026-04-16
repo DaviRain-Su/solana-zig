@@ -29,8 +29,8 @@
 
 - [ ] Phase 1 收口项尚未全部实现：oracle 扩充、typed parse 收紧、Devnet E2E、benchmark 基线
 - [ ] Product Phase 2 仍需单独补充更细的技术规格（尤其是 Websocket 生命周期与 Nonce 工作流）
-- [ ] Product Phase 3 进入前，建议补一版 interfaces / signers / C ABI 的边界收敛说明
-- [ ] 目标用户仍偏宽；如进入 C ABI 或硬件钱包场景，需新增更明确的 NFR 与安全约束
+- [ ] Product Phase 3 进入前，建议补一版 C ABI 边界 / 所有权 / 错误模型说明；interfaces / signers 边界已初步成文，但 ABI 侧仍缺独立收敛文档
+- [ ] 目标用户仍偏宽；如进入 C ABI 或硬件钱包场景，需进一步收敛目标用户，并补更明确的 NFR 与安全约束
 
 ## 5. 本次审查后的建议维护动作
 

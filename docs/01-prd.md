@@ -83,7 +83,7 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
   - `sendTransaction`
 - 测试与兼容：
   - oracle 向量对照
-  - Devnet E2E（环境变量门控）
+  - Devnet acceptance path（环境变量门控；当前通过外部 harness / wrapper 留档，不等同于仓库内建测试入口）
 
 ### 3.2 后续 Product Phase 扩展范围
 对照官方页面 crate 家族逐步扩展：
@@ -121,7 +121,7 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
 - FR-03：支持交易签名、验签、序列化、反序列化。
 - FR-04：支持 5 个高频 RPC 方法并保留 RPC error 结构。
 - FR-05：支持 transport 抽象注入，便于 mock 与测试。
-- FR-06：支持 Devnet 端到端最小交易流程演示。
+- FR-06：支持以外部 harness / acceptance wrapper 形式演示 Devnet 最小交易流程，并为后续真正的 E2E harness 预留接口。
 
 ---
 
@@ -147,7 +147,7 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
   - 完整 Transaction serialize（签名 + message）
 - `zig build test` 持续通过。
 - Phase 1 每个公共接口至少覆盖 1 个 Happy Path + 1 个 Error Path 测试。
-- 配置 `SOLANA_RPC_URL` 时 Devnet E2E 能完成“构造->签名->模拟->发送”。
+- 配置 `SOLANA_RPC_URL` 时，可通过外部 harness / acceptance wrapper 留档当前 Devnet 验收路径；完整“构造->签名->模拟->发送”闭环仍属于 Phase 1 收口目标，尚不等同于仓库内建测试入口。
 - `std.testing.allocator` 全量测试无内存泄漏。
 - *(基线)* 序列化/反序列化吞吐量 benchmark 建立（不要求优于 Rust，但需记录数据供后续对比）。
 
@@ -171,7 +171,7 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
 
 - M1：核心离线兼容（core + tx 基础能力稳定）。
 - M2：RPC/mock 可用（高频方法、transport 抽象、错误路径覆盖）。
-- M3：Phase 1 收口（Devnet E2E、文档收口、oracle 扩充、benchmark 基线）。
+- M3：Phase 1 收口（Devnet acceptance path / E2E、文档收口、oracle 扩充、benchmark 基线）。
 
 ---
 

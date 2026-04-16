@@ -54,6 +54,10 @@ pub const Message = struct {
         self.allocator.free(self.account_keys);
     }
 
+    pub fn validateHeader(self: @This()) !void {
+        try validateHeaderConsistency(self.header, self.account_keys.len);
+    }
+
     pub fn compileLegacy(
         allocator: std.mem.Allocator,
         payer: pubkey_mod.Pubkey,
@@ -98,13 +102,14 @@ pub const Message = struct {
 
         const ordered_roles = try orderRoles(allocator, static_roles.items);
         defer allocator.free(ordered_roles);
+        if (ordered_roles.len > std.math.maxInt(u8) + 1) return error.TooManyAccounts;
 
         const account_keys = try allocator.alloc(pubkey_mod.Pubkey, ordered_roles.len);
         for (ordered_roles, 0..) |role, i| account_keys[i] = role.key;
 
-        var num_signers: u8 = 0;
-        var num_readonly_signed: u8 = 0;
-        var num_readonly_unsigned: u8 = 0;
+        var num_signers: usize = 0;
+        var num_readonly_signed: usize = 0;
+        var num_readonly_unsigned: usize = 0;
         for (ordered_roles) |role| {
             if (role.is_signer) {
                 num_signers += 1;
@@ -113,11 +118,14 @@ pub const Message = struct {
                 if (!role.is_writable) num_readonly_unsigned += 1;
             }
         }
+        if (num_signers > std.math.maxInt(u8)) return error.TooManyAccounts;
+        if (num_readonly_signed > std.math.maxInt(u8)) return error.TooManyAccounts;
+        if (num_readonly_unsigned > std.math.maxInt(u8)) return error.TooManyAccounts;
 
         const header: MessageHeader = .{
-            .num_required_signatures = num_signers,
-            .num_readonly_signed_accounts = num_readonly_signed,
-            .num_readonly_unsigned_accounts = num_readonly_unsigned,
+            .num_required_signatures = @intCast(num_signers),
+            .num_readonly_signed_accounts = @intCast(num_readonly_signed),
+            .num_readonly_unsigned_accounts = @intCast(num_readonly_unsigned),
         };
 
         var key_indexes: std.ArrayList(KeyIndex) = .empty;
@@ -295,6 +303,7 @@ pub const Message = struct {
             account_keys[i] = .{ .bytes = bytes[cursor .. cursor + pubkey_mod.Pubkey.LENGTH][0..pubkey_mod.Pubkey.LENGTH].* };
             cursor += pubkey_mod.Pubkey.LENGTH;
         }
+        try validateHeaderConsistency(header, account_keys.len);
 
         if (cursor + hash_mod.Hash.LENGTH > bytes.len) return error.InvalidMessage;
         const recent_blockhash: hash_mod.Hash = .{ .bytes = bytes[cursor .. cursor + hash_mod.Hash.LENGTH][0..hash_mod.Hash.LENGTH].* };
@@ -304,35 +313,15 @@ pub const Message = struct {
         cursor += ix_len_result.consumed;
 
         const instructions = try allocator.alloc(CompiledInstruction, ix_len_result.value);
+        var initialized_instruction_count: usize = 0;
         errdefer {
-            for (instructions) |*ix| ix.deinit(allocator);
+            for (instructions[0..initialized_instruction_count]) |*ix| ix.deinit(allocator);
             allocator.free(instructions);
         }
 
         for (0..ix_len_result.value) |i| {
-            if (cursor >= bytes.len) return error.InvalidMessage;
-            const program_id_index = bytes[cursor];
-            cursor += 1;
-
-            const acct_len_result = try shortvec.decode(bytes[cursor..]);
-            cursor += acct_len_result.consumed;
-
-            if (cursor + acct_len_result.value > bytes.len) return error.InvalidMessage;
-            const acct_indexes = try allocator.dupe(u8, bytes[cursor .. cursor + acct_len_result.value]);
-            cursor += acct_len_result.value;
-
-            const data_len_result = try shortvec.decode(bytes[cursor..]);
-            cursor += data_len_result.consumed;
-
-            if (cursor + data_len_result.value > bytes.len) return error.InvalidMessage;
-            const data = try allocator.dupe(u8, bytes[cursor .. cursor + data_len_result.value]);
-            cursor += data_len_result.value;
-
-            instructions[i] = .{
-                .program_id_index = program_id_index,
-                .account_indexes = acct_indexes,
-                .data = data,
-            };
+            instructions[i] = try decodeCompiledInstruction(allocator, bytes, &cursor);
+            initialized_instruction_count += 1;
         }
 
         var lookups: []CompiledAddressLookup = &.{};
@@ -341,33 +330,15 @@ pub const Message = struct {
             cursor += lookup_len_result.consumed;
 
             lookups = try allocator.alloc(CompiledAddressLookup, lookup_len_result.value);
+            var initialized_lookup_count: usize = 0;
             errdefer {
-                for (lookups) |*lookup| lookup.deinit(allocator);
+                for (lookups[0..initialized_lookup_count]) |*lookup| lookup.deinit(allocator);
                 allocator.free(lookups);
             }
 
             for (0..lookup_len_result.value) |i| {
-                if (cursor + pubkey_mod.Pubkey.LENGTH > bytes.len) return error.InvalidMessage;
-                const account_key: pubkey_mod.Pubkey = .{ .bytes = bytes[cursor .. cursor + pubkey_mod.Pubkey.LENGTH][0..pubkey_mod.Pubkey.LENGTH].* };
-                cursor += pubkey_mod.Pubkey.LENGTH;
-
-                const writable_len = try shortvec.decode(bytes[cursor..]);
-                cursor += writable_len.consumed;
-                if (cursor + writable_len.value > bytes.len) return error.InvalidMessage;
-                const writable_indexes = try allocator.dupe(u8, bytes[cursor .. cursor + writable_len.value]);
-                cursor += writable_len.value;
-
-                const readonly_len = try shortvec.decode(bytes[cursor..]);
-                cursor += readonly_len.consumed;
-                if (cursor + readonly_len.value > bytes.len) return error.InvalidMessage;
-                const readonly_indexes = try allocator.dupe(u8, bytes[cursor .. cursor + readonly_len.value]);
-                cursor += readonly_len.value;
-
-                lookups[i] = .{
-                    .account_key = account_key,
-                    .writable_indexes = writable_indexes,
-                    .readonly_indexes = readonly_indexes,
-                };
+                lookups[i] = try decodeCompiledAddressLookup(allocator, bytes, &cursor);
+                initialized_lookup_count += 1;
             }
         }
 
@@ -477,6 +448,83 @@ fn containsStaticKeyIndex(indexes: []const KeyIndex, static_key_count: usize, ke
 
 fn containsDynamicKeyIndex(indexes: []const KeyIndex, static_key_count: usize, key: pubkey_mod.Pubkey) bool {
     return findKeyIndex(indexes[static_key_count..], key) != null;
+}
+
+fn validateHeaderConsistency(header: MessageHeader, account_key_count: usize) !void {
+    const required = @as(usize, header.num_required_signatures);
+    const readonly_signed = @as(usize, header.num_readonly_signed_accounts);
+    const readonly_unsigned = @as(usize, header.num_readonly_unsigned_accounts);
+
+    if (account_key_count > std.math.maxInt(u8) + 1) return error.InvalidMessage;
+    if (required > account_key_count) return error.InvalidMessage;
+    if (readonly_signed > required) return error.InvalidMessage;
+
+    const unsigned_count = account_key_count - required;
+    if (readonly_unsigned > unsigned_count) return error.InvalidMessage;
+}
+
+fn decodeCompiledInstruction(
+    allocator: std.mem.Allocator,
+    bytes: []const u8,
+    cursor: *usize,
+) !CompiledInstruction {
+    if (cursor.* >= bytes.len) return error.InvalidMessage;
+    const program_id_index = bytes[cursor.*];
+    cursor.* += 1;
+
+    const acct_len_result = try shortvec.decode(bytes[cursor.*..]);
+    cursor.* += acct_len_result.consumed;
+
+    if (cursor.* + acct_len_result.value > bytes.len) return error.InvalidMessage;
+    const acct_indexes = try allocator.dupe(u8, bytes[cursor.* .. cursor.* + acct_len_result.value]);
+    errdefer allocator.free(acct_indexes);
+    cursor.* += acct_len_result.value;
+
+    const data_len_result = try shortvec.decode(bytes[cursor.*..]);
+    cursor.* += data_len_result.consumed;
+
+    if (cursor.* + data_len_result.value > bytes.len) return error.InvalidMessage;
+    const data = try allocator.dupe(u8, bytes[cursor.* .. cursor.* + data_len_result.value]);
+    errdefer allocator.free(data);
+    cursor.* += data_len_result.value;
+
+    return .{
+        .program_id_index = program_id_index,
+        .account_indexes = acct_indexes,
+        .data = data,
+    };
+}
+
+fn decodeCompiledAddressLookup(
+    allocator: std.mem.Allocator,
+    bytes: []const u8,
+    cursor: *usize,
+) !CompiledAddressLookup {
+    if (cursor.* + pubkey_mod.Pubkey.LENGTH > bytes.len) return error.InvalidMessage;
+    const account_key: pubkey_mod.Pubkey = .{
+        .bytes = bytes[cursor.* .. cursor.* + pubkey_mod.Pubkey.LENGTH][0..pubkey_mod.Pubkey.LENGTH].*,
+    };
+    cursor.* += pubkey_mod.Pubkey.LENGTH;
+
+    const writable_len = try shortvec.decode(bytes[cursor.*..]);
+    cursor.* += writable_len.consumed;
+    if (cursor.* + writable_len.value > bytes.len) return error.InvalidMessage;
+    const writable_indexes = try allocator.dupe(u8, bytes[cursor.* .. cursor.* + writable_len.value]);
+    errdefer allocator.free(writable_indexes);
+    cursor.* += writable_len.value;
+
+    const readonly_len = try shortvec.decode(bytes[cursor.*..]);
+    cursor.* += readonly_len.consumed;
+    if (cursor.* + readonly_len.value > bytes.len) return error.InvalidMessage;
+    const readonly_indexes = try allocator.dupe(u8, bytes[cursor.* .. cursor.* + readonly_len.value]);
+    errdefer allocator.free(readonly_indexes);
+    cursor.* += readonly_len.value;
+
+    return .{
+        .account_key = account_key,
+        .writable_indexes = writable_indexes,
+        .readonly_indexes = readonly_indexes,
+    };
 }
 
 test "compile and serialize legacy message" {
@@ -602,5 +650,94 @@ test "compile v0 rejects duplicate dynamic lookup keys across tables" {
     try std.testing.expectError(
         error.DuplicateLookupKey,
         Message.compileV0(gpa, payer, &ixs, blockhash, &lookups),
+    );
+}
+
+test "compile legacy rejects too many static accounts" {
+    const gpa = std.testing.allocator;
+    const payer = pubkey_mod.Pubkey.init([_]u8{1} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{2} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{3} ** 32);
+
+    const account_count = std.math.maxInt(u8) + 1;
+    const accounts = try gpa.alloc(instruction_mod.AccountMeta, account_count);
+    defer gpa.free(accounts);
+
+    for (accounts, 0..) |*account, i| {
+        var bytes: [32]u8 = [_]u8{0} ** 32;
+        bytes[0] = @intCast(i & 0xff);
+        bytes[1] = @intCast((i >> 8) & 0xff);
+        account.* = .{
+            .pubkey = pubkey_mod.Pubkey.init(bytes),
+            .is_signer = false,
+            .is_writable = true,
+        };
+    }
+
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = accounts, .data = &.{} },
+    };
+
+    try std.testing.expectError(
+        error.TooManyAccounts,
+        Message.compileLegacy(gpa, payer, &ixs, blockhash),
+    );
+}
+
+test "deserialize rejects header that requires more signers than account keys" {
+    const gpa = std.testing.allocator;
+
+    const payer = pubkey_mod.Pubkey.init([_]u8{4} ** 32);
+    const receiver = pubkey_mod.Pubkey.init([_]u8{5} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{6} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{7} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer, .is_signer = true, .is_writable = true },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = &accounts, .data = &.{} },
+    };
+
+    var message = try Message.compileLegacy(gpa, payer, &ixs, blockhash);
+    defer message.deinit();
+
+    const encoded = try message.serialize(gpa);
+    defer gpa.free(encoded);
+
+    var malformed = try gpa.dupe(u8, encoded);
+    defer gpa.free(malformed);
+    malformed[0] = 10;
+
+    try std.testing.expectError(error.InvalidMessage, Message.deserialize(gpa, malformed));
+}
+
+test "deserialize truncated instruction payload cleans up initialized allocations" {
+    const gpa = std.testing.allocator;
+
+    const payer = pubkey_mod.Pubkey.init([_]u8{8} ** 32);
+    const receiver = pubkey_mod.Pubkey.init([_]u8{9} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{10} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{11} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer, .is_signer = true, .is_writable = true },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const data = [_]u8{ 1, 2, 3, 4 };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = &accounts, .data = &data },
+    };
+
+    var message = try Message.compileLegacy(gpa, payer, &ixs, blockhash);
+    defer message.deinit();
+
+    const encoded = try message.serialize(gpa);
+    defer gpa.free(encoded);
+
+    try std.testing.expectError(
+        error.InvalidMessage,
+        Message.deserialize(gpa, encoded[0 .. encoded.len - 1]),
     );
 }

@@ -133,6 +133,45 @@
 ### 验证
 - 文档中的 phase/任务/退出条件已按 review 反馈重新对齐。
 
+## 2026-04-16 第八次增量记录（文档收口小修）
+
+### 输入
+- 再次复核文档后，发现仍有几处适合进入实现收口前的小修：`docs/11` blocker 表述偏旧、`docs/09` 对 Phase 3 的待补文档表述过宽、`docs/14` 尚可更明确区分包装脚本与真实 E2E harness、`docs/15` 缺少证据落点列、`docs/10` 缺少 review 元数据。
+
+### 输出
+- `docs/09` 改为更准确地强调：Phase 3 仍缺 C ABI 边界 / 所有权 / 错误模型说明，以及目标用户与安全约束收敛。
+- `docs/10` 新增 `Last reviewed`、`Docs baseline commit` 和“可能落后于未提交代码”的说明。
+- `docs/11` 将 blocker 从“缺模板”收紧为“缺真实 benchmark 记录 / 缺真实 E2E harness / execution matrix 尚未收口”。
+- `docs/14` 明确写出：包装脚本通过不等于真实 Devnet E2E 完成。
+- `docs/15` 新增“证据落点”列，明确测试、artifact 与文档落点。
+
+### 风险
+- `docs/10` 当前基于最近一次文档同步基线维护；若工作区代码继续演进而未同步文档，矩阵仍可能再次过期。
+
+### 验证
+- 文档收口信号、证据落点和 wrapper/harness 边界表达已更贴近当前仓库真实状态。
+
+## 2026-04-16 第九次增量记录（parser hardening 与 Devnet 文档降级对齐）
+
+### 输入
+- 收到代码 review：`Message.deserialize` 的错误清理可能释放未初始化内存，`VersionedTransaction.verifySignatures` 可被畸形 header 触发越界，RPC malformed success response 存在 parsed JSON 泄漏，`build.zig.zon` 未打包 `testdata/`。
+- 同时发现 PRD / 测试规格 / Devnet 验收文档把当前包装脚本表述得过于接近“真实 Devnet E2E”。
+
+### 输出
+- `src/solana/tx/message.zig` 增加 header 一致性校验、静态账户上限保护，并把 instruction / lookup 反序列化改为按“已初始化元素”清理，避免错误路径 free 未初始化内存。
+- `src/solana/tx/transaction.zig` 在 `initUnsigned/sign/verifySignatures` 中显式校验 message header，阻断畸形交易导致的越界访问。
+- `src/solana/rpc/client.zig` 为 `getAccountInfo` 与 `simulateTransaction` 增加 `errdefer` 清理，并补充 malformed success response 测试。
+- `build.zig.zon` 把 `testdata` 纳入 package paths，修复 `compat.oracle_vector` 的打包缺口。
+- `docs/01`、`docs/05`、`docs/11`、`docs/14`、`docs/15` 与 `README.md` 同步改为：当前只有包装脚本 / 外部 harness 验收路径，不等同于真实 in-tree Devnet E2E。
+
+### 风险
+- Devnet 真正的 `construct -> sign -> simulate -> send` harness 仍未实现，Phase 1 closeout 不能把当前脚本误报为完整 E2E 证据。
+- `getAccountInfo` / `simulateTransaction` 仍主要返回 `OwnedJson`，typed parse 收敛仍是后续收口项。
+
+### 验证
+- 新增 parser hardening / malformed response 回归测试。
+- 计划执行：`zig build test` + package packaging smoke test。
+
 ### 风险
 - 当前变更主要是治理与命名统一，不直接提升实现覆盖率。
 - 如果后续 roadmap 再调整，仍需同步回写 `docs/01/04/05/08`。

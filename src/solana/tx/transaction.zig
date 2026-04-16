@@ -10,6 +10,7 @@ pub const VersionedTransaction = struct {
     message: message_mod.Message,
 
     pub fn initUnsigned(allocator: std.mem.Allocator, message: message_mod.Message) !VersionedTransaction {
+        try message.validateHeader();
         const sig_count = message.header.num_required_signatures;
         const signatures = try allocator.alloc(signature_mod.Signature, sig_count);
         for (signatures) |*sig| sig.* = .{ .bytes = [_]u8{0} ** signature_mod.Signature.LENGTH };
@@ -27,6 +28,11 @@ pub const VersionedTransaction = struct {
     }
 
     pub fn sign(self: *VersionedTransaction, signers: []const keypair_mod.Keypair) !void {
+        try self.message.validateHeader();
+
+        const required = @as(usize, self.message.header.num_required_signatures);
+        if (required != self.signatures.len) return error.SignatureCountMismatch;
+
         const msg_bytes = try self.message.serialize(self.allocator);
         defer self.allocator.free(msg_bytes);
 
@@ -42,6 +48,8 @@ pub const VersionedTransaction = struct {
     }
 
     pub fn verifySignatures(self: VersionedTransaction) !void {
+        try self.message.validateHeader();
+
         const msg_bytes = try self.message.serialize(self.allocator);
         defer self.allocator.free(msg_bytes);
 
@@ -170,4 +178,42 @@ test "transaction sign fails when required signer missing" {
     defer tx.deinit();
 
     try std.testing.expectError(error.MissingRequiredSignature, tx.sign(&.{}));
+}
+
+test "verify signatures rejects malformed message header before indexing account keys" {
+    const gpa = std.testing.allocator;
+    const pubkey_mod = @import("../core/pubkey.zig");
+    const hash_mod = @import("../core/hash.zig");
+
+    const account_keys = try gpa.alloc(pubkey_mod.Pubkey, 1);
+    errdefer gpa.free(account_keys);
+    account_keys[0] = pubkey_mod.Pubkey.init([_]u8{1} ** 32);
+
+    var message = message_mod.Message{
+        .allocator = gpa,
+        .version = .legacy,
+        .header = .{
+            .num_required_signatures = 2,
+            .num_readonly_signed_accounts = 0,
+            .num_readonly_unsigned_accounts = 0,
+        },
+        .account_keys = account_keys,
+        .recent_blockhash = hash_mod.Hash.init([_]u8{2} ** 32),
+        .instructions = &.{},
+        .address_table_lookups = &.{},
+    };
+    errdefer message.deinit();
+
+    const signatures = try gpa.alloc(signature_mod.Signature, 2);
+    errdefer gpa.free(signatures);
+    for (signatures) |*sig| sig.* = .{ .bytes = [_]u8{0} ** signature_mod.Signature.LENGTH };
+
+    var tx = VersionedTransaction{
+        .allocator = gpa,
+        .signatures = signatures,
+        .message = message,
+    };
+    defer tx.deinit();
+
+    try std.testing.expectError(error.InvalidMessage, tx.verifySignatures());
 }

@@ -12,7 +12,7 @@
 
 1. **兼容性**：核心离线能力与锁定 Rust 基线的字节/行为兼容证据完整
 2. **测试性**：离线门禁稳定，全量关键 public API 有 Happy + Error 覆盖
-3. **可展示性**：Devnet E2E 可复现，且流程证据可留档
+3. **可展示性**：Devnet acceptance path 可复现，且流程证据可留档；若尚未提供真正的 E2E harness，必须明确标注当前仅为包装脚本/外部 harness
 4. **可追踪性**：coverage / execution / implementation log / review 文档已同步收口
 
 ## 2. Required Evidence Packs
@@ -67,7 +67,7 @@
 - versioned transaction 的签名、验签、序列化、反序列化闭环稳定
 
 ### G-CLOSE-05: Devnet Gate
-- 在配置 `SOLANA_RPC_URL` 时，Devnet E2E 流程可执行
+- 在配置 `SOLANA_RPC_URL` 时，当前 Devnet 验收路径可执行，且文档需明确其是否已达到真正的“构造->签名->模拟->发送”E2E 闭环
 - 产出留档日志、提交哈希、执行时间和结果摘要
 
 ### G-CLOSE-06: Documentation Gate
@@ -77,15 +77,15 @@
 ## 4. Current Closeout Blockers (as of 2026-04-16)
 
 - oracle 向量规模不足
-- benchmark baseline 尚未形成固定记录模板
-- Devnet E2E 尚缺统一验收说明与证据模板
-- coverage matrix 中多个 `partial` 项尚未映射为明确收口动作
+- benchmark baseline 尚未形成第一版真实记录
+- 真正的 Devnet E2E harness 仍未落地；当前仅有包装脚本与说明文档
+- execution matrix 中多个 `open / in-progress` 项仍未推进到 `closeable / closed`
 
 ## 5. Recommended Closeout Order
 
 1. 补 oracle 向量计划与最小集合
 2. 补 v0 / tx / rpc partial 项测试覆盖
-3. 补 benchmark 基线记录模板
+3. 形成 benchmark 基线第一版真实记录
 4. 跑 Devnet E2E 验收并留档
 5. 更新 execution matrix 与 review report
 6. 执行一次 `Phase 1 Closeout Review`

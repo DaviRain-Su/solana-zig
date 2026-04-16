@@ -15,7 +15,7 @@
 - L1：core 单元测试
 - L2：tx 组件测试
 - L3：rpc + mock transport
-- L4：Devnet 集成测试（环境变量门控）
+- L4：Devnet acceptance harness / 外部集成验证（环境变量门控）
 - L5：compat/oracle 对照测试
 - L6：扩展 RPC / Websocket / Nonce 工作流测试（Product Phase 2）
 - L7：interfaces / signers / C ABI 集成测试（Product Phase 3）
@@ -23,8 +23,9 @@
 ## 3. 环境与执行
 
 - 默认：`zig build test`
-- Devnet 测试启用：`SOLANA_RPC_URL` 存在
-- 无 `SOLANA_RPC_URL`：L4 全部 skip，不影响离线门禁
+- Devnet 验收路径启用：`SOLANA_RPC_URL` 存在
+- 当前 L4 通过外部 acceptance wrapper / harness 执行，不等同于 `zig build test` 内建测试层
+- 无 `SOLANA_RPC_URL`：L4 不执行，不影响离线门禁
 - 所有涉及动态分配的测试必须使用 `std.testing.allocator` 并通过泄漏检测
 
 ## 4. 当前范围测试矩阵（Product Phase 1 / M1-M3）
@@ -83,7 +84,7 @@
 
 - G1：L1+L2+L5 全绿（必需）
 - G2：L3 全绿（必需）
-- G3：L4 在配置环境时全绿（建议）
+- G3：L4 在配置环境时通过（建议）；若当前仅执行包装脚本，需明确标注其不等同于完整 in-tree Devnet E2E
 - G4：新增公共 API 必须带 Happy + Error 用例
 - G5：Product Phase 2 宣称可用前，L6 核心用例必须通过
 - G6：Product Phase 3 宣称可用前，L7 核心用例必须通过，且性能对比报告已形成可复跑记录

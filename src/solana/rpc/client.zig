@@ -36,7 +36,8 @@ pub const RpcClient = struct {
     }
 
     pub fn getLatestBlockhash(self: *RpcClient) !types.RpcResult(types.LatestBlockhash) {
-        const payload = try std.fmt.allocPrint(self.allocator,
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
             "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getLatestBlockhash\",\"params\":[{{\"commitment\":\"confirmed\"}}]}}",
             .{self.nextRpcId()},
         );
@@ -66,7 +67,8 @@ pub const RpcClient = struct {
         const address = try pubkey.toBase58Alloc(self.allocator);
         defer self.allocator.free(address);
 
-        const payload = try std.fmt.allocPrint(self.allocator,
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
             "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getBalance\",\"params\":[\"{s}\"]}}",
             .{ self.nextRpcId(), address },
         );
@@ -91,13 +93,15 @@ pub const RpcClient = struct {
         const address = try pubkey.toBase58Alloc(self.allocator);
         defer self.allocator.free(address);
 
-        const payload = try std.fmt.allocPrint(self.allocator,
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
             "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getAccountInfo\",\"params\":[\"{s}\",{{\"encoding\":\"base64\"}}]}}",
             .{ self.nextRpcId(), address },
         );
         defer self.allocator.free(payload);
 
         var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
 
         if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
             response.parsed.deinit();
@@ -117,13 +121,15 @@ pub const RpcClient = struct {
         const tx_base64 = try encodeBase64(self.allocator, tx_bytes);
         defer self.allocator.free(tx_base64);
 
-        const payload = try std.fmt.allocPrint(self.allocator,
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
             "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"simulateTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"sigVerify\":true}}]}}",
             .{ self.nextRpcId(), tx_base64 },
         );
         defer self.allocator.free(payload);
 
         var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
 
         if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
             response.parsed.deinit();
@@ -142,7 +148,8 @@ pub const RpcClient = struct {
         const tx_base64 = try encodeBase64(self.allocator, tx_bytes);
         defer self.allocator.free(tx_base64);
 
-        const payload = try std.fmt.allocPrint(self.allocator,
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
             "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"sendTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"skipPreflight\":false}}]}}",
             .{ self.nextRpcId(), tx_base64 },
         );
@@ -276,6 +283,32 @@ const MockTransport = struct {
     }
 };
 
+fn makeTestTransaction(allocator: std.mem.Allocator) !transaction_mod.VersionedTransaction {
+    const keypair = try @import("../core/keypair.zig").Keypair.fromSeed([_]u8{8} ** 32);
+    const receiver = pubkey_mod.Pubkey.init([_]u8{7} ** 32);
+    const program = pubkey_mod.Pubkey.init([_]u8{6} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{5} ** 32);
+    const instruction_mod = @import("../tx/instruction.zig");
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = keypair.pubkey(), .is_signer = true, .is_writable = true },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const payload = [_]u8{ 1, 2, 3 };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program, .accounts = &accounts, .data = &payload },
+    };
+
+    var message = try @import("../tx/message.zig").Message.compileLegacy(allocator, keypair.pubkey(), &ixs, blockhash);
+    errdefer message.deinit();
+
+    var tx = try transaction_mod.VersionedTransaction.initUnsigned(allocator, message);
+    errdefer tx.deinit();
+
+    try tx.sign(&[_]@import("../core/keypair.zig").Keypair{keypair});
+    return tx;
+}
+
 test "rpc client supports injected transport for happy path" {
     const gpa = std.testing.allocator;
 
@@ -332,4 +365,36 @@ test "rpc client returns transport error with injected transport" {
 
     const pubkey = pubkey_mod.Pubkey.init([_]u8{3} ** 32);
     try std.testing.expectError(error.RpcTransport, client.getBalance(pubkey));
+}
+
+test "rpc client getAccountInfo cleans up parsed json on malformed success response" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{4} ** 32);
+    try std.testing.expectError(error.InvalidRpcResponse, client.getAccountInfo(pubkey));
+}
+
+test "rpc client simulateTransaction cleans up parsed json on malformed success response" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    var tx = try makeTestTransaction(gpa);
+    defer tx.deinit();
+
+    try std.testing.expectError(error.InvalidRpcResponse, client.simulateTransaction(tx));
 }

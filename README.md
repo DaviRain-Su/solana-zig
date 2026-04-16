@@ -24,7 +24,7 @@ zig build test
 ## Optional Devnet Usage
 Set `SOLANA_RPC_URL` and call the RPC client from your own integration harness.
 
-For the current Phase 1 acceptance wrapper, run:
+For the current Phase 1 acceptance wrapper (it only records env metadata and runs `zig build test`; it is not yet a true in-tree Devnet E2E harness), run:
 
 ```bash
 SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
