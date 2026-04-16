@@ -11,6 +11,9 @@ const rpc_transport_mod = @import("../rpc/transport.zig");
 const TOKEN_PROGRAM_ID_STR = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
 const Discriminant = enum(u8) {
+    approve = 4,
+    mint_to = 7,
+    burn = 8,
     close_account = 9,
     transfer_checked = 12,
 };
@@ -28,6 +31,27 @@ pub const CloseAccountParams = struct {
     account: pubkey_mod.Pubkey,
     destination: pubkey_mod.Pubkey,
     owner: pubkey_mod.Pubkey,
+};
+
+pub const MintParams = struct {
+    mint: pubkey_mod.Pubkey,
+    destination: pubkey_mod.Pubkey,
+    authority: pubkey_mod.Pubkey,
+    amount: u64,
+};
+
+pub const ApproveParams = struct {
+    source: pubkey_mod.Pubkey,
+    delegate: pubkey_mod.Pubkey,
+    owner: pubkey_mod.Pubkey,
+    amount: u64,
+};
+
+pub const BurnParams = struct {
+    source: pubkey_mod.Pubkey,
+    mint: pubkey_mod.Pubkey,
+    owner: pubkey_mod.Pubkey,
+    amount: u64,
 };
 
 /// SPL Token program ID: TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
@@ -110,6 +134,129 @@ pub fn buildCloseAccountInstruction(
     };
     accounts[1] = .{
         .pubkey = params.destination,
+        .is_signer = false,
+        .is_writable = true,
+    };
+    accounts[2] = .{
+        .pubkey = params.owner,
+        .is_signer = true,
+        .is_writable = false,
+    };
+
+    return .{
+        .program_id = programId(),
+        .accounts = accounts,
+        .data = data,
+    };
+}
+
+/// Build SPL Token `MintTo` instruction.
+///
+/// Data layout: [0x07] ++ little-endian u64 amount.
+/// Accounts (single-signer authority):
+/// 0. mint (writable)
+/// 1. destination token account (writable)
+/// 2. authority (readonly signer)
+pub fn buildMintInstruction(
+    allocator: std.mem.Allocator,
+    params: MintParams,
+) !instruction_mod.Instruction {
+    const data = try allocator.alloc(u8, 9);
+    errdefer allocator.free(data);
+    data[0] = @intFromEnum(Discriminant.mint_to);
+    std.mem.writeInt(u64, data[1..9], params.amount, .little);
+
+    const accounts = try allocator.alloc(instruction_mod.AccountMeta, 3);
+    errdefer allocator.free(accounts);
+    accounts[0] = .{
+        .pubkey = params.mint,
+        .is_signer = false,
+        .is_writable = true,
+    };
+    accounts[1] = .{
+        .pubkey = params.destination,
+        .is_signer = false,
+        .is_writable = true,
+    };
+    accounts[2] = .{
+        .pubkey = params.authority,
+        .is_signer = true,
+        .is_writable = false,
+    };
+
+    return .{
+        .program_id = programId(),
+        .accounts = accounts,
+        .data = data,
+    };
+}
+
+/// Build SPL Token `Approve` instruction.
+///
+/// Data layout: [0x04] ++ little-endian u64 amount.
+/// Accounts (single-signer owner):
+/// 0. source token account (writable)
+/// 1. delegate (readonly)
+/// 2. owner (readonly signer)
+pub fn buildApproveInstruction(
+    allocator: std.mem.Allocator,
+    params: ApproveParams,
+) !instruction_mod.Instruction {
+    const data = try allocator.alloc(u8, 9);
+    errdefer allocator.free(data);
+    data[0] = @intFromEnum(Discriminant.approve);
+    std.mem.writeInt(u64, data[1..9], params.amount, .little);
+
+    const accounts = try allocator.alloc(instruction_mod.AccountMeta, 3);
+    errdefer allocator.free(accounts);
+    accounts[0] = .{
+        .pubkey = params.source,
+        .is_signer = false,
+        .is_writable = true,
+    };
+    accounts[1] = .{
+        .pubkey = params.delegate,
+        .is_signer = false,
+        .is_writable = false,
+    };
+    accounts[2] = .{
+        .pubkey = params.owner,
+        .is_signer = true,
+        .is_writable = false,
+    };
+
+    return .{
+        .program_id = programId(),
+        .accounts = accounts,
+        .data = data,
+    };
+}
+
+/// Build SPL Token `Burn` instruction.
+///
+/// Data layout: [0x08] ++ little-endian u64 amount.
+/// Accounts (single-signer owner):
+/// 0. source token account (writable)
+/// 1. mint (writable)
+/// 2. owner (readonly signer)
+pub fn buildBurnInstruction(
+    allocator: std.mem.Allocator,
+    params: BurnParams,
+) !instruction_mod.Instruction {
+    const data = try allocator.alloc(u8, 9);
+    errdefer allocator.free(data);
+    data[0] = @intFromEnum(Discriminant.burn);
+    std.mem.writeInt(u64, data[1..9], params.amount, .little);
+
+    const accounts = try allocator.alloc(instruction_mod.AccountMeta, 3);
+    errdefer allocator.free(accounts);
+    accounts[0] = .{
+        .pubkey = params.source,
+        .is_signer = false,
+        .is_writable = true,
+    };
+    accounts[1] = .{
+        .pubkey = params.mint,
         .is_signer = false,
         .is_writable = true,
     };
@@ -240,6 +387,96 @@ test "closeAccount byte layout and account metas" {
     try std.testing.expect(ix.accounts[2].pubkey.eql(owner));
     try std.testing.expectEqual(true, ix.accounts[2].is_signer);
     try std.testing.expectEqual(false, ix.accounts[2].is_writable);
+}
+
+test "mint byte layout and account metas" {
+    const allocator = std.testing.allocator;
+    const mint = pubkey_mod.Pubkey.init([_]u8{0xA1} ** 32);
+    const destination = pubkey_mod.Pubkey.init([_]u8{0xA2} ** 32);
+    const authority = pubkey_mod.Pubkey.init([_]u8{0xA3} ** 32);
+
+    const ix = try buildMintInstruction(allocator, .{
+        .mint = mint,
+        .destination = destination,
+        .authority = authority,
+        .amount = 42,
+    });
+    defer allocator.free(ix.data);
+    defer allocator.free(ix.accounts);
+
+    try std.testing.expectEqual(@as(usize, 9), ix.data.len);
+    try std.testing.expectEqual(@as(u8, 7), ix.data[0]);
+    try std.testing.expectEqual(@as(u64, 42), std.mem.readInt(u64, ix.data[1..9], .little));
+    try std.testing.expect(ix.program_id.eql(programId()));
+
+    try std.testing.expectEqual(@as(usize, 3), ix.accounts.len);
+    try std.testing.expect(ix.accounts[0].pubkey.eql(mint));
+    try std.testing.expectEqual(false, ix.accounts[0].is_signer);
+    try std.testing.expectEqual(true, ix.accounts[0].is_writable);
+    try std.testing.expect(ix.accounts[1].pubkey.eql(destination));
+    try std.testing.expectEqual(false, ix.accounts[1].is_signer);
+    try std.testing.expectEqual(true, ix.accounts[1].is_writable);
+    try std.testing.expect(ix.accounts[2].pubkey.eql(authority));
+    try std.testing.expectEqual(true, ix.accounts[2].is_signer);
+    try std.testing.expectEqual(false, ix.accounts[2].is_writable);
+}
+
+test "approve byte layout and account metas" {
+    const allocator = std.testing.allocator;
+    const source = pubkey_mod.Pubkey.init([_]u8{0xB1} ** 32);
+    const delegate = pubkey_mod.Pubkey.init([_]u8{0xB2} ** 32);
+    const owner = pubkey_mod.Pubkey.init([_]u8{0xB3} ** 32);
+
+    const ix = try buildApproveInstruction(allocator, .{
+        .source = source,
+        .delegate = delegate,
+        .owner = owner,
+        .amount = 1234,
+    });
+    defer allocator.free(ix.data);
+    defer allocator.free(ix.accounts);
+
+    try std.testing.expectEqual(@as(usize, 9), ix.data.len);
+    try std.testing.expectEqual(@as(u8, 4), ix.data[0]);
+    try std.testing.expectEqual(@as(u64, 1234), std.mem.readInt(u64, ix.data[1..9], .little));
+    try std.testing.expect(ix.program_id.eql(programId()));
+
+    try std.testing.expectEqual(@as(usize, 3), ix.accounts.len);
+    try std.testing.expect(ix.accounts[0].pubkey.eql(source));
+    try std.testing.expectEqual(true, ix.accounts[0].is_writable);
+    try std.testing.expect(ix.accounts[1].pubkey.eql(delegate));
+    try std.testing.expectEqual(false, ix.accounts[1].is_writable);
+    try std.testing.expect(ix.accounts[2].pubkey.eql(owner));
+    try std.testing.expectEqual(true, ix.accounts[2].is_signer);
+}
+
+test "burn byte layout and account metas" {
+    const allocator = std.testing.allocator;
+    const source = pubkey_mod.Pubkey.init([_]u8{0xC1} ** 32);
+    const mint = pubkey_mod.Pubkey.init([_]u8{0xC2} ** 32);
+    const owner = pubkey_mod.Pubkey.init([_]u8{0xC3} ** 32);
+
+    const ix = try buildBurnInstruction(allocator, .{
+        .source = source,
+        .mint = mint,
+        .owner = owner,
+        .amount = 99,
+    });
+    defer allocator.free(ix.data);
+    defer allocator.free(ix.accounts);
+
+    try std.testing.expectEqual(@as(usize, 9), ix.data.len);
+    try std.testing.expectEqual(@as(u8, 8), ix.data[0]);
+    try std.testing.expectEqual(@as(u64, 99), std.mem.readInt(u64, ix.data[1..9], .little));
+    try std.testing.expect(ix.program_id.eql(programId()));
+
+    try std.testing.expectEqual(@as(usize, 3), ix.accounts.len);
+    try std.testing.expect(ix.accounts[0].pubkey.eql(source));
+    try std.testing.expectEqual(true, ix.accounts[0].is_writable);
+    try std.testing.expect(ix.accounts[1].pubkey.eql(mint));
+    try std.testing.expectEqual(true, ix.accounts[1].is_writable);
+    try std.testing.expect(ix.accounts[2].pubkey.eql(owner));
+    try std.testing.expectEqual(true, ix.accounts[2].is_signer);
 }
 
 test "token builders compile into signed legacy transaction" {
@@ -423,4 +660,50 @@ test "token flow failure-path: account/meta mismatch returns rpc_error" {
     const send_res = try client.sendTransaction(tx);
     try std.testing.expect(send_res == .rpc_error);
     send_res.rpc_error.deinit(allocator);
+}
+
+test "mint/approve/burn builders compile into signed legacy transaction" {
+    const allocator = std.testing.allocator;
+
+    const owner = try keypair_mod.Keypair.fromSeed([_]u8{0x8A} ** 32);
+    const source = pubkey_mod.Pubkey.init([_]u8{0x91} ** 32);
+    const mint = pubkey_mod.Pubkey.init([_]u8{0x92} ** 32);
+    const delegate = pubkey_mod.Pubkey.init([_]u8{0x93} ** 32);
+    const destination = pubkey_mod.Pubkey.init([_]u8{0x94} ** 32);
+
+    const mint_ix = try buildMintInstruction(allocator, .{
+        .mint = mint,
+        .destination = destination,
+        .authority = owner.pubkey(),
+        .amount = 10,
+    });
+    defer allocator.free(mint_ix.data);
+    defer allocator.free(mint_ix.accounts);
+
+    const approve_ix = try buildApproveInstruction(allocator, .{
+        .source = source,
+        .delegate = delegate,
+        .owner = owner.pubkey(),
+        .amount = 5,
+    });
+    defer allocator.free(approve_ix.data);
+    defer allocator.free(approve_ix.accounts);
+
+    const burn_ix = try buildBurnInstruction(allocator, .{
+        .source = source,
+        .mint = mint,
+        .owner = owner.pubkey(),
+        .amount = 1,
+    });
+    defer allocator.free(burn_ix.data);
+    defer allocator.free(burn_ix.accounts);
+
+    const ixs = [_]instruction_mod.Instruction{ mint_ix, approve_ix, burn_ix };
+    const recent_blockhash = hash_mod.Hash.init([_]u8{0xCD} ** 32);
+    const msg = try message_mod.Message.compileLegacy(allocator, owner.pubkey(), &ixs, recent_blockhash);
+
+    var tx = try transaction_mod.VersionedTransaction.initUnsigned(allocator, msg);
+    defer tx.deinit();
+    try tx.sign(&[_]keypair_mod.Keypair{owner});
+    try tx.verifySignatures();
 }

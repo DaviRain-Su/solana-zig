@@ -2202,32 +2202,184 @@ test "rpc client batch b read methods local-live evidence (gated)" {
     }
 }
 
-test "rpc client requestAirdrop live evidence (gated)" {
+fn isRateLimitedRpcError(code: i64, message: []const u8) bool {
+    if (code == -32005) return true;
+    if (std.mem.indexOf(u8, message, "429") != null) return true;
+    if (std.mem.indexOf(u8, message, "rate limit") != null) return true;
+    if (std.mem.indexOf(u8, message, "Rate limit") != null) return true;
+    if (std.mem.indexOf(u8, message, "Too Many Requests") != null) return true;
+    return false;
+}
+
+fn isMethodNotFoundRpcError(code: i64, message: []const u8) bool {
+    if (code == -32601) return true;
+    if (std.mem.indexOf(u8, message, "Method not found") != null) return true;
+    if (std.mem.indexOf(u8, message, "method not found") != null) return true;
+    return false;
+}
+
+test "rpc client requestAirdrop tri-state convergence evidence (gated)" {
     const gpa = std.testing.allocator;
-    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
-        error.EnvironmentVariableMissing => {
-            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping requestAirdrop live evidence\\n", .{});
-            return;
-        },
+
+    const devnet_endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => null,
         else => return err,
     };
-    defer gpa.free(endpoint);
 
-    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
-    defer client.deinit();
+    const local_endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SURFPOOL_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => null,
+        else => return err,
+    };
+
+    defer if (devnet_endpoint) |ep| gpa.free(ep);
+    defer if (local_endpoint) |ep| gpa.free(ep);
+
+    if (devnet_endpoint == null and local_endpoint == null) {
+        std.debug.print("[skip] SOLANA_RPC_URL and SURFPOOL_RPC_URL not set, skipping requestAirdrop tri-state evidence\\n", .{});
+        return;
+    }
+
+    var devnet_success = false;
+    var devnet_rate_limited = false;
+    var local_success = false;
 
     const recipient = try @import("../core/keypair.zig").Keypair.fromSeed([_]u8{57} ** 32);
-    const result = try client.requestAirdrop(recipient.pubkey(), 1_000_000);
-    switch (result) {
-        .ok => |airdrop| {
-            const sig_b58 = try airdrop.signature.toBase58Alloc(gpa);
-            defer gpa.free(sig_b58);
-            try std.testing.expect(sig_b58.len > 0);
-            std.debug.print("[batch-b live] requestAirdrop signature: {s}\\n", .{sig_b58});
-        },
-        .rpc_error => |rpc_err| {
-            defer rpc_err.deinit(gpa);
-            return error.UnexpectedRpcError;
-        },
+
+    if (devnet_endpoint) |endpoint| {
+        var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+        defer client.deinit();
+
+        var attempt: usize = 0;
+        while (attempt < 3) : (attempt += 1) {
+            const result = try client.requestAirdrop(recipient.pubkey(), 1_000_000);
+            switch (result) {
+                .ok => |airdrop| {
+                    const sig_b58 = try airdrop.signature.toBase58Alloc(gpa);
+                    defer gpa.free(sig_b58);
+                    std.debug.print("[p3a exception] requestAirdrop(devnet) success sig={s}\\n", .{sig_b58});
+                    devnet_success = true;
+                    break;
+                },
+                .rpc_error => |rpc_err| {
+                    defer rpc_err.deinit(gpa);
+                    if (isRateLimitedRpcError(rpc_err.code, rpc_err.message)) {
+                        devnet_rate_limited = true;
+                        if (attempt + 1 < 3) {
+                            const yields = @as(usize, 1) << @as(u6, @intCast(attempt));
+                            for (0..yields) |_| {
+                                std.Thread.yield() catch {};
+                            }
+                            continue;
+                        }
+                        break;
+                    }
+                    return error.UnexpectedRpcError;
+                },
+            }
+        }
+    }
+
+    if (local_endpoint) |endpoint| {
+        var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+        defer client.deinit();
+
+        const result = try client.requestAirdrop(recipient.pubkey(), 1_000_000);
+        switch (result) {
+            .ok => |airdrop| {
+                const sig_b58 = try airdrop.signature.toBase58Alloc(gpa);
+                defer gpa.free(sig_b58);
+                std.debug.print("[p3a exception] requestAirdrop(local-live) success sig={s}\\n", .{sig_b58});
+                local_success = true;
+            },
+            .rpc_error => |rpc_err| {
+                defer rpc_err.deinit(gpa);
+                return error.UnexpectedRpcError;
+            },
+        }
+    }
+
+    if (devnet_success or local_success) {
+        if (devnet_rate_limited) {
+            // partial exception path is only valid with local-live success.
+            try std.testing.expect(local_success);
+        }
+        return;
+    }
+
+    // Neither side succeeded -> not converged.
+    return error.UnexpectedRpcError;
+}
+
+test "rpc client getAddressLookupTable success-or-exception convergence evidence (gated)" {
+    const gpa = std.testing.allocator;
+    const devnet_endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => null,
+        else => return err,
+    };
+    const local_endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SURFPOOL_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => null,
+        else => return err,
+    };
+    defer if (devnet_endpoint) |ep| gpa.free(ep);
+    defer if (local_endpoint) |ep| gpa.free(ep);
+
+    if (devnet_endpoint == null and local_endpoint == null) {
+        std.debug.print("[skip] SOLANA_RPC_URL and SURFPOOL_RPC_URL not set, skipping getAddressLookupTable convergence evidence\\n", .{});
+        return;
+    }
+
+    const table_address = pubkey_mod.Pubkey.init([_]u8{37} ** 32);
+    var saw_success = false;
+    var saw_method_not_found = false;
+
+    if (devnet_endpoint) |endpoint| {
+        var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+        defer client.deinit();
+
+        const result = try client.getAddressLookupTable(table_address);
+        switch (result) {
+            .ok => |table| {
+                var owned = table;
+                defer owned.deinit(gpa);
+                std.debug.print("[p3a exception] getAddressLookupTable(devnet) success\\n", .{});
+                saw_success = true;
+            },
+            .rpc_error => |rpc_err| {
+                defer rpc_err.deinit(gpa);
+                if (isMethodNotFoundRpcError(rpc_err.code, rpc_err.message)) {
+                    std.debug.print("[p3a exception] getAddressLookupTable(devnet) method-not-found path\\n", .{});
+                    saw_method_not_found = true;
+                } else {
+                    return error.UnexpectedRpcError;
+                }
+            },
+        }
+    }
+
+    if (local_endpoint) |endpoint| {
+        var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+        defer client.deinit();
+
+        const result = try client.getAddressLookupTable(table_address);
+        switch (result) {
+            .ok => |table| {
+                var owned = table;
+                defer owned.deinit(gpa);
+                std.debug.print("[p3a exception] getAddressLookupTable(local-live) success\\n", .{});
+                saw_success = true;
+            },
+            .rpc_error => |rpc_err| {
+                defer rpc_err.deinit(gpa);
+                if (isMethodNotFoundRpcError(rpc_err.code, rpc_err.message)) {
+                    saw_method_not_found = true;
+                } else {
+                    return error.UnexpectedRpcError;
+                }
+            },
+        }
+    }
+
+    if (!(saw_success or saw_method_not_found)) {
+        return error.UnexpectedRpcError;
     }
 }
