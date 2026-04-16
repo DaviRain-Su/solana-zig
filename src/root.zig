@@ -38,6 +38,10 @@ test "token interface compiles" {
     _ = interfaces.token;
 }
 
+test "ata interface compiles" {
+    _ = interfaces.ata;
+}
+
 test "websocket client compiles" {
     _ = rpc.WsClient;
     _ = rpc.WsRpcClient;
