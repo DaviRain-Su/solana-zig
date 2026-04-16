@@ -23,8 +23,8 @@
 | `core.shortvec` | in-progress | `T4-03` | 溢出/截断边界仍需系统补齐 | 边界测试 + 溢出/截断断言 | `src/solana/core/shortvec.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | 关键边界覆盖齐全 |
 | `core.Hash` | in-progress | `T4-04` | roundtrip / 非零样本与文档映射仍可增强 | roundtrip 测试 + 非零样本 | `src/solana/core/hash.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | 和 PRD 最低集合对齐 |
 | `core.Keypair` | in-progress | `T4-05` | 多消息签名与 oracle 对照不足 | 多消息 sign/verify + 固定 seed 向量 | `src/solana/core/keypair.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | 确定性签名样本齐全 |
-| `tx.Message (v0)` | open | `T4-06`, `T4-07` | 正向/失败路径覆盖与 Rust oracle 对照不足 | ALT 正向/重复/冲突/过量账户测试 | `src/solana/tx/message.zig` tests + `testdata/oracle_vectors.json` + `docs/06/07` | v0 关键语义闭环 |
-| `tx.AddressLookupTable` | open | `T4-06`, `T4-07` | 目前主要停留在 compile 语义 | lookup 注入与冲突语义用例 | `src/solana/tx/message.zig` tests + `docs/06/07` | lookup 行为有证据固定 |
+| `tx.Message (v0)` | open | `T4-06`, `T4-07` | 正向/失败路径覆盖与 Rust oracle 对照不足；ALT 权限正确性仍需更系统证据 | ALT 正向/重复/冲突/过量账户测试 + writable/readonly 权限错配断言 | `src/solana/tx/message.zig` tests + `testdata/oracle_vectors.json` + `docs/06/07` | v0 关键语义闭环 |
+| `tx.AddressLookupTable` | open | `T4-06`, `T4-07` | 目前主要停留在 compile 语义，lookup 权限正确性尚未形成完整 closeout 证据 | lookup 注入、冲突语义与 writable-vs-readonly 正确性用例 | `src/solana/tx/message.zig` tests + `docs/06/07` | lookup 行为有证据固定 |
 | `tx.VersionedTransaction` | in-progress | `T4-08`, `T4-09` | v0 tx 路径、失败路径、尾字节等还可继续补 | sign/verify/serialize/deserialize 正反测试 | `src/solana/tx/transaction.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | tx 边界场景到位 |
 | `rpc.RpcClient` 基础解析 | in-progress | `T4-11`, `T4-12`, `T4-13` | 动态 JSON 解析仍偏多，typed parse 收敛不足 | malformed/rpc_error/number_string/生命周期测试 | `src/solana/rpc/client.zig` tests + `docs/06/07` | 关键方法解析稳定 |
 | `getLatestBlockhash` | closeable | `T4-11` | typed schema 还可收紧 | happy + malformed + rpc_error | `src/solana/rpc/client.zig` tests + `docs/06` | LatestBlockhash 结构稳定 |
@@ -40,6 +40,7 @@
 
 ### High-priority blockers
 - v0 / ALT 语义的正反路径仍未完全收口
+- ALT 权限正确性（writable 账户不能被 readonly lookup 错配）仍需作为独立收口信号固定
 - oracle 向量集无法支撑 Phase 1 最低声明
 - Devnet E2E 仍缺稳定证据链
 
@@ -49,9 +50,11 @@
 
 ## 4. Phase 1 Closeout Rule
 
-只有当本矩阵中所有 `open` 项都被处理为以下两者之一时，才可宣称 closeout：
+只有当本矩阵中所有收口项都被处理为以下两者之一时，才可宣称 closeout：
 - 变为 `closed`
 - 被正式记录为 Phase 1 例外项，且不违背 `docs/11-phase1-closeout-checklist.md`
+
+换言之，`open / in-progress / closeable` 都不能作为 Phase 1 closeout 时的最终停留状态。
 
 ## 5. Recommended Update Rule
 

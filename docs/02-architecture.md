@@ -129,7 +129,7 @@
 - L1：core 单元测试
 - L2：tx 组件测试
 - L3：rpc + mock transport
-- L4：Devnet 集成测试（环境变量门控）
+- L4：Devnet acceptance harness / 外部集成验证（环境变量门控；当前不是 in-tree E2E 测试层）
 - L5：compat/oracle 对照
 
 ## 7. 非功能架构约束

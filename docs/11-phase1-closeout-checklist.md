@@ -40,9 +40,10 @@
 
 ### 2.4 Execution Evidence
 - 见：`docs/15-phase1-execution-matrix.md`
-- 所有 `partial` 项必须进入以下两种状态之一：
-  - 变为 `done`
+- `docs/15` 中所有收口项在 Phase 1 closeout 时必须进入以下两种状态之一：
+  - 变为 `closed`
   - 被明确降级为“不阻塞 Phase 1 closeout 的已记录例外项”，且需在 `docs/07` 和 `docs/08` 说明原因
+- 换言之，`open / in-progress / closeable` 都不能直接作为 closeout 时的最终状态
 
 ## 3. Mandatory Gates
 

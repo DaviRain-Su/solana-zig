@@ -214,3 +214,19 @@
 
 ### 验证
 - 文档链进一步完整：`README -> docs/README -> 03/03d -> 13/13a -> 14/14a -> 16 -> adr/*`。
+
+## 2026-04-16 第十二次增量记录（收口文档补齐：L4 / Test Mapping / ALT 权限）
+
+### 输入
+- 针对最新文档 review，仍有 3 处需要补齐：`docs/02` 的 L4 口径未降级、`docs/03` 的测试映射章节落后于当前代码、`docs/15` 未把 ALT 权限正确性单列为 closeout blocker。
+
+### 输出
+- `docs/02-architecture.md` 将 L4 从“Devnet 集成测试”改为“Devnet acceptance harness / 外部集成验证”，并明确当前不是 in-tree E2E 测试层。
+- `docs/03-technical-spec.md` 重写 Test Mapping：纳入现有的 mock transport 测试、parser hardening、`Message.DecodeResult` 导出可用性，以及当前 oracle `v2 core` 子集覆盖。
+- `docs/15-phase1-execution-matrix.md` 明确补入 ALT 权限正确性要求：writable 账户不能被 readonly lookup 错配，并将其提升为显式 high-priority blocker。
+
+### 风险
+- 文档已补齐到与当前实现更一致，但这不等于 v0 / ALT 已完全收口；这里强调的是“收口信号更准确”，不是“实现已完成”。
+
+### 验证
+- 文档之间的 L4 / wrapper / harness 口径已进一步对齐：`README -> docs/02 -> docs/05 -> docs/14 -> docs/15`。

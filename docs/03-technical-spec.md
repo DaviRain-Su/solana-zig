@@ -321,14 +321,28 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 - keypair sign/verify
 - legacy message compile/serialize/deserialize
 - 空 instruction data
+- v0 lookup 语义的基础回归：
+  - 静态 key 冲突时跳过 lookup
+  - 动态域重复 lookup key 报错
+  - writable 账户不会被 readonly lookup 错配降级
+- message 反序列化硬化：
+  - header/account key 一致性校验
+  - 截断输入清理路径
+  - compiled instruction 索引越界校验
 - tx sign/serialize/deserialize/verify
 - 缺失签名失败
-- oracle vector 对照（pubkey + shortvec）
+- RpcClient mock transport 测试：
+  - happy path
+  - rpc_error 保真
+  - transport error
+  - `getAccountInfo` / `simulateTransaction` malformed success response 清理
+- 导出 API 可用性：`Message.DecodeResult` 可经包导出被外部引用
+- oracle vector 对照（当前为 v2 core 子集：pubkey/hash/shortvec）
 
 后续必须补齐（下一阶段 04/05 执行）：
-- v0 message + lookup 的正反向测试
-- RPC 单元测试（mock transport）与 Devnet 集成测试
-- 解析错误路径全覆盖
+- 更完整的 v0 / ALT oracle 与失败路径覆盖（尤其是多 lookup / versioned tx 场景）
+- RPC 其余高频方法的 malformed/typed parse 收口与更系统的错误路径覆盖
+- 真正的 Devnet acceptance harness / E2E 证据链（当前仍只有 wrapper / 外部 harness 路径）
 
 ---
 

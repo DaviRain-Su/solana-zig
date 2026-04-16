@@ -55,7 +55,7 @@
 |---|---|---|---|---|---|
 | oracle vector loading | `compat.oracle_vector` | partial | `src/solana/compat/oracle_vector.zig` | `docs/05` 4.6 | 打包缺口已修复；向量文件当前规模仍偏小 |
 | bincode helper subset | `compat.bincode_compat` | partial | `src/solana/compat/bincode_compat.zig` | `docs/03` 1 / `docs/07` 2 | 当前仅最小辅助能力 |
-| Rust vector generator skeleton | `scripts/oracle/*` | partial | `scripts/oracle/generate_vectors.rs` | `README` / `docs/01` 11 | 生成链路已起步，向量集仍待扩充 |
+| Rust vector generator (`v2` core) | `scripts/oracle/*` | partial | `scripts/oracle/generate_vectors.rs` | `README` / `docs/01` 11 | `v2` core generator 已可用；keypair/message/transaction 向量仍待补齐 |
 
 ## 5. Product Phase 2 Planned Coverage
 
