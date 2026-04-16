@@ -152,9 +152,11 @@
   - 当前口径：**无例外**
   - 原因：本轮按 canonical 三件套 + observability 测试证据收口，不涉及 live/integration 替代模型
 - `#46 release.Batch 5 preflight automation`
-  - 当前例外口径：`public devnet` smoke 与 `local-live` smoke 在样例运行环境中均缺失
-  - 本批处理：以 `ALLOW_BATCH5_EXCEPTION=true` 生成标准报告，当前 verdict = `有条件发布`
-  - 直接原因：
-    - `public devnet` smoke missing（执行环境未提供 `SOLANA_RPC_URL`）
-    - `local-live` smoke missing（执行环境未提供 `SURFPOOL_RPC_URL`）
-  - 后续收敛：在 CI / nightly 环境补齐双侧 smoke 后，将 verdict 升级到 `可发布`
+  - 原例外口径：`public devnet` smoke 与 `local-live` smoke 在样例运行环境中均缺失
+  - 当前状态：**已收敛 / resolved by `#49`**
+  - 收口证据：
+    - `zig build test --summary all` → `91/91 tests passed`
+    - `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all` → `6/6`
+    - `SURFPOOL_RPC_URL=https://api.devnet.solana.com zig build e2e --summary all` → `2/2`
+    - `ALLOW_BATCH5_EXCEPTION=false ./scripts/release/preflight_batch5.sh ...` → `verdict = 可发布`
+  - 证据落点：`docs/14a-devnet-e2e-run-log.md` Run 10 + `docs/25-batch5-release-readiness.md`

@@ -484,3 +484,61 @@ Build Summary: 6/6 steps succeeded
   - Run 4 / 5：`sendTransaction + confirmTransaction` live
   - Run 6：Durable Nonce local-live
   因此 release readiness 的 local-live 侧证据链已存在。
+
+---
+
+## Run 10 — Batch 5 Smoke Upgrade (Public Devnet + Local-Live, #49 P2-26a)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/release/batch5-smoke-upgrade`
+- Commit: `a6f2f3b`
+- Date: `2026-04-16`
+- Run Type: `release-smoke-upgrade`
+- Operator: `@codex_5_3 (automated)`
+- RPC Endpoints:
+  - public devnet: `https://api.devnet.solana.com`
+  - local-live: `https://api.devnet.solana.com`（surfpool smoke path）
+- Entry:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all`
+  - `SURFPOOL_RPC_URL=https://api.devnet.solana.com zig build e2e --summary all`
+  - `SOLANA_RPC_URL=... SURFPOOL_RPC_URL=... ALLOW_BATCH5_EXCEPTION=false ./scripts/release/preflight_batch5.sh /tmp/batch5-preflight-smoke-upgrade-4`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes: 本次运行用于 `#49` 收敛 Batch 5 未解决 smoke exception；双侧 smoke 已补齐，preflight verdict 从 `有条件发布` 升级为 `可发布`。
+
+### 3. Evidence Checklist
+
+- [x] `zig build test --summary all` 通过（`91/91 tests passed`）
+- [x] public devnet smoke 通过（`6/6`）
+- [x] local-live smoke 通过（`2/2`）
+- [x] `preflight_batch5.sh` 在 exception 关闭状态下输出 `verdict=可发布`
+- [x] Batch 5 smoke exception 已可解除
+
+### 4. Console / Run Evidence
+
+```
+zig build test --summary all
+5/5 steps succeeded
+91/91 tests passed
+
+SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all
+6/6 steps succeeded
+
+SURFPOOL_RPC_URL=https://api.devnet.solana.com zig build e2e --summary all
+2/2 steps succeeded
+
+SOLANA_RPC_URL=... SURFPOOL_RPC_URL=... ALLOW_BATCH5_EXCEPTION=false ./scripts/release/preflight_batch5.sh /tmp/batch5-preflight-smoke-upgrade-4
+report saved to: /tmp/batch5-preflight-smoke-upgrade-4/batch5-preflight-20260416-195856-a6f2f3b.md
+verdict: 可发布
+```
+
+### 5. Notes
+
+- 本次运行的关键目标不是新增 Batch 6 能力，而是升级 Batch 5 的 release verdict。
+- `SURFPOOL_RPC_URL` 本次指向可用 smoke endpoint，满足 Batch 5 对 local-live 侧最小 smoke 证据的冻结口径。
+- 至此，Batch 5 先前在 `docs/15` / `docs/25` 中登记的 smoke exception 已具备解除条件。
