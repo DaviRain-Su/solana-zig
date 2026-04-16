@@ -238,6 +238,29 @@
 
 ### 输入
 - 最新一轮 review 指出：`docs/17-quickstart-and-api-examples.md` 中的 transaction 示例错误地同时 `defer msg.deinit()` 又把 `msg` 传给 `VersionedTransaction.initUnsigned(...)`，会误导读者产生 double-free。
+
+## 2026-04-16 第十五次增量记录（P2 Batch A residual docs backfill）
+
+### 输入
+- `#17/#18` 双任务并审后，记录到两条 non-blocking residual：
+  1. `#18` 的 `docs/06` 与 `docs/10` 回写缺口。
+  2. `G-P2-02` 放行口径需在文档里固化，避免“success/failure evidence”解释漂移。
+
+### 输出
+- 补齐 `docs/10-coverage-matrix.md`：
+  - `sendTransaction` 状态从 `partial -> done`，备注明确 `send + confirm` live 证据来自 `docs/14a` Run 4/5（`#17`）。
+  - Phase 2 的“扩展 RPC methods”从 `planned -> partial`，备注明确 Batch A 三方法已完成（`#18`）。
+  - `Last synced docs commit` 更新为 `1f8856d`。
+- 在本日志固化 `G-P2-02` 解释口径：
+  - 本批按 **success live evidence + 代码失败分支覆盖** 放行；
+  - send/confirm 路径的 failure evidence 留档作为后续批次持续增强项，不阻塞本批关门。
+
+### 风险
+- 若后续批次不持续补充 send/confirm failure evidence 的留档，`G-P2-02` 的“强证据面”仍会偏向成功路径。
+
+### 验证
+- `docs/10` 与 `docs/14a` / `docs/15` 的状态引用一致。
+- `#17/#18` 的 gate 解释已在实现日志中留痕，便于 Phase 2 第一批汇总复核。
 - 同时 `docs/10-coverage-matrix.md` 的 commit 锚点已落后于最近一次文档新增提交。
 
 ### 输出
