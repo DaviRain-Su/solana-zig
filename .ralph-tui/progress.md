@@ -18,6 +18,7 @@ after each iteration and it's included in prompts for context.
 - Oracle compatibility suites should embed the versioned JSON fixture with `@embedFile` and route each vector family through focused helper assertions (`expectPubkeyCase` / `expectMessageCase` / `expectTransactionCase`) so Rust parity coverage stays offline, deterministic, and easy to expand.
 - RPC transport plumbing uses a tiny function-pointer vtable (`Transport.init(ctx, postJson, deinit)`) around `*anyopaque`, which keeps `RpcClient` production-ready with `std.http.Client` while letting tests inject lightweight scripted mocks without changing higher-level RPC parsing.
 - For RPC methods that default to `confirmed`, preserve the ergonomic no-arg helper and add a typed `WithCommitment` variant backed by a small enum so tests can assert exact JSON-RPC config payloads for `processed` / `confirmed` / `finalized`.
+- When a JSON-RPC method legitimately returns `result.value = null` for not-found, model the success payload as `RpcResult(?T)` and reserve `error.InvalidRpcResponse` for actual schema mismatches; mock tests should cover both nullable success and typed object success.
 
 ---
 
@@ -185,5 +186,21 @@ after each iteration and it's included in prompts for context.
     - Small RPC config enums can live in `src/solana/rpc/types.zig` and expose `jsonString()` so request builders stay typed without introducing ad-hoc string literals at call sites.
   - Gotchas encountered
     - `getLatestBlockhash` was already typed for the response shape and RPC error union, so the missing acceptance-criteria gap was the request-side commitment configurability plus explicit mock assertions on the emitted JSON payload.
+---
+
+## 2026-04-16 - US-012
+- What was implemented
+  - Updated `RpcClient.getAccountInfo` to treat `result.value = null` as a successful not-found response, returning `RpcResult(?AccountInfo)` while keeping the typed `AccountInfo` parse for existing accounts.
+  - Expanded mock coverage to assert the base64 encoding request payload, successful typed parsing, nullable not-found handling, and preserved RPC error behavior.
+  - Updated nonce E2E call sites to handle nullable account lookups explicitly.
+- Files changed
+  - `src/solana/rpc/client.zig`
+  - `src/e2e/nonce_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Nullable JSON-RPC success responses fit cleanly into the repo's existing `RpcResult(?T)` pattern already used by `getSignatureStatuses`, so `getAccountInfo` can preserve not-found semantics without weakening typed parsing for present accounts.
+  - Gotchas encountered
+    - `zig build test` does not compile the separate `nonce-e2e` target from `build.zig`, so RPC signature changes used by that harness need an explicit `zig build nonce-e2e` verification pass.
 ---
 

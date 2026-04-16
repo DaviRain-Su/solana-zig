@@ -370,7 +370,7 @@ pub const RpcClient = struct {
         } };
     }
 
-    pub fn getAccountInfo(self: *RpcClient, pubkey: pubkey_mod.Pubkey) !types.RpcResult(types.AccountInfo) {
+    pub fn getAccountInfo(self: *RpcClient, pubkey: pubkey_mod.Pubkey) !types.RpcResult(?types.AccountInfo) {
         const address = try pubkey.toBase58Alloc(self.allocator);
         defer self.allocator.free(address);
 
@@ -392,6 +392,11 @@ pub const RpcClient = struct {
         const root = &response.parsed.value;
         const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
         const value = getObjectField(result, "value") orelse return error.InvalidRpcResponse;
+        if (value.* == .null) {
+            response.parsed.deinit();
+            return .{ .ok = null };
+        }
+        if (value.* != .object) return error.InvalidRpcResponse;
 
         const lamports = getU64Field(value, "lamports") orelse return error.InvalidRpcResponse;
         const owner_str = getStringField(value, "owner") orelse return error.InvalidRpcResponse;
@@ -950,7 +955,9 @@ test "rpc client getAccountInfo typed parse happy path" {
 
     var mock: MockTransport = .{
         .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":{\"lamports\":1000,\"owner\":\"11111111111111111111111111111111\",\"executable\":false,\"rentEpoch\":18446744073709551615,\"data\":\"AQID\"}}}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
 
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
@@ -960,8 +967,9 @@ test "rpc client getAccountInfo typed parse happy path" {
     const result = try client.getAccountInfo(pubkey);
 
     switch (result) {
-        .ok => |info| {
-            var info_owned = info;
+        .ok => |maybe_info| {
+            try std.testing.expect(maybe_info != null);
+            var info_owned = maybe_info.?;
             defer info_owned.deinit(gpa);
             try std.testing.expectEqual(@as(u64, 1000), info_owned.lamports);
             try std.testing.expect(!info_owned.executable);
@@ -970,6 +978,9 @@ test "rpc client getAccountInfo typed parse happy path" {
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"encoding\":\"base64\"") != null);
 }
 
 test "rpc client getAccountInfo typed parse with data array format" {
@@ -987,8 +998,9 @@ test "rpc client getAccountInfo typed parse with data array format" {
     const result = try client.getAccountInfo(pubkey);
 
     switch (result) {
-        .ok => |info| {
-            var info_owned = info;
+        .ok => |maybe_info| {
+            try std.testing.expect(maybe_info != null);
+            var info_owned = maybe_info.?;
             defer info_owned.deinit(gpa);
             try std.testing.expectEqual(@as(u64, 2000), info_owned.lamports);
             try std.testing.expect(info_owned.executable);
@@ -1019,6 +1031,26 @@ test "rpc client getAccountInfo preserves rpc error with typed parse" {
             defer rpc_err.deinit(gpa);
             try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
         },
+    }
+}
+
+test "rpc client getAccountInfo returns null when account is missing" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":null}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{8} ** 32);
+    const result = try client.getAccountInfo(pubkey);
+
+    switch (result) {
+        .ok => |maybe_info| try std.testing.expect(maybe_info == null),
+        .rpc_error => return error.UnexpectedRpcError,
     }
 }
 

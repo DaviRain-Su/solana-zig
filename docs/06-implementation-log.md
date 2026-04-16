@@ -1117,3 +1117,37 @@
   - `G-P2F-01` ✅
   - `G-P2F-04` ✅
   - `G-P2F-05` ✅
+
+## 2026-04-16 第三十九次增量记录（#50 P2-27: SPL Token 交易流收口）
+
+### 输入
+- 第六批 `#48` 已通过结构审并放行实现；`#50` 按 `docs/26` §2.1 与 `G-P2F-02` 进入 SPL Token 交易流收口。
+- 本轮冻结目标固定为：
+  - `build -> compile/sign -> send/confirm` 最小成功路径
+  - failure-path（account/meta mismatch → `rpc_error`）
+
+### 输出
+- `src/solana/interfaces/token.zig` 与 `src/solana/rpc/client.zig` 已在 `1e53cd1` 完成交易流级证据闭环：
+  - `build -> compile/sign -> send/confirm`
+  - account/meta mismatch failure-path 返回 `rpc_error`
+- 关键交易流测试已全部到位：
+  - `token flow build -> compile/sign -> send/confirm (mock transport)`
+  - `token flow failure-path: account/meta mismatch returns rpc_error`
+
+### 风险
+- 当前交易流收口使用 mock transport 证明 flow 级 contract，不把它误写成稳定 live/integration 已覆盖。
+- 若后续只有 `compile/sign + simulate` 而无 `send/confirm`，按 `docs/26` 必须登记 Batch 6 exception；本轮已达到默认成功模型，因此**不触发 Batch 6 exception**。
+
+### 验证
+- canonical 三件套（隔离 worktree）：
+  - worktree `/tmp/solana-zig-b6-50-1e53cd1`
+  - commit `1e53cd1`
+  - `git status --short` 为空（clean）
+  - `zig build test --summary all`：`131/131 tests passed`
+- 关键 flow 测试：
+  - `token flow build -> compile/sign -> send/confirm (mock transport)` — PASS
+  - `token flow failure-path: account/meta mismatch returns rpc_error` — PASS
+- gate 结论：
+  - `G-P2F-01` ✅
+  - `G-P2F-02` ✅
+  - `G-P2F-05` ✅

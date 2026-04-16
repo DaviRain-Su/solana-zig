@@ -110,7 +110,8 @@ test "P2-14 mock: query nonce -> build advance -> compile/sign -> send -> confir
     // Step 1: Query nonce account
     const acct_result = try client.getAccountInfo(nonce_account_key);
     switch (acct_result) {
-        .ok => |acct_info_val| {
+        .ok => |maybe_acct_info| {
+            const acct_info_val = maybe_acct_info orelse return error.ExpectedNonceAccount;
             var acct_info = acct_info_val;
             defer acct_info.deinit(gpa);
 
@@ -296,19 +297,21 @@ test "P2-14 live: create nonce -> query -> advance -> send -> confirm" {
     var nonce_exists = false;
     if (client.getAccountInfo(nonce_keypair.pubkey())) |check_result| {
         switch (check_result) {
-            .ok => |info_val| {
-                var info = info_val;
-                defer info.deinit(gpa);
-                nonce_exists = true;
-                std.debug.print("[nonce E2E] nonce account already exists (lamports={d})\n", .{info.lamports});
+            .ok => |maybe_info| {
+                if (maybe_info) |info_val| {
+                    var info = info_val;
+                    defer info.deinit(gpa);
+                    nonce_exists = true;
+                    std.debug.print("[nonce E2E] nonce account already exists (lamports={d})\n", .{info.lamports});
+                }
             },
             .rpc_error => |rpc_err| {
                 defer rpc_err.deinit(gpa);
-                // Account doesn't exist yet — this is expected on first run
+                // Non-not-found RPC failures are tolerated for this best-effort existence probe.
             },
         }
     } else |_| {
-        // InvalidRpcResponse when value is null (account not found) — expected
+        // Transport/parse failures are tolerated for this best-effort existence probe.
     }
 
     if (!nonce_exists) {
@@ -407,7 +410,8 @@ test "P2-14 live: create nonce -> query -> advance -> send -> confirm" {
     std.debug.print("[nonce E2E] === Phase C: Query nonce account ===\n", .{});
     const acct_result = try client.getAccountInfo(nonce_keypair.pubkey());
     switch (acct_result) {
-        .ok => |acct_info_val| {
+        .ok => |maybe_acct_info| {
+            const acct_info_val = maybe_acct_info orelse return error.NonceQueryFailed;
             var acct_info = acct_info_val;
             defer acct_info.deinit(gpa);
 

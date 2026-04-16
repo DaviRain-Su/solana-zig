@@ -167,11 +167,15 @@
 
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
+| `interfaces.SPL Token transaction flow` | closed | `#50` | ~~等待 `build -> compile/sign -> send/confirm` 默认成功路径与 failure-path 证据、canonical 三件套统一收口~~ → **已完成**：`1e53cd1` 已补齐 flow success + failure-path 证据，canonical 三件套完成（`131/131 tests passed`），无 Batch 6 exception | `token flow build -> compile/sign -> send/confirm (mock transport)` + `token flow failure-path: account/meta mismatch returns rpc_error` + canonical 三件套 | `src/solana/interfaces/token.zig` + `src/solana/rpc/client.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2F-01` canonical 三件套；已满足 `G-P2F-02` flow gate；`G-P2F-05` 文档回写完成 |
 | `rpc.Websocket recoverability` | closed | `#51` | ~~等待 reconnect storm / recovery consistency / message-boundary 三条机械证据与 canonical 三件套统一收口~~ → **已完成**：`a49ec19` 已补齐三条 `snapshot()/WsStats` 机械证据，canonical 三件套完成（`94/94 tests passed`），无 Batch 6 exception | `ws_recoverability_reconnect_storm_stability` + `ws_recoverability_recovery_state_consistency` + `ws_recoverability_message_boundary_counters` + canonical 三件套 | `src/solana/rpc/ws_client.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2F-01` canonical 三件套；已满足 `G-P2F-03` websocket recoverability gate；`G-P2F-05` 文档回写完成 |
 | `release.Batch 6 preflight automation` | closed | `#52` | ~~等待 Batch 6 preflight 主入口 / report 规范 / 样例运行与 canonical 三件套统一收口~~ → **已完成**：`93bb638` 已固定 `scripts/release/preflight_batch6.sh`、report/log 产物规范与 exception-path 样例；canonical 三件套完成（`91/91 tests passed`） | `scripts/release/preflight_batch6.sh` + `ALLOW_BATCH6_EXCEPTION=true` 样例运行 + 标准报告路径 + canonical 三件套 | `scripts/release/preflight_batch6.sh` + `docs/27-batch6-release-readiness.md` + `docs/06` + 本矩阵 | 已满足 `G-P2F-01` canonical 三件套；已满足 `G-P2F-04` preflight automation gate；`G-P2F-05` 文档回写完成 |
 
 ### Batch 6 Exception Register
 
+- `#50 interfaces.SPL Token transaction flow`
+  - 当前口径：**无例外**
+  - 原因：本轮已达到默认成功模型 `build -> compile/sign -> send/confirm`，不需要降级到 `compile/sign + simulate`
 - `#51 rpc.Websocket recoverability`
   - 当前口径：**无例外**
   - 原因：本轮按 canonical 三件套 + `snapshot()/WsStats` 三条机械 recoverability 证据收口，不涉及 live/integration 替代模型

@@ -1,0 +1,28 @@
+# Iteration 12 Log
+
+## Metadata
+
+- **Task ID**: US-011
+- **Task Title**: getLatestBlockhash RPC method
+- **Description**: As a Zig developer, I want to call getLatestBlockhash so that I can get the latest blockhash for transaction construction.
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T11:54:52.283Z
+- **Ended At**: 2026-04-16T11:59:29.717Z
+- **Duration**: 4m 37s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-011 Complete
+
+Implemented `getLatestBlockhash` commitment support by adding `RpcClient.getLatestBlockhashWithCommitment(commitment)` plus a typed `rpc.types.Commitment` / `rpc.Commitment` enum, while preserving `getLatestBlockhash()` as the default confirmed wrapper. Added mock tests covering success for `processed` / `confirmed` / `finalized`, default confirmed behavior, and structured JSON-RPC error handling, and appended the required US-011 entry to `.ralph-tui/progress.md`.
+
+## Validation
+
+- `zig fmt --check "/Users/davirian/dev/active/solana-zig/src/solana/rpc/client.zig" "/Users/davirian/dev/active/solana-zig/src/solana/rpc/types.zig" "/Users/davirian/dev/active/solana-zig/src/solana/mod.zig"`
+- `zig build test --prefix "/Users/davirian/dev/active/solana-zig/zig-out"`
+
+<promise>COMPLETE</promise>
+]9;4;0;

@@ -1,8 +1,8 @@
 # Batch 6 Release Readiness Checklist
 
 **Date**: 2026-04-16  
-**Status**: Provisional（`#52` / `P2-29`, verdict = `有条件发布`）  
-**Owner**: `#52` / `#53`  
+**Status**: Final（`#53` closeout, verdict = `有条件发布`）  
+**Owner**: `#53`  
 **Batch**: Product Phase 2 Batch 6
 
 > 该文件是 Batch 6 专属 release readiness 产物。  
@@ -22,14 +22,14 @@
 3. 存在未收敛 exception：verdict 只能为 `有条件发布` 或 `不可发布`
 4. 无未收敛 exception：才允许 `可发布`
 
-## 3. 当前状态（after `#52` preflight automation）
+## 3. 当前状态（after `#50/#51/#52`）
 
-- Build/Test：`PASS`（`93bb638`, `91/91 tests passed`）
+- Build/Test：`PASS`（latest canonical closeout：`1e53cd1`, `131/131 tests passed`）
 - Smoke(public devnet)：`MISSING`
 - Smoke(local-live)：`MISSING`
-- Docs consistency：pending（待 `#50/#51/#53` 继续收敛）
+- Docs consistency：`PASS`
 - Exception register：**required**
-- Verdict：`provisional: 有条件发布`
+- Verdict：`final: 有条件发布`
 
 ## 4. Preflight Automation（P2-29）
 
@@ -61,3 +61,11 @@
   - `local-live` smoke missing
   - 当前按 `ALLOW_BATCH6_EXCEPTION=true` 走 `有条件发布`
   - 收敛计划：在后续 Batch 6 证据链中补齐双侧 smoke 后，再将 verdict 升级到 `可发布`
+
+## 7. Batch 6 Final Gate Summary
+
+- `#50` `G-P2F-02`：PASS（SPL Token 交易流，默认成功模型已到位）
+- `#51` `G-P2F-03`：PASS（recoverability 三条机械证据全部通过）
+- `#52` `G-P2F-04`：PASS（preflight 主入口 / 报告规范 / exception-path 样例到位）
+- `#53` `G-P2F-05`：PASS（docs/gate 对账完成）
+- Final verdict：`有条件发布`
