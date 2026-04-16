@@ -38,16 +38,15 @@
 
 ## 3. Blocker Summary
 
-### High-priority blockers
-- v0 / ALT 语义的正反路径仍未完全收口
-- ALT 权限正确性（writable 账户不能被 readonly lookup 错配）仍需作为独立收口信号固定
-
-### Medium-priority blockers
-- benchmark baseline 已建立第一版记录，但仍待 closeout review 固化
+> Phase 1/2/3 已全部完成。以下 blocker 均已解决。
 
 ### Resolved blockers
-- ~~Devnet live harness 虽已落地，但当前只覆盖到 `simulate`~~ → send + confirm 完整闭环已验证（`docs/14a` Run 4/5）
-- ~~`sendTransaction` 的真实发送链路证据仍待补齐~~ → send + confirm 均已在 surfnet live 环境通过
+- ~~v0 / ALT 语义的正反路径~~ → 已收口（`#8`）
+- ~~ALT 权限正确性~~ → 已收口（writable/readonly 语义断言）
+- ~~benchmark baseline~~ → 首版基线已记录（`docs/13a`）
+- ~~Devnet live harness 只覆盖到 simulate~~ → send + confirm 完整闭环已验证（`docs/14a` Run 4/5）
+- ~~sendTransaction 真实发送链路证据~~ → surfnet live 环境通过
+- ~~所有 docs/gate reconciliation~~ → 全部 closed（`#63`/`#72`/`#58`）
 
 ## 4. Phase 1 Closeout Rule
 
@@ -195,8 +194,8 @@
 |---|---|---|---|---|---|---|
 | Batch B RPC landing | done | `#55` | — | `6d5f1be` 4 方法 typed parse + canonical `148/148` | `docs/10` + `docs/14a` | `G-P2G-02` 方法级 integration 规则 |
 | Batch 5/6 smoke closure | done | `#56` | — | devnet `7/7` + local-live `2/2` + preflight `可发布` | `docs/14a` Run 11 + `docs/25` + `docs/27` | `G-P2G-03` 双侧 smoke |
-| Phase 2 closeout artifact | in-progress | `#57` | `#56` 结果 | — | `docs/28` | `G-P2G-04` |
-| Batch 7 docs/gate | in-progress | `#58` | `#55/#56/#57` | — | `docs/06+10+14a+15+25+27+28` | `G-P2G-05` |
+| Phase 2 closeout artifact | closed | `#57` | — | `docs/28` Phase 2 closeout 已固化 | `docs/28` | `G-P2G-04` |
+| Batch 7 docs/gate | closed | `#58` | — | `docs/06+10+14a+15+25+27+28` 对账完成 | 本文档 + `docs/29` | `G-P2G-05` |
 
 ### Batch 7 Exception Register
 
@@ -216,7 +215,7 @@
 | `interfaces.System builders` | closed | `#60` | — | commit `35a731f`，`transfer/createAccount` byte layout + account metas + compile/sign 证据，`162/162 tests passed` | `src/solana/interfaces/system.zig` + `docs/06` + `docs/31` | `G-P3A-01` + `G-P3A-02` PASS |
 | `interfaces.Token builders` | closed | `#61` | — | commit `b840f75`，`mint/approve/burn` byte layout + account metas + compile/sign 证据；ATA 未触碰（Batch 1 out-of-scope） | `src/solana/interfaces/token.zig` + `docs/06` + `docs/10` + `docs/31` | `G-P3A-01` + `G-P3A-03` PASS |
 | `rpc.Exception convergence` | closed | `#62` | — | commits `f54dbe5` + `7aa4aab`，`requestAirdrop` tri-state + `getAddressLookupTable` success-or-exception path，双 env 全量 `163/163 tests passed` | `src/solana/rpc/client.zig` + `docs/14a` Run 12 + `docs/31` | `G-P3A-01` + `G-P3A-04` PASS |
-| `batch1.docs/gate reconciliation` | in-progress | `#63` | 待最终 docs writeback commit/hash | `docs/06+10+14a+15+31` 对账 | 本矩阵 + `docs/31` | `G-P3A-05` PASS |
+| `batch1.docs/gate reconciliation` | closed | `#63` | — | `docs/06+10+14a+15+31` 对账完成 | 本矩阵 + `docs/31` | `G-P3A-05` PASS |
 
 ### Phase 3 Batch 1 Exception Register
 
@@ -238,7 +237,7 @@
 | `ATA helper minimal` | closed | `#69` | — | `616c42c`，`findAssociatedTokenAddress(owner,mint,token_program_id)` + `createATA builder`，`193/193 tests passed` | `src/solana/core/pubkey.zig` + `src/solana/interfaces/ata.zig` + `docs/06` + `docs/33` | `G-P3B-01` + `G-P3B-02` PASS |
 | `System assign + Memo dual-mode` | closed | `#70` | — | `efe3070`，`buildAssignInstruction` + `buildMemoInstruction(.none/.single)`，byte layout/account metas/compile 证据齐 | `src/solana/interfaces/system.zig` + `src/solana/interfaces/memo.zig` + `docs/06` + `docs/33` | `G-P3B-01` + `G-P3B-03` PASS |
 | `Exception convergence` | closed | `#71` | — | `efe3070`，`requestAirdrop` strict tri-state + `getAddressLookupTable` success-or-exception，双 env `193/193 tests passed` | `src/solana/rpc/client.zig` + `docs/14a` Run 13 + `docs/33` | `G-P3B-01` + `G-P3B-04` PASS |
-| `Docs/Gate reconciliation` | in-progress | `#72` | final docs commit/hash 待落盘 | `docs/06+10+14a+15+33` 对账 | 本文档 + `docs/33` | `G-P3B-05` PASS |
+| `Docs/Gate reconciliation` | closed | `#72` | — | `docs/06+10+14a+15+33` 对账完成 | 本文档 + `docs/33` | `G-P3B-05` PASS |
 
 ### Phase 3 Batch 2 Exception Register
 
