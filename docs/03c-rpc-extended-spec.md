@@ -12,12 +12,19 @@
 
 ## 2. Phase 2 Target Methods
 
-首批优先级：
-- `getAddressLookupTable`
+### 2.1 已落地的第一批扩展 RPC / 支撑方法
+
+当前已进入公开能力或已被 live evidence 依赖的方法：
 - `getTransaction`
 - `getSignaturesForAddress`
-- `getTokenAccountsByOwner`
 - `getSlot`
+- `getSignatureStatuses`（用于 `send -> confirm` 状态查询与留档）
+
+### 2.2 后续优先级
+
+下一批优先级：
+- `getAddressLookupTable`
+- `getTokenAccountsByOwner`
 - `getEpochInfo`
 - `getMinimumBalanceForRentExemption`
 - `requestAirdrop`
@@ -97,6 +104,7 @@ pub const ParsedTransaction = struct { ... };
 - `I-RPCX-001`
 - `I-RPCX-002`
 - `I-RPCX-003`
+- `I-RPCX-004`
 - `I-WS-001`
 - `I-TXW-001`
 - `I-TXW-002`
@@ -106,14 +114,22 @@ pub const ParsedTransaction = struct { ... };
 - Boundary：number_string、缺字段、空 result、断线重连
 - Error：非 200、malformed JSON、rpc_error、订阅丢失
 
-## 8. First Implementation Order
+## 8. Implementation Snapshot / Next Order
+
+### 8.1 已完成的第一批
+
+1. `getTransaction(json baseline)`
+2. `getSignaturesForAddress`
+3. `getSlot`
+4. `getSignatureStatuses`（作为 `send/confirm` 支撑方法）
+
+### 8.2 下一批建议顺序
 
 1. `getAddressLookupTable`
-2. `getTransaction(json baseline)` / `getSignaturesForAddress`
-3. `getSlot` / `getEpochInfo` / `getMinimumBalanceForRentExemption` / `requestAirdrop`
-4. typed parse 子层（先扩展高频结果；当前 5 个高频方法的最小收敛仍属于 Phase 1）
-5. Websocket 订阅骨架
-6. Durable Nonce 工作流联调（指令构造落在 `interfaces/system`）
+2. `getTokenAccountsByOwner` / `getEpochInfo` / `getMinimumBalanceForRentExemption` / `requestAirdrop`
+3. typed parse 子层继续扩展（先扩展高频结果；当前 5 个高频方法的最小收敛仍属于 Phase 1）
+4. Websocket 订阅骨架
+5. Durable Nonce 工作流联调（指令构造落在 `interfaces/system`）
 
 ## 9. Open Questions
 

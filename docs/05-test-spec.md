@@ -61,9 +61,10 @@
 ## 5. 后续扩展测试规划
 
 ### 5.1 Product Phase 2（扩展 RPC + 实时/交易增强）
-- I-RPCX-001: `getTransaction(json baseline)` / `getSignaturesForAddress` / `getTokenAccountsByOwner` mock + Devnet 对照
-- I-RPCX-002: `getSlot` / `getEpochInfo` / `getMinimumBalanceForRentExemption` / `requestAirdrop` 覆盖
+- I-RPCX-001: `getTransaction(json baseline)` / `getSignaturesForAddress` mock + Devnet 对照（第一批已落地）
+- I-RPCX-002: `getSlot` / `getEpochInfo` / `getMinimumBalanceForRentExemption` / `requestAirdrop` 覆盖（其中 `getSlot` 已在第一批落地）
 - I-RPCX-003: `getAddressLookupTable` 与 ALT 管理语义覆盖
+- I-RPCX-004: `getSignatureStatuses` happy / null / rpc_error / confirm-polling 覆盖（用于 `send -> confirm` 状态查询）
 - I-WS-001: `accountSubscribe` / `logsSubscribe` / `signatureSubscribe` 的连接、断线、重连、取消订阅测试
 - I-TXW-001: Durable Nonce 工作流与离线签名流程测试
 - I-TXW-002: Priority Fees / Compute Budget 指令构造与组合交易测试
