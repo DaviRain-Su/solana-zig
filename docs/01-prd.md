@@ -219,3 +219,28 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
   - `solana-client` 3.1.12: https://docs.rs/solana-client/3.1.12
 - Zig 版本约束依据：
   - Zig 0.16.0 Release Notes: https://ziglang.org/download/0.16.0/release-notes.html
+
+### 11.1 官方 Reference Repositories（按当前官方页面）
+
+- 客户端与核心组件：
+  - https://github.com/anza-xyz/solana-sdk/tree/master/sdk
+  - https://github.com/anza-xyz/agave/tree/master/client
+  - https://github.com/anza-xyz/solana-sdk/tree/master/commitment-config
+- 程序与程序交互（Pinocchio）：
+  - https://github.com/anza-xyz/pinocchio
+  - https://github.com/anza-xyz/pinocchio/tree/main/programs/system
+  - https://github.com/anza-xyz/pinocchio/tree/main/programs/token
+  - https://github.com/anza-xyz/pinocchio/tree/main/programs/token-2022
+  - https://github.com/anza-xyz/pinocchio/tree/main/programs/associated-token-account
+  - https://github.com/anza-xyz/pinocchio/tree/main/programs/memo
+- 接口 crates：
+  - https://github.com/anza-xyz/solana-sdk/tree/master/system-interface
+  - https://github.com/anza-xyz/solana-sdk/tree/master/compute-budget-interface
+  - https://github.com/solana-program/token/tree/main/interface
+  - https://github.com/solana-program/token-2022/tree/main/interface
+  - https://github.com/solana-program/associated-token-account/tree/main/interface
+  - https://github.com/solana-program/memo/tree/main/interface
+  - https://github.com/solana-program/token-metadata/tree/main/interface
+  - https://github.com/solana-program/token-group/tree/main/interface
+- 签名与密钥管理：
+  - https://github.com/solana-foundation/solana-keychain

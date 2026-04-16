@@ -42,6 +42,21 @@ This keeps current client path stable while enabling eventual full-scope impleme
 - Test Spec: `docs/05-test-spec.md`
 - Evolution: `docs/08-evolution.md`
 
+## Official Reference Repositories
+Aligned with Solana official Rust SDK page:
+
+- `solana-sdk` + component crates: https://github.com/anza-xyz/solana-sdk
+- `solana-client` implementation: https://github.com/anza-xyz/agave/tree/master/client
+- `pinocchio` and program-specific crates: https://github.com/anza-xyz/pinocchio
+- SPL interface repositories:
+  - https://github.com/solana-program/token/tree/main/interface
+  - https://github.com/solana-program/token-2022/tree/main/interface
+  - https://github.com/solana-program/associated-token-account/tree/main/interface
+  - https://github.com/solana-program/memo/tree/main/interface
+  - https://github.com/solana-program/token-metadata/tree/main/interface
+  - https://github.com/solana-program/token-group/tree/main/interface
+- Signer backend reference (`solana-keychain`): https://github.com/solana-foundation/solana-keychain
+
 ## Oracle Vectors
 - Static vectors live in `testdata/oracle_vectors.json`
 - Rust generator skeleton in `scripts/oracle/`
