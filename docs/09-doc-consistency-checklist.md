@@ -39,3 +39,4 @@
 3. 所有 phase 命名变更必须回写 `README.md`
 4. 进入 Product Phase 2 / 3 前，先补对应子规格文件，再开实现任务
 5. 能力状态发生变化时，同步更新 `docs/10-coverage-matrix.md`
+6. Phase 1 收口信号发生变化时，同步更新 `docs/11-15` 对应文档

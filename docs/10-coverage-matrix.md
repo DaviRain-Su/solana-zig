@@ -87,7 +87,15 @@
 3. v0 message / versioned transaction 仍需更完整的 oracle 与失败路径覆盖。
 4. Devnet E2E、benchmark baseline 还未形成 Phase 1 closeout 信号。
 
-## 9. 维护规则
+## 9. 配套文档
+
+- 收口判定：`docs/11-phase1-closeout-checklist.md`
+- oracle 计划：`docs/12-oracle-vector-expansion-plan.md`
+- benchmark 规范：`docs/13-benchmark-baseline-spec.md`
+- Devnet E2E：`docs/14-devnet-e2e-acceptance.md`
+- 执行矩阵：`docs/15-phase1-execution-matrix.md`
+
+## 10. 维护规则
 
 - 每新增一个公共能力，至少同步更新：`docs/03`, `docs/05`, `docs/10`。
 - 每变更一个 Product Phase 的范围，至少同步更新：`docs/00`, `docs/01`, `docs/04`, `docs/08`, `docs/10`。

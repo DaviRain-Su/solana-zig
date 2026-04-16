@@ -93,6 +93,28 @@
 ### 验证
 - 文档引用链已补齐：`README -> 00 -> 03 -> 03a/03b/03c -> 10`。
 
+## 2026-04-16 第六次增量记录（Phase 1 收口文档补强）
+
+### 输入
+- 需要继续补齐 Product Phase 1 的收口文档，尤其是 oracle 向量扩展计划、benchmark 基线规范、Devnet E2E 验收说明。
+- 需要把 coverage matrix 进一步转化为更具执行性的 closeout 矩阵。
+
+### 输出
+- 新增 `docs/11-phase1-closeout-checklist.md`，定义 Phase 1 closeout 的统一判定门槛。
+- 新增 `docs/12-oracle-vector-expansion-plan.md`，定义最小 oracle 向量集合、结构演进与生成流程。
+- 新增 `docs/13-benchmark-baseline-spec.md`，定义 benchmark 基线范围、记录格式与 review 规则。
+- 新增 `docs/14-devnet-e2e-acceptance.md`，定义 Devnet E2E 的验收目标、留档要求与执行说明。
+- 新增 `docs/15-phase1-execution-matrix.md`，将 `partial` 能力项映射到 T4 任务、blocker、证据与 closeout 条件。
+- 新增 `scripts/devnet/phase1_acceptance.sh` 作为当前 Devnet 验收包装脚本。
+- `README.md`、`docs/00`、`docs/08`、`docs/09`、`docs/10` 同步接入新文档引用与维护规则。
+
+### 风险
+- 当前 Devnet 验收脚本仍是 Phase 1 包装层，后续若引入专门 E2E harness，需要继续升级脚本行为与文档说明。
+- benchmark 规范已建立，但尚未落第一版真实结果。
+
+### 验证
+- 文档链已补齐：`README -> 00 -> 10 -> 11/12/13/14/15`。
+
 ### 风险
 - 当前变更主要是治理与命名统一，不直接提升实现覆盖率。
 - 如果后续 roadmap 再调整，仍需同步回写 `docs/01/04/05/08`。

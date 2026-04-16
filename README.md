@@ -24,6 +24,12 @@ zig build test
 ## Optional Devnet Usage
 Set `SOLANA_RPC_URL` and call the RPC client from your own integration harness.
 
+For the current Phase 1 acceptance wrapper, run:
+
+```bash
+SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
+```
+
 ## Scope Strategy: Product Roadmap Phases
 Yes, target is to cover both off-chain and, eventually, on-chain capabilities, but under one unified product roadmap:
 
@@ -43,6 +49,11 @@ This keeps the current client path stable while making later expansion stages ex
 - Evolution: `docs/08-evolution.md`
 - Doc Consistency Checklist: `docs/09-doc-consistency-checklist.md`
 - Coverage Matrix: `docs/10-coverage-matrix.md`
+- Phase 1 Closeout Checklist: `docs/11-phase1-closeout-checklist.md`
+- Oracle Vector Expansion Plan: `docs/12-oracle-vector-expansion-plan.md`
+- Benchmark Baseline Spec: `docs/13-benchmark-baseline-spec.md`
+- Devnet E2E Acceptance Guide: `docs/14-devnet-e2e-acceptance.md`
+- Phase 1 Execution Matrix: `docs/15-phase1-execution-matrix.md`
 - Future Specs:
   - Interfaces: `docs/03a-interfaces-spec.md`
   - Signers: `docs/03b-signers-spec.md`
