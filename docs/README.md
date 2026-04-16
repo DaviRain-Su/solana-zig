@@ -58,3 +58,5 @@
 - `29-phase2-batch7-planning.md`：Product Phase 2 第七批规划（Batch B landing + smoke 收敛 + Phase 2 closeout artifact）
 - `30-phase3-batch1-planning.md`：Product Phase 3 第一批规划（System/Token interfaces + exception 收敛）
 - `31-phase3-batch1-release-readiness.md`：Phase 3 Batch 1 专属发布就绪清单（不覆盖 phase-level artifact）
+- `32-phase3-batch2-planning.md`：Product Phase 3 第二批规划（ATA helper + token-2022/memo/stake + exception 收敛）
+- `33-phase3-batch2-release-readiness.md`：Phase 3 Batch 2 专属发布就绪清单
