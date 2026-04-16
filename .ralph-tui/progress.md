@@ -21,6 +21,7 @@ after each iteration and it's included in prompts for context.
 - Websocket control-path reads (`subscribe` / `unsubscribe` / `resubscribe`) cannot assume Solana will deliver ack frames before notifications; queue any interleaved notification frames and drain them from `readNotification` later so multi-subscription reconnect flows stay lossless.
 - Live websocket recovery acceptance is easiest to keep deterministic with `slotSubscribe`: read one slot notification, send a close frame to trigger the automatic reconnect path, then assert the next slot notification arrives after resubscribe without needing funded Devnet state changes.
 - Websocket observability additions fit this client best when runtime health is exposed through a single `snapshot()` value object and all wire-message accounting flows through tracked send/read helpers; that keeps counters correct across subscribe acks, queued notifications, manual disconnects, and reconnect-driven resubscribe.
+- Benchmark extensions fit this repo best when large RPC fixtures are generated once up front and replayed through a tiny static transport into the real typed `RpcClient` methods; this keeps benchmark coverage aligned with production parsers while avoiding live network variance.
 
 ---
 
@@ -217,5 +218,18 @@ after each iteration and it's included in prompts for context.
     - Websocket runtime metrics stay trustworthy when every JSON-RPC control path (`subscribe`, `unsubscribe`, `reconnect`, manual close) goes through shared tracked send/read helpers instead of incrementing counters ad hoc in each feature method.
   - Gotchas encountered
     - Counting only `readNotification()` traffic under-reports websocket activity because subscribe/unsubscribe acknowledgements and reconnect resubscribe responses also consume frames; the accounting had to move down to the shared websocket read path.
+---
+
+## 2026-04-16 - US-014
+- Implemented three new benchmark cases in `src/benchmark.zig` for large `getAccountInfo` data decoding, complex `getTransaction` meta parsing, and batched `getSignatureStatuses` parsing, all emitted through the existing `BENCH|...|ns_op|ops_sec` output format and wired into `zig build bench`.
+- Verified the expanded benchmark suite runs successfully and prints the new RPC parsing metrics alongside the existing serialization/signing baseline.
+- Files changed:
+  - `src/benchmark.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - RPC parsing benchmarks stay representative when they exercise the real typed `RpcClient` parse path with deterministic fixture payloads and a static in-memory transport, instead of benchmarking standalone JSON helpers in isolation.
+  - Gotchas encountered
+    - Large JSON fixtures are much easier to keep valid in Zig by building them with `std.Io.Writer.Allocating`; embedding deeply nested JSON inside `allocPrint` quickly becomes error-prone because of format-brace escaping.
 ---
 

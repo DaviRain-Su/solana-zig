@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T15:54:51.989Z",
-  "currentIteration": 19,
+  "updatedAt": "2026-04-16T16:02:00.285Z",
+  "currentIteration": 20,
   "maxIterations": 0,
-  "tasksCompleted": 12,
+  "tasksCompleted": 13,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -204,6 +204,16 @@
       "durationMs": 506319,
       "startedAt": "2026-04-16T15:40:19.066Z",
       "endedAt": "2026-04-16T15:48:45.385Z"
+    },
+    {
+      "iteration": 20,
+      "status": "completed",
+      "taskId": "US-013",
+      "taskTitle": "Websocket 可观测性与指标",
+      "taskCompleted": true,
+      "durationMs": 365509,
+      "startedAt": "2026-04-16T15:48:46.473Z",
+      "endedAt": "2026-04-16T15:54:51.982Z"
     }
   ],
   "skippedTaskIds": [],
