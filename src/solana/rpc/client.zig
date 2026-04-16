@@ -169,8 +169,10 @@ pub const RpcClient = struct {
             return error.RpcParse;
         };
 
-        const root_obj = if (parsed.value == .object) &parsed.value else return error.InvalidRpcResponse;
-        _ = root_obj;
+        if (parsed.value != .object) {
+            parsed.deinit();
+            return error.InvalidRpcResponse;
+        }
 
         return .{ .parsed = parsed };
     }

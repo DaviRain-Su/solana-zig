@@ -244,10 +244,14 @@ pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !Rp
 
 ## 7. Error Model
 
-统一错误集合定义于 `src/solana/errors.zig`：
+链下核心错误集合定义于 `src/solana/errors.zig`：
 - 编码解码：`InvalidBase58/InvalidLength/InvalidShortVec/IntegerOverflow`
 - 消息交易：`MissingAccountKey/MissingProgramId/TooManyAccounts/DuplicateLookupKey/InvalidMessage/InvalidTransaction/SignatureCountMismatch/MissingRequiredSignature/UnsupportedMessageVersion`
-- RPC：`RpcTransport/RpcParse/InvalidRpcResponse/RpcTimeout`
+- RPC 传输/解析：`RpcTransport/RpcParse/InvalidRpcResponse/RpcTimeout`
+
+RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
+- `RpcErrorObject` 含 `code/message/data_json`
+- `RpcResult(T)` 为 `ok: T` 或 `rpc_error: RpcErrorObject`
 
 RPC 业务错误不丢失：
 - 返回 `RpcResult.rpc_error{code,message,data_json}`

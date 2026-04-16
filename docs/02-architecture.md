@@ -14,7 +14,7 @@
 - 编解码/签名/消息交易错误使用统一错误集
 - RPC 错误保留 `code/message/data_json`
 
-## Feature Flags (planned)
+## Feature Flags (planned, not yet implemented)
 - `full` default
 - `rpc`
 - `devnet-integration-tests`
