@@ -21,11 +21,10 @@ test "public Message.DecodeResult type is usable through package exports" {
     _ = DecodeResult;
 }
 
-test "websocket client compiles" {
-    _ = rpc.WsClient;
-    _ = rpc.ws_client.WsRpcClient;
-}
-
 test "compute budget interface compiles" {
     _ = interfaces.compute_budget;
+}
+
+test "system interface compiles" {
+    _ = interfaces.system;
 }
