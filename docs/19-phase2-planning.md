@@ -1,14 +1,14 @@
 # Product Phase 2 Planning
 
 **Date**: 2026-04-16
-**Status**: Planning snapshot（`#17/#18` 已落地，`#20` 待执行）
+**Status**: Planning snapshot（`#17/#18` 已落地，`#20` 已有最小 bootstrap，但生命周期仍待收口）
 **Owner**: `#16 P2-1`
 
 > 本文用于锁定 Product Phase 2 第一批实现范围、DoD 与执行顺序。  
 > 当前应将本文视为**规划快照与 DoD 参考**：
 > - `#17` 已完成（send/confirm live evidence）
 > - `#18` 已完成（Batch A typed parse 第一批）
-> - `#20` 仍待执行
+> - `#20` 已有最小 websocket bootstrap（低层 client + 基础测试），但 subscription lifecycle / reconnect / unsubscribe 的产品级收口仍待执行
 
 ## 1. 背景与目标
 
@@ -51,7 +51,7 @@ Batch A 固定为 3 个方法（与 `docs/00` / `docs/03c` 对齐）：
 - `rpc_error`
 - `malformed/invalid response`
 
-### 2.3 `#20 P2-4b` — Websocket 最小可用（待执行；订阅目标以文档定义为准）
+### 2.3 `#20 P2-4b` — Websocket 最小可用（已 bootstrap；订阅目标以文档定义为准）
 
 最低订阅集合：
 
@@ -65,6 +65,11 @@ Batch A 固定为 3 个方法（与 `docs/00` / `docs/03c` 对齐）：
 - disconnect detect
 - reconnect
 - unsubscribe
+
+当前状态：
+- 低层 `WsClient / WsRpcClient` 已进入公开包面
+- 基础订阅/通知/重连测试已存在
+- 但作为 Product Phase 2 可宣称能力时，`subscription lifecycle / reconnect / unsubscribe` 仍需按本节 DoD 完成最终收口
 
 ## 3. 非目标（Out of Scope for Batch 1）
 

@@ -65,6 +65,11 @@ pub const ParsedTransaction = struct { ... };
 - unsubscribe
 - close
 
+当前实现快照：
+- 最小低层 `WsClient` / `WsRpcClient` 已存在，并已进入公开包面
+- 已有基础订阅、通知读取、disconnect detect、reconnect 相关测试
+- 但 Product Phase 2 对 websocket 的承诺边界仍以“生命周期可重复验证并完成收口”为准，而不是仅以底层 client 已可编译/基础可跑为准
+
 默认策略：
 - 断线后可配置是否自动重连
 - 重连后应重新建立有效订阅

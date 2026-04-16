@@ -6,7 +6,9 @@ This guide is for **Product Phase 1 closeout scope only**:
 - tx build/sign/serialize
 - high-frequency RPC calls (`getLatestBlockhash/getAccountInfo/getBalance/simulateTransaction/sendTransaction`)
 
-It does **not** claim Phase 2/3 capabilities (websocket/signers/C ABI/interfaces).
+It does **not** claim Phase 2/3 capabilities (websocket/signers/C ABI/interfaces) as fully closed.
+
+Note: the repo now exposes a minimal low-level websocket client bootstrap (`rpc.WsClient` / `rpc.ws_client.WsRpcClient`), but subscription lifecycle / reconnect / unsubscribe is still tracked as Product Phase 2 work rather than Phase 1 closeout scope.
 
 ---
 
