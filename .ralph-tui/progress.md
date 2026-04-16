@@ -20,6 +20,7 @@ after each iteration and it's included in prompts for context.
 - For RPC methods that default to `confirmed`, preserve the ergonomic no-arg helper and add a typed `WithCommitment` variant backed by a small enum so tests can assert exact JSON-RPC config payloads for `processed` / `confirmed` / `finalized`.
 - For scalar JSON-RPC methods that return `result.value`, keep the public API as `RpcResult(u64)` and parse the payload through the shared integer helper so both JSON integers and numeric strings remain accepted while commitment-specific wrappers stay thin.
 - When a JSON-RPC method legitimately returns `result.value = null` for not-found, model the success payload as `RpcResult(?T)` and reserve `error.InvalidRpcResponse` for actual schema mismatches; mock tests should cover both nullable success and typed object success.
+- For execution-style RPCs like `simulateTransaction`, preserve transport / top-level JSON-RPC failures as `.rpc_error`, but keep runtime simulation failures carried in `result.value.err` inside the typed `.ok` payload so callers can inspect logs, units, and structured failure details together.
 
 ---
 
@@ -217,5 +218,19 @@ after each iteration and it's included in prompts for context.
     - Scalar balance-style RPCs can reuse the same default-wrapper-plus-`WithCommitment` request pattern as `getLatestBlockhash` without introducing new response structs when the success payload is just a lamports `u64`.
   - Gotchas encountered
     - Even though `getBalance` already existed in the repo, it did not yet satisfy the story gate because the request payload omitted the optional commitment config object required by the acceptance criteria.
+---
+
+## 2026-04-16 - US-014
+- What was implemented
+  - Verified the existing `RpcClient.simulateTransaction` implementation already satisfies the story gate: it serializes and base64-encodes the signed transaction, posts `simulateTransaction`, and returns a typed `SimulateTransactionResult` carrying `err_json`, `logs`, and optional `units_consumed`.
+  - Confirmed failure behavior is preserved in both supported RPC shapes: top-level JSON-RPC failures return `.rpc_error`, while simulation-level failures in `result.value.err` are surfaced as typed `err_json` alongside logs.
+  - Revalidated mock coverage for success, simulation-error, malformed-success, and top-level RPC-error paths in `src/solana/rpc/client.zig`, plus the offline E2E happy/failure flows in `src/e2e/devnet_e2e.zig`.
+- Files changed
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - `simulateTransaction` follows a useful split for execution-style RPCs: envelope failures stay in `.rpc_error`, while runtime execution failures remain in the typed `.ok` payload so callers can inspect logs and compute usage even when simulation fails.
+  - Gotchas encountered
+    - This story was already implemented in source, but `tasks/prd.json` still marked `US-014` incomplete, so the work here was verification against acceptance criteria plus progress capture rather than code changes.
 ---
 
