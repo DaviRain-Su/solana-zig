@@ -264,7 +264,7 @@
 | `token_2022 minimum builders` | closed | `#74` | — | `da93cfb`，`mint/approve/burn` + program-id 区分，LE amount/meta 顺序/signer-writable 机械断言；isolated canonical `197/197` | `src/solana/interfaces/token_2022.zig` + `docs/06` + `docs/35` | `G-P3C-01` + `G-P3C-02` PASS |
 | `stake delegate minimum builder` | closed | `#75` | — | `4d35e30`，`buildDelegateStakeInstruction` + 6 账户 meta 机械断言 + compile/sign/verify；isolated canonical `204/204` | `src/solana/interfaces/stake.zig` + `docs/06` + `docs/35` | `G-P3C-01` + `G-P3C-03` PASS |
 | `exception convergence` | closed | `#76` | — | `da93cfb`，strict tri-state + `code==429` 分类收紧；双 env `197/197` + verdict-upgrade 输入 | `src/solana/rpc/client.zig` + `docs/14a` Run 14 + `docs/35` | `G-P3C-01` + `G-P3C-04` PASS |
-| `docs/gate reconciliation` | in-progress | `#77` | final docs commit/hash 待落盘 | `docs/06+10+14a+15+35` 对账 | 本文档 + `docs/35` | `G-P3C-05` PASS |
+| `docs/gate reconciliation` | closed | `#77` | — | `39f368f`，`docs/06+10+14a+15+35` 对账完成 | 本文档 + `docs/35` | `G-P3C-05` PASS |
 
 ### Phase 3 Batch 3 Exception Register
 

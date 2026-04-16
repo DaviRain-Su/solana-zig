@@ -154,7 +154,7 @@
 | `interfaces.token_2022 minimum builders` | closed | `#74` | — | `da93cfb`，token-2022 `mint/approve/burn` + program-id 区分；LE amount/meta 顺序/signer-writable 机械断言；isolated canonical `197/197` | `src/solana/interfaces/token_2022.zig` + `docs/06` + `docs/35` | `G-P3C-01` + `G-P3C-02` PASS |
 | `interfaces.stake delegate minimum` | closed | `#75` | — | `4d35e30`，`buildDelegateStakeInstruction` + 6 账户 metas 机械断言 + compile/sign/verify；isolated canonical `204/204` | `src/solana/interfaces/stake.zig` + `docs/06` + `docs/35` | `G-P3C-01` + `G-P3C-03` PASS |
 | `rpc.exception convergence` | closed | `#76` | — | `da93cfb`，strict tri-state 保持 + `code==429` 分类收紧；双 env 收敛证据与 verdict-upgrade 输入；isolated canonical `197/197` | `src/solana/rpc/client.zig` + `docs/14a` + `docs/15` + `docs/35` | `G-P3C-01` + `G-P3C-04` PASS |
-| `batch3.docs/gate reconciliation` | in-progress | `#77` | 待 final docs commit/hash | `docs/06+10+14a+15+35` 对账（条件触发 `docs/28`） | 本矩阵 + `docs/35` | `G-P3C-05` PASS |
+| `batch3.docs/gate reconciliation` | closed | `#77` | — | `39f368f`，`docs/06+10+14a+15+35` 对账完成（`docs/28` 本轮不触发） | 本矩阵 + `docs/35` | `G-P3C-05` PASS |
 
 ### Phase 3 Batch 3 Exception Register
 
@@ -166,13 +166,3 @@
   - strict model 下仍未关闭
 
 > 结论：Batch 3 本轮仍不满足升级到 `可发布` 的条件。
-
-## 13. Phase 3 Batch 3 Tracking (canonical board)
-
-| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
-|---|---|---|---|---|---|---|
-| `signers` | closed | US-019~US-022 | — | `signer.zig` + `in_memory.zig` + `mock_external.zig` + `tx/transaction.zig` 集成，`197/197 tests passed` | `src/solana/signers/*` + `docs/06` | `zig build test` PASS |
-| `C ABI` | closed | US-023~US-025 | — | `cabi/core.zig` + `cabi/transaction.zig` + `cabi/rpc.zig` + `include/solana_zig.h`，编译通过 | `src/solana/cabi/*` + `include/solana_zig.h` + `docs/06` | `zig build test` + 头文件一致性 PASS |
-| `stake builder` | closed | US-026 | — | `stake.zig` 4 条指令 builder + 字节布局测试 | `src/solana/interfaces/stake.zig` + `docs/06` | `zig build test` PASS |
-| `benchmark extension` | closed | US-027 | — | `benchmark.zig` 新增 `signer_in_memory_sign` + `cabi_pubkey_to_base58` | `src/benchmark.zig` + `docs/13` | `zig build bench` PASS |
-| `docs closeout` | closed | US-028 | — | `docs/17` 更新 + `docs/cabi-guide.md` 新建 + `docs/10` 更新 + `docs/06` 更新 | `docs/*` | 文档完整可用 |
