@@ -98,6 +98,12 @@ Batch A 固定为 3 个方法（与 `docs/00` / `docs/03c` 对齐）：
 - live `send + confirm` 证据可复现（public devnet 或 local validator/surfnet）
 - 至少 1 条成功 + 1 条失败证据留档
 
+> Batch 1 放行解释（残项固化）：  
+> 若 live 环境的失败场景受外部条件影响而不稳定，可采用
+> - `1` 条稳定的 live success（send + confirm）
+> - 外加代码层失败分支覆盖与已有失败测试证据
+> 作为当前批次放行依据；该解释需在 `docs/06` 与执行矩阵中留痕。
+
 ## G-P2-03 RPC Gate（#18）
 
 - Batch A 三方法全部达到 typed parse + 三类用例覆盖
