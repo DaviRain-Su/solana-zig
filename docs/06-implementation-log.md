@@ -28,3 +28,18 @@
 
 ### 下一步
 - 进入 Phase 6 承诺型实现，按顺序执行：`T4-01 -> T4-05`（M1 核心稳定）。
+
+## 2026-04-16 第二次增量记录
+
+### 输入
+- 根据审查意见完成“第三项”：为 `RpcClient` 引入可替换 transport 抽象（用于 mock）。
+- 同步修复 v0 lookup 冲突语义与重复错误类型定义。
+
+### 输出
+- 新增 `src/solana/rpc/transport.zig`，提供 `Transport` 接口与默认 `HttpTransport` 适配器。
+- `RpcClient` 新增 `initWithTransport(...)`，支持注入 fake transport。
+- 新增 3 个 RPC 注入式测试（happy path / rpc_error / transport error）。
+- `Message.compileV0` 调整为：静态 key 冲突时跳过注入；动态重复时报 `DuplicateLookupKey`。
+
+### 验证
+- `zig build test` 通过。

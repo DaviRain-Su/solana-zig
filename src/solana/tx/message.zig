@@ -126,6 +126,7 @@ pub const Message = struct {
         for (account_keys, 0..) |key, i| {
             try key_indexes.append(allocator, .{ .key = key, .index = @intCast(i) });
         }
+        const static_key_count = key_indexes.items.len;
 
         var compiled_lookups: std.ArrayList(CompiledAddressLookup) = .empty;
         defer {
@@ -144,7 +145,8 @@ pub const Message = struct {
 
                 for (table.writable) |entry| {
                     if (!instructionUsesKey(instructions, entry.pubkey)) continue;
-                    if (containsKeyIndex(key_indexes.items, entry.pubkey)) return error.DuplicateLookupKey;
+                    if (containsStaticKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) continue;
+                    if (containsDynamicKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) return error.DuplicateLookupKey;
                     if (next_dynamic_index > std.math.maxInt(u8)) return error.TooManyAccounts;
 
                     try writable_indexes.append(allocator, entry.index);
@@ -154,7 +156,8 @@ pub const Message = struct {
 
                 for (table.readonly) |entry| {
                     if (!instructionUsesKey(instructions, entry.pubkey)) continue;
-                    if (containsKeyIndex(key_indexes.items, entry.pubkey)) return error.DuplicateLookupKey;
+                    if (containsStaticKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) continue;
+                    if (containsDynamicKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) return error.DuplicateLookupKey;
                     if (next_dynamic_index > std.math.maxInt(u8)) return error.TooManyAccounts;
 
                     try readonly_indexes.append(allocator, entry.index);
@@ -468,8 +471,12 @@ fn findKeyIndex(indexes: []const KeyIndex, key: pubkey_mod.Pubkey) ?u8 {
     return null;
 }
 
-fn containsKeyIndex(indexes: []const KeyIndex, key: pubkey_mod.Pubkey) bool {
-    return findKeyIndex(indexes, key) != null;
+fn containsStaticKeyIndex(indexes: []const KeyIndex, static_key_count: usize, key: pubkey_mod.Pubkey) bool {
+    return findKeyIndex(indexes[0..static_key_count], key) != null;
+}
+
+fn containsDynamicKeyIndex(indexes: []const KeyIndex, static_key_count: usize, key: pubkey_mod.Pubkey) bool {
+    return findKeyIndex(indexes[static_key_count..], key) != null;
 }
 
 test "compile and serialize legacy message" {
@@ -524,4 +531,76 @@ test "compile legacy with empty instruction data" {
 
     try std.testing.expectEqual(@as(usize, 1), message.instructions.len);
     try std.testing.expectEqual(@as(usize, 0), message.instructions[0].data.len);
+}
+
+test "compile v0 skips lookup keys that are already static" {
+    const gpa = std.testing.allocator;
+    const payer = pubkey_mod.Pubkey.init([_]u8{7} ** 32);
+    const receiver = pubkey_mod.Pubkey.init([_]u8{8} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{9} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{1} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer, .is_signer = true, .is_writable = true },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = &accounts, .data = &.{} },
+    };
+
+    const writable_entries = [_]lookup_mod.LookupEntry{
+        .{ .index = 0, .pubkey = payer },
+    };
+    const lookups = [_]lookup_mod.AddressLookupTable{
+        .{
+            .account_key = pubkey_mod.Pubkey.init([_]u8{2} ** 32),
+            .writable = &writable_entries,
+            .readonly = &.{},
+        },
+    };
+
+    var message = try Message.compileV0(gpa, payer, &ixs, blockhash, &lookups);
+    defer message.deinit();
+
+    try std.testing.expectEqual(@as(usize, 0), message.address_table_lookups.len);
+}
+
+test "compile v0 rejects duplicate dynamic lookup keys across tables" {
+    const gpa = std.testing.allocator;
+    const payer = pubkey_mod.Pubkey.init([_]u8{3} ** 32);
+    const lookup_account = pubkey_mod.Pubkey.init([_]u8{4} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{5} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{6} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer, .is_signer = true, .is_writable = true },
+        .{ .pubkey = lookup_account, .is_signer = false, .is_writable = true },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = &accounts, .data = &.{} },
+    };
+
+    const table1_writable = [_]lookup_mod.LookupEntry{
+        .{ .index = 0, .pubkey = lookup_account },
+    };
+    const table2_readonly = [_]lookup_mod.LookupEntry{
+        .{ .index = 1, .pubkey = lookup_account },
+    };
+    const lookups = [_]lookup_mod.AddressLookupTable{
+        .{
+            .account_key = pubkey_mod.Pubkey.init([_]u8{10} ** 32),
+            .writable = &table1_writable,
+            .readonly = &.{},
+        },
+        .{
+            .account_key = pubkey_mod.Pubkey.init([_]u8{11} ** 32),
+            .writable = &.{},
+            .readonly = &table2_readonly,
+        },
+    };
+
+    try std.testing.expectError(
+        error.DuplicateLookupKey,
+        Message.compileV0(gpa, payer, &ixs, blockhash, &lookups),
+    );
 }

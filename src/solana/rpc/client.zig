@@ -3,24 +3,35 @@ const pubkey_mod = @import("../core/pubkey.zig");
 const hash_mod = @import("../core/hash.zig");
 const transaction_mod = @import("../tx/transaction.zig");
 const types = @import("types.zig");
-const http_transport = @import("http_transport.zig");
+const transport_mod = @import("transport.zig");
 
 pub const RpcClient = struct {
     allocator: std.mem.Allocator,
-    transport: http_transport.HttpTransport,
+    transport: transport_mod.Transport,
     endpoint: []const u8,
     next_id: u64 = 1,
 
     pub fn init(allocator: std.mem.Allocator, io: std.Io, endpoint: []const u8) !RpcClient {
+        const transport = try transport_mod.initHttpTransport(allocator, io);
+        errdefer transport.deinit(allocator);
+        return initWithTransport(allocator, endpoint, transport);
+    }
+
+    pub fn initWithTransport(allocator: std.mem.Allocator, endpoint: []const u8, transport: transport_mod.Transport) !RpcClient {
+        const endpoint_copy = allocator.dupe(u8, endpoint) catch |err| {
+            transport.deinit(allocator);
+            return err;
+        };
+
         return .{
             .allocator = allocator,
-            .transport = http_transport.HttpTransport.init(allocator, io),
-            .endpoint = try allocator.dupe(u8, endpoint),
+            .transport = transport,
+            .endpoint = endpoint_copy,
         };
     }
 
     pub fn deinit(self: *RpcClient) void {
-        self.transport.deinit();
+        self.transport.deinit(self.allocator);
         self.allocator.free(self.endpoint);
     }
 
@@ -162,7 +173,7 @@ pub const RpcClient = struct {
     };
 
     fn callAndParse(self: *RpcClient, payload: []const u8) !ParsedEnvelope {
-        const response_body = try self.transport.postJson(self.endpoint, payload);
+        const response_body = try self.transport.postJson(self.allocator, self.endpoint, payload);
         defer self.allocator.free(response_body);
 
         var parsed = std.json.parseFromSlice(std.json.Value, self.allocator, response_body, .{}) catch {
@@ -242,4 +253,81 @@ fn encodeBase64(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
     const out = try allocator.alloc(u8, encoded_len);
     _ = std.base64.standard.Encoder.encode(out, bytes);
     return out;
+}
+
+const MockTransport = struct {
+    response_body: []const u8 = "",
+    should_fail: bool = false,
+
+    fn postJson(
+        ctx: *anyopaque,
+        allocator: std.mem.Allocator,
+        url: []const u8,
+        payload: []const u8,
+    ) transport_mod.PostJsonError![]u8 {
+        _ = url;
+        _ = payload;
+
+        const self: *MockTransport = @ptrCast(@alignCast(ctx));
+        if (self.should_fail) return error.RpcTransport;
+        return allocator.dupe(u8, self.response_body);
+    }
+};
+
+test "rpc client supports injected transport for happy path" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":12345}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{1} ** 32);
+    const result = try client.getBalance(pubkey);
+
+    switch (result) {
+        .ok => |lamports| try std.testing.expectEqual(@as(u64, 12345), lamports),
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client preserves rpc error payload with injected transport" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32002,\"message\":\"node unhealthy\",\"data\":{\"retries\":3}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{2} ** 32);
+    const result = try client.getBalance(pubkey);
+
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32002), rpc_err.code);
+            try std.testing.expectEqualStrings("node unhealthy", rpc_err.message);
+            try std.testing.expect(rpc_err.data_json != null);
+        },
+    }
+}
+
+test "rpc client returns transport error with injected transport" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{ .should_fail = true };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{3} ** 32);
+    try std.testing.expectError(error.RpcTransport, client.getBalance(pubkey));
 }

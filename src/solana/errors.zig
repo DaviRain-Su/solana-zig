@@ -20,16 +20,3 @@ pub const SolanaError = error{
     RpcTimeout,
     RpcParse,
 };
-
-pub const RpcErrorObject = struct {
-    code: i64,
-    message: []const u8,
-    data_json: ?[]const u8 = null,
-};
-
-pub fn RpcResult(comptime T: type) type {
-    return union(enum) {
-        ok: T,
-        rpc_error: RpcErrorObject,
-    };
-}

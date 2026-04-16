@@ -211,7 +211,8 @@ pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !Rp
 
 - 仅 `!is_signer` 且能在 lookup 表命中的账户可走 ALT
 - 动态索引从 `account_keys.len` 开始递增
-- 若 lookup key 与静态 key 冲突，返回 `error.DuplicateLookupKey`
+- 若 lookup key 与静态 key 冲突，跳过 lookup 注入（静态 key 优先）
+- 若同一 pubkey 被多个 lookup 条目重复注入（动态域内重复），返回 `error.DuplicateLookupKey`
 - 若动态索引超过 `u8` 上限，返回 `error.TooManyAccounts`
 
 ---
@@ -296,11 +297,12 @@ RPC 业务错误不丢失：
 9. tx 反序列化后仍有尾字节 -> `error.InvalidTransaction`
 10. required signer 未全部签名 -> `error.MissingRequiredSignature`
 11. 签名数组长度与 header 不符 -> `error.SignatureCountMismatch`
-12. v0 lookup key 与现有 key 冲突 -> `error.DuplicateLookupKey`
-13. v0 动态索引超过 `u8` -> `error.TooManyAccounts`
-14. RPC 返回非 200 -> `error.RpcTransport`
-15. RPC 返回 JSON 非 object -> `error.InvalidRpcResponse`
-16. RPC `result` 字段缺失或类型不符 -> `error.InvalidRpcResponse`
+12. v0 lookup key 与静态 key 冲突 -> 跳过注入，不报错
+13. v0 lookup key 在动态域重复注入 -> `error.DuplicateLookupKey`
+14. v0 动态索引超过 `u8` -> `error.TooManyAccounts`
+15. RPC 返回非 200 -> `error.RpcTransport`
+16. RPC 返回 JSON 非 object -> `error.InvalidRpcResponse`
+17. RPC `result` 字段缺失或类型不符 -> `error.InvalidRpcResponse`
 
 ---
 
