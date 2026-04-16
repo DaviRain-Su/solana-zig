@@ -651,3 +651,48 @@
 - gate 结论：
   - `G-P2B-03` ✅
   - `G-P2B-05` ✅（`docs/06` / `docs/10` / `docs/15` 已同步回写）
+
+## 2026-04-16 第二十五次增量记录（#34 P2-14: Nonce live 深化）
+
+### 输入
+- 第三批 `#31` 已冻结通过，`#34` 按 `docs/21` §2.3 与 `G-P2C-04` 进入正式实现。
+- `#34` checkpoint 已提交，目标固定为：
+  - `query nonce -> build advance -> compile/sign -> send/confirm`
+  - 形成稳定 live run-log
+  - 若仅 `local-live` 可用，则登记 `Batch 3 exception`
+
+### 输出
+- 新建 `src/e2e/nonce_e2e.zig`，形成两类 E2E：
+  - `P2-14 mock: query nonce -> build advance -> compile/sign -> send -> confirm`
+  - `P2-14 live: create nonce -> query -> advance -> send -> confirm`
+- `build.zig` 已新增 `nonce-e2e` build step。
+- 基于 `#28` 的 `interfaces/system.zig`：
+  - `parseNonceAccountData`
+  - `buildAdvanceNonceAccountInstruction`
+  已完成 live 路径复用验证。
+- 本轮 local-live 证据已形成：
+  - payer：`7XXPmL4qSHSpbivZnAGy1VN4J8svpdRuU3ohFQKfLmni`
+  - nonce account：`tjAxCwK4gq6bp8r6kzEijq2Ht6nupuzf8q95d91zYoM`
+  - create nonce tx：`3owqVDX7zNsDdNS32Q2wX9d1vUGUK2A3XWsg8uVssEPzFcjJAS4qa3Efxu7gBoGyf4ZQAiDfuKy8hjZBgRwo2Q7a`
+  - advance nonce tx：`3pTHhtncebfRwRCXZ7xLiEDuztL8vi8CmweGRfNyMkCBgwVT4xsppCiTHo7mT1cc9keaC5fpQo6GiFbvqHzemfuU`
+
+### 风险
+- 当前 live 证据来自 `http://127.0.0.1:8899`，尚未形成 `public devnet` 对应 run。
+- 因本批仅拿到 `local-live`，需要按 `docs/21` 的固定模型在 `docs/15` 登记 `Batch 3 exception`，并把后续收敛阶段写清。
+- `recent_blockhashes sysvar` 仍沿用 Rust 4.0.1 参考语义；若链语义后续变化，需要同步调整 `interfaces/system` 与 live harness。
+
+### 验证
+- canonical 三件套：
+  - commit `dd6bdff`
+  - `git status` clean
+  - `zig build test`：`47/47 passed`
+- 附加 E2E：
+  - `zig build nonce-e2e --summary all`：`2/2 passed`
+- 关键 live 证据：
+  - create nonce tx confirmed（poll 0）
+  - advance nonce tx confirmed（poll 0）
+  - nonce state `initialized`
+  - authority 与 blockhash 均可从 live query 复现
+- gate 结论（当前轮）：
+  - `G-P2C-04` ✅
+  - `G-P2C-05` 待本轮 `docs/14a` / `docs/15` 回写完成后正式闭环

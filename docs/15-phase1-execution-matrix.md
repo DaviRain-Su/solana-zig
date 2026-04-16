@@ -90,3 +90,18 @@
   - 当前例外口径：`public devnet` 与 `local-live` 均返回 `-32601 Method not found`
   - 本批处理：以 `mock + local-live RPC error evidence` 收口
   - 后续收敛：下一阶段继续补实际可用 endpoint / integration 路径
+
+## 8. Phase 2 Batch 3 Extension Tracking
+
+> 按 `docs/21-phase2-batch3-planning.md` 的冻结口径，第三批实现 / 例外 / gate 统一继续落在本矩阵中留痕。以下状态不影响 Phase 1 closeout，仅用于跟踪 Phase 2 Batch 3 的实现收口与 `Batch 3 exception`。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `interfaces.System Durable Nonce live workflow` | closed | `#34` | ~~仅最小 `query -> build -> compile/sign` workflow 已闭环，live `send/confirm` 与 run-log 尚未留档~~ → **已完成**：canonical 三件套到位（`dd6bdff`, clean status, `47/47 tests passed`），`nonce-e2e` mock/live `2/2 passed`，`query -> build -> compile/sign -> send/confirm` local-live 证据已在 `docs/14a` Run 6 留档 | `query nonce -> build advance -> compile/sign -> send/confirm` live run；create nonce tx / advance nonce tx / confirmed poll 0；canonical 三件套 | `src/e2e/nonce_e2e.zig` + `build.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` + 本矩阵 | 已满足 `G-P2C-01` canonical 三件套；已满足 `G-P2C-04` live 证据；`G-P2C-05` 文档回写完成 |
+
+### Batch 3 Exception Register
+
+- `#34 interfaces.System Durable Nonce live workflow`
+  - 当前例外口径：本批 live 证据为 `local-live`（`http://127.0.0.1:8899`），尚未形成 `public devnet` 对应 run-log
+  - 本批处理：以 `local-live send/confirm + docs/14a run-log` 收口
+  - 后续收敛：下一阶段继续补 `public devnet` Nonce live run，并校验与当前 `recent_blockhashes sysvar` 语义的一致性

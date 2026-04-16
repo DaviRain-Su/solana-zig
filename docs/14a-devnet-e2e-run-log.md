@@ -291,3 +291,59 @@ G-P2-02 requires at least 1 success + 1 failure evidence. Failure paths are cove
 2. **Confirm failure** (`P2-2 mock: confirm failure path`): `getSignatureStatuses` returns `confirmed` status with `InstructionError` in `err` field. Assertions: `confirmationStatus == "confirmed"`, `err_json != null`.
 
 Both tests pass under `zig build devnet-e2e` with zero memory leaks.
+
+---
+
+## Run 6 — Durable Nonce Live (Local Surfnet, #34 P2-14)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/surfnet/nonce-live`
+- Commit: `dd6bdff`
+- Date: `2026-04-16`
+- Run Type: `real-harness` (local-live nonce workflow round-trip)
+- Operator: `@CC (automated)`
+- RPC Endpoint: `http://127.0.0.1:8899`
+- Command / Entry:
+  - `zig build test`
+  - `zig build nonce-e2e --summary all`
+- Exit Code:
+  - `zig build test` → `0`
+  - `zig build nonce-e2e --summary all` → `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes: 本次 run 完整复现了 `query nonce -> build advance -> compile/sign -> send/confirm`，并在 local-live 环境形成可复现日志。
+
+### 3. Evidence Checklist
+
+- [x] payer 已准备并可签名
+- [x] nonce account 已创建
+- [x] live query 拿到 `initialized` nonce state
+- [x] `advance_nonce_account` 指令已构造
+- [x] transaction 已 compile/sign
+- [x] create nonce tx confirmed（poll 0）
+- [x] advance nonce tx confirmed（poll 0）
+- [x] `zig build test` 全量通过
+- [x] `zig build nonce-e2e --summary all` mock/live 通过
+
+### 4. Console / Run Evidence
+
+- payer: `7XXPmL4qSHSpbivZnAGy1VN4J8svpdRuU3ohFQKfLmni`
+- nonce account: `tjAxCwK4gq6bp8r6kzEijq2Ht6nupuzf8q95d91zYoM`
+- create nonce tx: `3owqVDX7zNsDdNS32Q2wX9d1vUGUK2A3XWsg8uVssEPzFcjJAS4qa3Efxu7gBoGyf4ZQAiDfuKy8hjZBgRwo2Q7a` (`confirmed`, poll 0)
+- advance nonce tx: `3pTHhtncebfRwRCXZ7xLiEDuztL8vi8CmweGRfNyMkCBgwVT4xsppCiTHo7mT1cc9keaC5fpQo6GiFbvqHzemfuU` (`confirmed`, poll 0)
+- nonce state: `initialized`
+- authority: `7XXPmL4qSHSpbivZnAGy1VN4J8svpdRuU3ohFQKfLmni`
+- blockhash: `CYMNXEv8ajKMrMcQqsaUEPgqAFfhbpGymJseqVrF43NR`
+
+### 5. Notes
+
+- 该 run 基于 `#28` 已落地的 `interfaces/system.zig`：
+  - `parseNonceAccountData`
+  - `buildAdvanceNonceAccountInstruction`
+- 本轮先以 `local-live` 收口，不把它误写成 `public devnet` 成功。
+- 按 `docs/21` 的 Batch 3 固定模型，这次 local-live 证据需要在 `docs/15` 登记 `Batch 3 exception`，后续继续补 public devnet 对应 run。
+- `recent_blockhashes sysvar` 仍按 Rust 4.0.1 参考语义保留为必需只读账户，本 run 未观察到与当前链行为冲突。
