@@ -1036,3 +1036,84 @@
   - `G-P2E-01` ✅
   - `G-P2E-02` ✅
   - `G-P2E-05` ✅
+
+## 2026-04-16 第三十七次增量记录（#51 P2-28: Websocket 可恢复性深化收口）
+
+### 输入
+- 第六批 `#48` 已通过结构审并放行实现；`#51` 按 `docs/26` §2.2 与 `G-P2F-03` 进入 websocket recoverability 收口。
+- 本轮冻结目标固定为：
+  - reconnect storm / backoff 稳定性
+  - recovery 后状态一致性
+  - 断线/恢复消息边界
+
+### 输出
+- `src/solana/rpc/ws_client.zig` 已在 `a49ec19` 完成 recoverability 增强：
+  - `MockWsServer.startMulti(allocator, max_connections)`，支持多连接 reconnect storm 场景
+  - 3 条 `G-P2F-03` 机械验收测试，全部通过 `snapshot()/WsStats` 字段证明
+- 关键 recoverability 证据已全部到位：
+  - `ws_recoverability_reconnect_storm_stability`
+  - `ws_recoverability_recovery_state_consistency`
+  - `ws_recoverability_message_boundary_counters`
+
+### 风险
+- 当前 recoverability 收口只覆盖冻结的最小证据组，不把它误写成完整生产 QoS / delivery guarantee。
+- 消息边界模型允许 disconnect 窗口内 drop，但要求 `dedup_dropped_total` 与 reconnect 相关字段可观测、单调不减。
+- 本轮**不触发 Batch 6 exception**；证据完全由 canonical 三件套 + `snapshot()/WsStats` 机械测试收口。
+
+### 验证
+- canonical 三件套：
+  - commit `a49ec19`
+  - `ws_client.zig` 为唯一写集文件，已提交
+  - `zig build test --summary all`：`94/94 tests passed`
+- recoverability 测试：
+  - `ws_recoverability_reconnect_storm_stability` — PASS
+  - `ws_recoverability_recovery_state_consistency` — PASS
+  - `ws_recoverability_message_boundary_counters` — PASS
+- gate 结论：
+  - `G-P2F-01` ✅
+  - `G-P2F-03` ✅
+  - `G-P2F-05` ✅
+
+## 2026-04-16 第三十八次增量记录（#52 P2-29: 发布流水线固化收口）
+
+### 输入
+- 第六批 `#48` 已通过结构审并放行实现；`#52` 按 `docs/26` §2.3 与 `G-P2F-04` 进入 Batch 6 preflight / release pipeline 收口。
+- 本轮冻结目标固定为：
+  - 固定 Batch 6 preflight 主入口
+  - 固定 report / log 产物规范
+  - 形成可复现 exception-path 样例
+
+### 输出
+- 新增 `scripts/release/preflight_batch6.sh`，固定 Batch 6 preflight 主入口。
+- `docs/27-batch6-release-readiness.md` 已对齐 Batch 6 preflight 路径与输出格式：
+  - script path：`scripts/release/preflight_batch6.sh`
+  - report：`artifacts/release/batch6-preflight-<timestamp>-<commit>.md`
+  - logs：`artifacts/release/batch6-*.log`
+- 当前已形成 `ALLOW_BATCH6_EXCEPTION=true` 的标准报告样例，可在 smoke 缺失时稳定生成 `有条件发布` 输入。
+
+### 风险
+- 当前样例运行未提供 Batch 6 所需双侧 smoke，因此：
+  - `public devnet` smoke = `MISSING`
+  - `local-live` smoke = `MISSING`
+- 这意味着本轮 **触发 Batch 6 exception**；收口的是 preflight 主入口与报告规范，不等于 Batch 6 final release verdict 已可升级为 `可发布`。
+- `docs/27` 当前只应保持 `provisional: 有条件发布`，直到后续 smoke 收敛完成。
+
+### 验证
+- canonical 三件套（隔离 worktree）：
+  - worktree `/tmp/solana-zig-b6-52-d60cc1c`
+  - commit `93bb638`
+  - `git status --short` 为空（clean）
+  - `zig build test --summary all`：`91/91 tests passed`
+- preflight 样例运行：
+  - command：`ALLOW_BATCH6_EXCEPTION=true scripts/release/preflight_batch6.sh /tmp/batch6-preflight-93bb638`
+  - report：`/tmp/batch6-preflight-93bb638/batch6-preflight-20260416-200221-93bb638.md`
+  - result：
+    - `build/test`: `PASS`
+    - `smoke(public devnet)`: `MISSING`
+    - `smoke(local-live)`: `MISSING`
+    - `exception_required`: `true`
+    - `verdict`: `有条件发布`
+- gate 结论：
+  - `G-P2F-01` ✅
+  - `G-P2F-04` ✅
+  - `G-P2F-05` ✅
