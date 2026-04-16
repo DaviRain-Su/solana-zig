@@ -88,7 +88,7 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
   - `sendTransaction`
 - 测试与兼容：
   - oracle 向量对照
-  - Devnet acceptance path（环境变量门控；当前已有仓库内 `zig build devnet-e2e` live harness 覆盖到 `construct -> sign -> simulate`，并保留 wrapper 留档路径；`send` 仍单独跟踪）
+  - Devnet acceptance path（环境变量门控；当前已有仓库内 `zig build devnet-e2e` live harness，已覆盖 `construct -> sign -> simulate` 并补齐 `sendTransaction/confirm` live 留档；wrapper 路径继续用于补充元数据记录）
 
 ### 3.2 后续 Product Phase 扩展范围
 对照官方页面 crate 家族逐步扩展：
@@ -126,7 +126,7 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
 - FR-03：支持交易签名、验签、序列化、反序列化。
 - FR-04：支持 5 个高频 RPC 方法并保留 RPC error 结构。
 - FR-05：支持 transport 抽象注入，便于 mock 与测试。
-- FR-06：支持以仓库内 live harness + acceptance wrapper 形式演示 Devnet 最小交易流程；当前 live harness 覆盖到 `construct -> sign -> simulate`，并为后续 `sendTransaction` 收口预留接口。
+- FR-06：支持以仓库内 live harness + acceptance wrapper 形式演示 Devnet 最小交易流程；当前 live harness 已覆盖 `construct -> sign -> simulate`，并补齐 `sendTransaction/confirm` live 证据。
 
 ---
 
@@ -152,7 +152,7 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
   - 完整 Transaction serialize（签名 + message）
 - `zig build test` 持续通过。
 - Phase 1 每个公共接口至少覆盖 1 个 Happy Path + 1 个 Error Path 测试。
-- 配置 `SOLANA_RPC_URL` 时，可通过仓库内 `zig build devnet-e2e` 留档当前 Devnet live harness 路径，并可辅以 acceptance wrapper 留档元数据；完整“构造->签名->模拟->发送”闭环仍属于 Phase 1 收口目标，其中 `sendTransaction` 证据尚未补齐。
+- 配置 `SOLANA_RPC_URL` 时，可通过仓库内 `zig build devnet-e2e` 留档当前 Devnet live harness 路径，并可辅以 acceptance wrapper 留档元数据；当前 `simulate/send/confirm` live 证据已形成，但是否可宣称 Phase 1 closeout，仍取决于 execution matrix 的整体收口状态。
 - `std.testing.allocator` 全量测试无内存泄漏。
 - *(基线)* 序列化/反序列化吞吐量 benchmark 建立（不要求优于 Rust，但需记录数据供后续对比）。
 

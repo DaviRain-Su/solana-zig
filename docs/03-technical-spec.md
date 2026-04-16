@@ -372,7 +372,7 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 后续必须补齐（下一阶段 04/05 执行）：
 - 更完整的 v0 / ALT oracle 与失败路径覆盖（尤其是多 lookup / versioned tx 场景）
 - RPC 其余高频方法的 malformed/typed parse 收口与更系统的错误路径覆盖
-- `sendTransaction` 的 mock/live 证据与完整 Devnet closeout 留档（当前 in-tree harness 已覆盖到 `simulate`，但 `send` 仍待补齐）
+- `docs/15` 中剩余 `open / in-progress / closeable` 条目的最终 closeout 处置，以及与 Devnet evidence pack 的一致性回写
 
 ---
 
