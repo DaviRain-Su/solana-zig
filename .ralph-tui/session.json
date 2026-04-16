@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T14:38:23.517Z",
-  "currentIteration": 9,
+  "updatedAt": "2026-04-16T14:43:35.377Z",
+  "currentIteration": 10,
   "maxIterations": 0,
-  "tasksCompleted": 7,
+  "tasksCompleted": 8,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -104,6 +104,16 @@
       "durationMs": 600049,
       "startedAt": "2026-04-16T14:26:46.788Z",
       "endedAt": "2026-04-16T14:36:46.837Z"
+    },
+    {
+      "iteration": 10,
+      "status": "completed",
+      "taskId": "US-008",
+      "taskTitle": "getTokenAccountsByOwner RPC 方法",
+      "taskCompleted": true,
+      "durationMs": 91647,
+      "startedAt": "2026-04-16T14:36:51.869Z",
+      "endedAt": "2026-04-16T14:38:23.516Z"
     }
   ],
   "skippedTaskIds": [],

@@ -1217,3 +1217,75 @@ test "US-008 live: getTokenAccountsByOwner returns token accounts for a discover
         },
     }
 }
+
+test "US-009 live: getTokenAccountBalance and getTokenSupply return typed token amounts" {
+    const gpa = std.testing.allocator;
+
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping US-009 live devnet E2E\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    std.debug.print("[US-009 live] endpoint: {s}\n", .{endpoint});
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const wrapped_sol_mint = try Pubkey.fromBase58(WRAPPED_SOL_MINT_STR);
+    const discovered = (try discoverTokenOwnerForMint(&client, gpa, wrapped_sol_mint)) orelse {
+        std.debug.print("[US-009 live] skip: unable to discover a Devnet token account for the wrapped SOL mint\n", .{});
+        return;
+    };
+
+    const token_account_b58 = try discovered.token_account.toBase58Alloc(gpa);
+    defer gpa.free(token_account_b58);
+
+    const balance_result = try client.getTokenAccountBalance(discovered.token_account);
+    switch (balance_result) {
+        .ok => |token_balance| {
+            var owned = token_balance;
+            defer owned.deinit(gpa);
+
+            try std.testing.expect(owned.amount > 0);
+            try std.testing.expectEqual(@as(u8, 9), owned.decimals);
+            try std.testing.expect(owned.ui_amount_string.len > 0);
+            try std.testing.expect(owned.raw_json != null);
+
+            std.debug.print(
+                "[US-009 live] getTokenAccountBalance .ok — account={s}, amount={d}, decimals={d}, uiAmountString={s}\n",
+                .{ token_account_b58, owned.amount, owned.decimals, owned.ui_amount_string },
+            );
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-009 live] getTokenAccountBalance rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
+
+    const supply_result = try client.getTokenSupply(wrapped_sol_mint);
+    switch (supply_result) {
+        .ok => |token_supply| {
+            var owned = token_supply;
+            defer owned.deinit(gpa);
+
+            try std.testing.expectEqual(@as(u8, 9), owned.decimals);
+            try std.testing.expect(owned.ui_amount_string.len > 0);
+            try std.testing.expect(owned.raw_json != null);
+
+            std.debug.print(
+                "[US-009 live] getTokenSupply .ok — mint={s}, amount={d}, decimals={d}, uiAmountString={s}\n",
+                .{ WRAPPED_SOL_MINT_STR, owned.amount, owned.decimals, owned.ui_amount_string },
+            );
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-009 live] getTokenSupply rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
+}

@@ -1,0 +1,44 @@
+# Iteration 10 Log
+
+## Metadata
+
+- **Task ID**: US-008
+- **Task Title**: getTokenAccountsByOwner RPC 方法
+- **Description**: As a Zig 开发者, I want 调用 getTokenAccountsByOwner so that 我可以查询某地址持有的所有 Token 账户。
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T14:36:51.869Z
+- **Ended At**: 2026-04-16T14:38:23.516Z
+- **Duration**: 1m 31s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-008 Verification
+
+`getTokenAccountsByOwner` is already implemented and meets the story acceptance criteria:
+
+- returns token account items with `pubkey` and nested `account_info`
+- supports both `programId` and `mint` filters
+- supports `base64` encoding
+- has mock coverage for success, empty list, RPC error, and malformed response
+- has gated Devnet E2E coverage for a discovered real token holder
+
+## Verified Files
+
+- `src/solana/rpc/types.zig`
+- `src/solana/rpc/client.zig`
+- `src/e2e/devnet_e2e.zig`
+- `.ralph-tui/progress.md`
+
+## Validation
+
+Passed:
+- `zig build test`
+- `zig build bench`
+- `zig build devnet-e2e`  
+  - live Devnet branch skipped as expected because `SOLANA_RPC_URL` is not set
+
+<promise>COMPLETE</promise>
+]9;4;0;

@@ -15,6 +15,7 @@ after each iteration and it's included in prompts for context.
 - For live Devnet RPCs that mutate state and can be faucet-limited, prefer a typed end-to-end assertion that captures the returned signature, polls the affected account for a before/after state delta, and explicitly treats rate-limit RPC errors as a logged skip path instead of a hard failure.
 - For live Devnet acceptance that needs a non-ephemeral on-chain artifact (for example an ALT account), prefer a discovery helper that scans recent blocks via raw JSON-RPC and reuses the discovered key in the typed client assertion; this avoids hardcoding addresses that may disappear while still validating the real parser.
 - For token-account live acceptance, prefer discovering a sample token account via raw helper RPCs (for example `getTokenLargestAccounts`), then decode the canonical SPL Token account layout through the typed `getAccountInfo` path to derive a reusable owner/mint fixture before asserting higher-level typed RPC filters.
+- For token-amount live acceptance, reuse a discovery flow that starts from a stable mint (for example wrapped SOL), derives a current token account via `getTokenLargestAccounts`, and then validates both `getTokenAccountBalance` and `getTokenSupply` against the same mint/account pair; this avoids brittle hardcoded fixtures while keeping decimal assertions stable.
 
 ---
 
@@ -138,5 +139,18 @@ after each iteration and it's included in prompts for context.
     - Live token-account validation is most robust when a raw discovery helper finds a current token account first and the typed `getAccountInfo` parser is then reused to decode the canonical `[mint|owner|...]` account layout for downstream assertions.
   - Gotchas encountered
     - Declaring a `Pubkey.fromBase58(...)` constant at file scope triggered Zig comptime branch-quota errors in the E2E target, so the wrapped-SOL mint had to stay as a string constant and be parsed at runtime inside the test.
+---
+
+## 2026-04-16 - US-009
+- Verified the core `getTokenAccountBalance` / `getTokenSupply` typed parsers already existed, then tightened story coverage by adding payload-capture unit assertions, explicit account-not-found RPC fixtures, and a gated Devnet E2E that validates both methods against a discovered wrapped-SOL account/mint pair.
+- Files changed:
+  - `src/solana/rpc/client.zig`
+  - `src/e2e/devnet_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Token amount live acceptance is easiest to keep stable by reusing the wrapped-SOL discovery flow from `getTokenLargestAccounts`, then asserting both token-account balance and mint supply from the same discovered fixture.
+  - Gotchas encountered
+    - The wrapped-SOL/native mint can legitimately report `getTokenSupply.amount == 0` on Devnet, so the live assertion should focus on typed field presence and stable decimals instead of assuming a positive total supply.
 ---
 

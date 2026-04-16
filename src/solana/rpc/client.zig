@@ -2227,7 +2227,9 @@ test "rpc client getTokenAccountBalance typed parse happy path" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
         .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":777},\"value\":{\"amount\":\"4200000\",\"decimals\":6,\"uiAmount\":4.2,\"uiAmountString\":\"4.2\"}}}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
@@ -2245,12 +2247,23 @@ test "rpc client getTokenAccountBalance typed parse happy path" {
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    const token_account_b58 = try token_account.toBase58Alloc(gpa);
+    defer gpa.free(token_account_b58);
+    const expected_payload = try std.fmt.allocPrint(
+        gpa,
+        "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getTokenAccountBalance\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+        .{token_account_b58},
+    );
+    defer gpa.free(expected_payload);
+    try std.testing.expectEqualStrings(expected_payload, payload);
 }
 
-test "rpc client getTokenAccountBalance preserves rpc error" {
+test "rpc client getTokenAccountBalance preserves account-not-found rpc error" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
-        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"invalid token account\"}}",
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"Invalid param: could not find account\"}}",
     };
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
@@ -2263,6 +2276,7 @@ test "rpc client getTokenAccountBalance preserves rpc error" {
         .rpc_error => |rpc_err| {
             defer rpc_err.deinit(gpa);
             try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
+            try std.testing.expectEqualStrings("Invalid param: could not find account", rpc_err.message);
         },
     }
 }
@@ -2284,7 +2298,9 @@ test "rpc client getTokenSupply typed parse happy path" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
         .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":778},\"value\":{\"amount\":\"1000000000\",\"decimals\":9,\"uiAmount\":1.0,\"uiAmountString\":\"1\"}}}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
@@ -2302,12 +2318,23 @@ test "rpc client getTokenSupply typed parse happy path" {
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    const mint_b58 = try mint.toBase58Alloc(gpa);
+    defer gpa.free(mint_b58);
+    const expected_payload = try std.fmt.allocPrint(
+        gpa,
+        "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getTokenSupply\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+        .{mint_b58},
+    );
+    defer gpa.free(expected_payload);
+    try std.testing.expectEqualStrings(expected_payload, payload);
 }
 
-test "rpc client getTokenSupply preserves rpc error" {
+test "rpc client getTokenSupply preserves mint-not-found rpc error" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
-        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"invalid mint\"}}",
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"Invalid param: could not find account\"}}",
     };
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
@@ -2320,6 +2347,7 @@ test "rpc client getTokenSupply preserves rpc error" {
         .rpc_error => |rpc_err| {
             defer rpc_err.deinit(gpa);
             try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
+            try std.testing.expectEqualStrings("Invalid param: could not find account", rpc_err.message);
         },
     }
 }
