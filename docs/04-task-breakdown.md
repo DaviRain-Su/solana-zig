@@ -36,7 +36,7 @@
 | T4-13 | 3h | T4-11,T4-12 | RpcErrorObject 生命周期一致性 |
 | T4-14 | 4h | T4-08,T4-12 | Devnet E2E 脚手架（ENV 门控） |
 | T4-15 | 3h | T4-14 | 端到端示例可复现 |
-| T4-16 | 2h | T4-15 | README + 06/07/08 收口 |
+| T4-16 | 2h | T4-15 | Phase 1 closeout 文档与证据收口：`README`、`docs/06/07/08/10/11/13a/14a/15` 同步，benchmark / Devnet evidence / execution matrix 留档完成 |
 
 执行备注（v0 语义任务）：
 - `T4-06/T4-07` 预留 `20%` buffer 用于 Rust oracle 行为对照与冲突语义调试。

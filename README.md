@@ -84,4 +84,4 @@ Aligned with Solana official Rust SDK page:
 
 ## Oracle Vectors
 - Static vectors live in `testdata/oracle_vectors.json`
-- Rust generator skeleton in `scripts/oracle/`
+- Rust `v2` core generator is available in `scripts/oracle/`; keypair / message / transaction vectors are still being filled in

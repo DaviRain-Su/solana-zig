@@ -146,6 +146,22 @@ pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !Rp
 - 非 200 HTTP 状态码映射为 `error.RpcTransport`
 - JSON 结构不符合预期映射为 `error.InvalidRpcResponse`
 
+### 3.3.1 Phase 1 `getAccountInfo` 最小 typed 子集
+
+当前公开 API 仍允许 `getAccountInfo(...) !RpcResult(OwnedJson)`，以保留兼容与渐进收敛空间。
+但在 Product Phase 1 closeout 时，`AccountInfo` 至少应能稳定抽取并校验以下最小 typed 子集：
+- `lamports: u64`
+- `owner: Pubkey`
+- `executable: bool`
+- `rentEpoch: u64`
+
+当前阶段可继续保留为未完全 typed / 原样承载的内容：
+- `data`
+- 更复杂 encoding 变体
+- 暂未稳定建模的扩展字段
+
+这意味着：Phase 1 关注的是“高价值基础字段”的最小收敛，而不是把完整 `AccountInfo` 一次性 fully typed 化。
+
 ---
 
 ## 4. Binary Protocol Specs

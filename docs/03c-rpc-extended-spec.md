@@ -28,6 +28,7 @@
 
 边界约定：
 - **Phase 1 closeout** 仅要求对当前 5 个高频方法完成“最小可接受”的 typed schema 收敛（至少 `LatestBlockhash`、`AccountInfo`）。
+- 其中 `AccountInfo` 的 Phase 1 最小 typed 子集，至少包括：`lamports`、`owner`、`executable`、`rentEpoch`；`data` 与更复杂扩展字段可继续保留为 `OwnedJson` / 原始承载。
 - **Phase 2** 再继续推进更广泛的 typed parse 子层与扩展 RPC 的结构化输出。
 
 Phase 2 的目标是逐步引入 typed parse 子层：

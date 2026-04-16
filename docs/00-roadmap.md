@@ -18,7 +18,7 @@
 
 ---
 
-## Phase 1 — 链下客户端核心 ✅ 基本完成
+## Phase 1 — 链下客户端核心（进入 closeout）
 
 > 详见 [01-prd.md](./01-prd.md)
 
@@ -28,7 +28,7 @@
 - 高频 RPC（5 个）：`getLatestBlockhash / getAccountInfo / getBalance / simulateTransaction / sendTransaction`
 - Oracle 向量验证 + Devnet E2E
 
-**待补齐**（Phase 1 收尾）：
+**待补齐**（Phase 1 收尾；实现主体已具备，但仍有收口 blocker）：
 - [ ] Oracle 向量扩充（非零 pubkey、Keypair 签名、Message/Transaction 序列化）
 - [ ] `std.testing.allocator` 系统性 leak 检测
 - [ ] 当前 5 个高频 RPC 的最小 typed schema 收敛（至少 `LatestBlockhash`、`AccountInfo`；更广泛 typed parse 扩展属于 Phase 2）

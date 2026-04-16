@@ -215,6 +215,25 @@
 ### 验证
 - 文档链进一步完整：`README -> docs/README -> 03/03d -> 13/13a -> 14/14a -> 16 -> adr/*`。
 
+## 2026-04-16 第十三次增量记录（状态降温 / 主用户收敛 / closeout ownership）
+
+### 输入
+- 最新一轮文档 review 认为：`docs/00` 的 Phase 1 状态表述仍偏乐观、`docs/01` 与 `docs/16` 的用户范围仍可再收敛、`AccountInfo` 的 Phase 1 最小 typed 子集在主规格中不够可执行、`T4-16` 的 closeout ownership 仍偏窄。
+
+### 输出
+- `docs/00-roadmap.md` 将 Phase 1 状态降温为“进入 closeout”，并明确“实现主体已具备，但仍有收口 blocker”。
+- `docs/01-prd.md` 在保留长期目标用户的同时，新增“Product Phase 1 当前主用户”小节，明确当前主对象是 Zig host/client 开发者。
+- `docs/03-technical-spec.md` 与 `docs/03c-rpc-extended-spec.md` 明确 `AccountInfo` 的 Phase 1 最小 typed 子集：`lamports`、`owner`、`executable`、`rentEpoch`；`data` 与更复杂扩展字段可继续保留为 `OwnedJson`。
+- `docs/04-task-breakdown.md` 扩大 `T4-16` 验收标准，把 `docs/10/11/13a/14a/15` 与 benchmark / Devnet evidence / execution matrix 的同步关系纳入 closeout ownership。
+- `README.md` 将 oracle 生成器表述从“skeleton”更新为“`v2` core generator 已可用，但 keypair/message/transaction 向量仍待补齐”。
+- `docs/10-coverage-matrix.md` 将 commit 锚点字段更新为更明确的 `Last synced docs commit`。
+
+### 风险
+- 以上调整让 closeout gate 与任务 ownership 更可执行，但并不意味着这些收口 blocker 已被实现解决；当前只是把要求写得更精确。
+
+### 验证
+- 文档在“状态表述 / 当前主用户 / typed parse 最小粒度 / closeout ownership”四个维度进一步对齐。
+
 ## 2026-04-16 第十二次增量记录（收口文档补齐：L4 / Test Mapping / ALT 权限）
 
 ### 输入
