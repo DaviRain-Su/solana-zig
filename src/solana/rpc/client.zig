@@ -180,6 +180,73 @@ pub const RpcClient = struct {
         return .{ .ok = .{ .items = items } };
     }
 
+    pub fn getTokenAccountsByOwner(self: *RpcClient, owner: pubkey_mod.Pubkey, program_id: pubkey_mod.Pubkey) !types.RpcResult(types.TokenAccountsByOwnerResult) {
+        const owner_b58 = try owner.toBase58Alloc(self.allocator);
+        defer self.allocator.free(owner_b58);
+        const program_b58 = try program_id.toBase58Alloc(self.allocator);
+        defer self.allocator.free(program_b58);
+
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getTokenAccountsByOwner\",\"params\":[\"{s}\",{{\"programId\":\"{s}\"}},{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
+            .{ self.nextRpcId(), owner_b58, program_b58 },
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            response.parsed.deinit();
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        const value = getObjectField(result, "value") orelse return error.InvalidRpcResponse;
+        if (value.* != .array) return error.InvalidRpcResponse;
+
+        const items = try self.allocator.alloc(types.TokenAccountInfo, value.array.items.len);
+        errdefer self.allocator.free(items);
+
+        var initialized: usize = 0;
+        errdefer {
+            for (items[0..initialized]) |*item| item.deinit(self.allocator);
+        }
+
+        for (value.array.items, 0..) |entry, i| {
+            if (entry != .object) return error.InvalidRpcResponse;
+
+            const pubkey_str = getStringField(&entry, "pubkey") orelse return error.InvalidRpcResponse;
+            const pubkey = try pubkey_mod.Pubkey.fromBase58(pubkey_str);
+            const account = getObjectField(&entry, "account") orelse return error.InvalidRpcResponse;
+
+            const lamports = getU64Field(account, "lamports") orelse return error.InvalidRpcResponse;
+            const account_owner_str = getStringField(account, "owner") orelse return error.InvalidRpcResponse;
+            const account_owner = try pubkey_mod.Pubkey.fromBase58(account_owner_str);
+
+            const data = try decodeAccountData(self.allocator, account);
+            errdefer self.allocator.free(data);
+            const data_encoding = try extractAccountDataEncoding(self.allocator, account);
+            errdefer if (data_encoding) |encoding| self.allocator.free(encoding);
+            const raw_json = try stringifyValue(self.allocator, account.*);
+            errdefer self.allocator.free(raw_json);
+
+            items[i] = .{
+                .pubkey = pubkey,
+                .owner = account_owner,
+                .lamports = lamports,
+                .data = data,
+                .data_encoding = data_encoding,
+                .raw_json = raw_json,
+            };
+            initialized += 1;
+        }
+
+        response.parsed.deinit();
+        return .{ .ok = .{ .items = items } };
+    }
+
     pub fn getTransaction(self: *RpcClient, signature: @import("../core/signature.zig").Signature) !types.RpcResult(types.TransactionInfo) {
         const signature_b58 = try signature.toBase58Alloc(self.allocator);
         defer self.allocator.free(signature_b58);
@@ -552,6 +619,16 @@ fn decodeAccountData(allocator: std.mem.Allocator, value: *const std.json.Value)
         }
     }
     return &[_]u8{};
+}
+
+fn extractAccountDataEncoding(allocator: std.mem.Allocator, value: *const std.json.Value) !?[]const u8 {
+    const data_field = getObjectField(value, "data") orelse return null;
+    if (data_field.* == .array and data_field.array.items.len > 1) {
+        const second = data_field.array.items[1];
+        if (second == .string) return @as([]const u8, try allocator.dupe(u8, second.string));
+    }
+    if (data_field.* == .string) return @as([]const u8, try allocator.dupe(u8, "base64"));
+    return null;
 }
 
 fn extractSimulationError(allocator: std.mem.Allocator, value: *const std.json.Value) !?[]const u8 {
@@ -1109,4 +1186,67 @@ test "rpc client getSignatureStatuses preserves rpc error" {
             try std.testing.expectEqual(@as(i64, -32600), rpc_err.code);
         },
     }
+}
+
+test "rpc client getTokenAccountsByOwner typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":[{\"pubkey\":\"11111111111111111111111111111111\",\"account\":{\"lamports\":2039280,\"owner\":\"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\",\"data\":[\"AQID\",\"base64\"],\"executable\":false,\"rentEpoch\":1}}]}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const owner = pubkey_mod.Pubkey.init([_]u8{42} ** 32);
+    const token_program = try pubkey_mod.Pubkey.fromBase58("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+    const result = try client.getTokenAccountsByOwner(owner, token_program);
+
+    switch (result) {
+        .ok => |token_accounts| {
+            var owned = token_accounts;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(usize, 1), owned.items.len);
+            try std.testing.expectEqual(@as(u64, 2039280), owned.items[0].lamports);
+            try std.testing.expectEqual(@as(usize, 3), owned.items[0].data.len);
+            try std.testing.expectEqualStrings("base64", owned.items[0].data_encoding.?);
+            try std.testing.expect(owned.items[0].raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getTokenAccountsByOwner preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"invalid owner\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const owner = pubkey_mod.Pubkey.init([_]u8{43} ** 32);
+    const token_program = try pubkey_mod.Pubkey.fromBase58("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+    const result = try client.getTokenAccountsByOwner(owner, token_program);
+
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getTokenAccountsByOwner returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"value\":[{\"account\":{\"lamports\":1}}]}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const owner = pubkey_mod.Pubkey.init([_]u8{44} ** 32);
+    const token_program = try pubkey_mod.Pubkey.fromBase58("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+    try std.testing.expectError(error.InvalidRpcResponse, client.getTokenAccountsByOwner(owner, token_program));
 }

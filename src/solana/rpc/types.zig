@@ -112,3 +112,27 @@ pub const TransactionInfo = struct {
         allocator.free(self.raw_json);
     }
 };
+
+pub const TokenAccountInfo = struct {
+    pubkey: pubkey_mod.Pubkey,
+    owner: pubkey_mod.Pubkey,
+    lamports: u64,
+    data: []u8,
+    data_encoding: ?[]const u8 = null,
+    raw_json: ?[]const u8 = null,
+
+    pub fn deinit(self: *TokenAccountInfo, allocator: std.mem.Allocator) void {
+        allocator.free(self.data);
+        if (self.data_encoding) |encoding| allocator.free(encoding);
+        if (self.raw_json) |raw| allocator.free(raw);
+    }
+};
+
+pub const TokenAccountsByOwnerResult = struct {
+    items: []TokenAccountInfo,
+
+    pub fn deinit(self: *TokenAccountsByOwnerResult, allocator: std.mem.Allocator) void {
+        for (self.items) |*item| item.deinit(allocator);
+        allocator.free(self.items);
+    }
+};
