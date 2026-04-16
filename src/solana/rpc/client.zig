@@ -3004,6 +3004,7 @@ test "rpc client batch b read methods local-live evidence (gated)" {
 
 fn isRateLimitedRpcError(code: i64, message: []const u8) bool {
     if (code == -32005) return true;
+    if (code == 429) return true;
     if (std.mem.indexOf(u8, message, "429") != null) return true;
     if (std.mem.indexOf(u8, message, "rate limit") != null) return true;
     if (std.mem.indexOf(u8, message, "Rate limit") != null) return true;

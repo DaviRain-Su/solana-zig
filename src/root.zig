@@ -38,6 +38,10 @@ test "token interface compiles" {
     _ = interfaces.token;
 }
 
+test "token-2022 interface compiles" {
+    _ = interfaces.token_2022;
+}
+
 test "ata interface compiles" {
     _ = interfaces.ata;
 }
