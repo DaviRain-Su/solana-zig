@@ -193,7 +193,7 @@ pub const RpcClient = struct {
 
         const payload = try std.fmt.allocPrint(
             self.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"sendTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"skipPreflight\":false}}]}}",
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"sendTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"skipPreflight\":false,\"preflightCommitment\":\"confirmed\"}}]}}",
             .{ self.nextRpcId(), tx_base64 },
         );
         defer self.allocator.free(payload);

@@ -186,3 +186,48 @@ Current in-tree Devnet live harness evidence is established for `construct -> si
 - Surfnet was started by @davirain with mainnet-beta as datasource (not devnet), but the RPC interface is identical for the methods exercised here.
 - Run 2 (public devnet) remains the primary evidence; this run is supplementary confirmation only.
 - As with Run 2, this run does **not** provide `sendTransaction` live evidence.
+
+---
+
+## Run 4 — sendTransaction Live (Local Surfnet, #17 P2-2)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/surfnet/sendtx-live`
+- Date: `2026-04-16`
+- Run Type: `real-harness` (live sendTransaction round-trip)
+- Operator: `@CC (automated)`
+- RPC Endpoint: `http://127.0.0.1:8899` (surfnet, datasource: `api.mainnet-beta.solana.com`)
+- Command / Entry: `SOLANA_RPC_URL=http://127.0.0.1:8899 zig build devnet-e2e`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass** (4/4 tests)
+- Failure Stage: none
+- Notes: New P2-2 test successfully executed `requestAirdrop → getBalance → getLatestBlockhash → compileLegacy → sign → sendTransaction`. Received a valid transaction signature from the surfnet validator.
+
+### 3. Evidence Checklist
+
+- [x] `requestAirdrop` funded payer (`J4xQr3praHSVLe43rfhW3QqVu1vMMT27QVMvdka7Hkum`)
+- [x] `getBalance` confirmed funds (199995000 lamports)
+- [x] `getLatestBlockhash` returned live blockhash
+- [x] transaction constructed (`Message.compileLegacy` — System Program self-transfer, 1000 lamports)
+- [x] transaction signed (`tx.sign` + `verifySignatures`)
+- [x] `sendTransaction` returned `.ok` with valid 64-byte signature
+- [x] zero memory leaks (gpa enforced)
+
+### 4. Console Output (captured)
+```
+[sendTx E2E] endpoint: http://127.0.0.1:8899
+[sendTx E2E] payer: J4xQr3praHSVLe43rfhW3QqVu1vMMT27QVMvdka7Hkum
+[sendTx E2E] payer balance: 199995000 lamports (after 0 polls)
+[sendTx E2E] sendTransaction .ok — sig: 3E5Xn8N4dsRcPTs3zNGdigBLy9t4pE4CGsAhxpRJ1Eh87akLXCn1CQC4NY5wGvSjmZykn8mu5UiExWM9ra1oNPcX
+```
+
+### 5. Notes
+
+- This run closes the Phase 1 exception for `sendTransaction` live evidence.
+- The `sendTransaction` method in `client.zig` was updated to include `preflightCommitment: "confirmed"` to match `getLatestBlockhash` commitment level.
+- Public devnet was also tested but airdrop was rate-limited (new keypair had 0 balance), so the test gracefully skips. Local surfnet is the authoritative evidence.
+- The test uses a System Program self-transfer (payer → payer, 1000 lamports) to avoid needing a pre-funded receiver.
