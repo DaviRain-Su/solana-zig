@@ -38,6 +38,7 @@ pub const rpc = struct {
     pub const Transport = transport.Transport;
     pub const OwnedJson = types.OwnedJson;
     pub const WsClient = ws_client.WsClient;
+    pub const WsRpcClient = ws_client.WsRpcClient;
 };
 
 pub const compat = struct {
