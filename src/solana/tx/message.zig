@@ -346,16 +346,16 @@ pub const Message = struct {
         }
 
         var lookups: []CompiledAddressLookup = &.{};
+        var initialized_lookup_count: usize = 0;
+        errdefer {
+            for (lookups[0..initialized_lookup_count]) |*lookup| lookup.deinit(allocator);
+            if (lookups.len > 0) allocator.free(lookups);
+        }
         if (version == .v0) {
             const lookup_len_result = try shortvec.decode(bytes[cursor..]);
             cursor += lookup_len_result.consumed;
 
             lookups = try allocator.alloc(CompiledAddressLookup, lookup_len_result.value);
-            var initialized_lookup_count: usize = 0;
-            errdefer {
-                for (lookups[0..initialized_lookup_count]) |*lookup| lookup.deinit(allocator);
-                allocator.free(lookups);
-            }
 
             for (0..lookup_len_result.value) |i| {
                 lookups[i] = try decodeCompiledAddressLookup(allocator, bytes, &cursor);
