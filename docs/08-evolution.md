@@ -1,22 +1,60 @@
 # Phase 8 - Evolution
 
-## Compatibility Tracking
-- **当前基线**：`solana-sdk 4.0.1`
-- 未来版本升级时对比 crate 拆分与消息/交易语义变化
-- 使用 oracle 向量回归验证兼容性（`scripts/oracle/generate_vectors.rs` 更新依赖版本后重新生成）
+## 1. 演进目标
 
-## Next Steps（按优先级排序）
+- 从“高频客户端可用”演进到“Rust 客户端生态能力可追踪覆盖”。
+- 保持兼容矩阵可维护，支持版本升级与差异回归。
 
-### P1: 补齐测试覆盖
-- 扩充 oracle 向量：非零 pubkey、Keypair 签名、Message 序列化、Transaction 完整 roundtrip
-- 补齐 Devnet E2E 自动化流程（CI 中条件运行）
-- 利用 `std.testing.allocator` 系统性检测内存泄漏
+## 2. 版本与兼容治理
 
-### P2: 扩展 RPC 方法
-- 按使用频率逐步增加：`getTransaction`、`getSignaturesForAddress`、`getTokenAccountsByOwner` 等
-- 为高频响应增加 typed schema（见 07-review-report Gaps）
+- 当前基线：`solana-sdk 4.0.1`
+- 每次升级必须产出：
+  - 差异清单（crate/行为/错误语义）
+  - 回归测试结果
+  - 迁移说明（破坏性变化）
 
-### P3: 评估链上语义子项目
-- **评估标准**：是否有 Zig 生态的链上程序开发需求（SBF target、no_std 约束）
-- **预期产出**：独立 `solana-program-zig` 包，与本项目（链下客户端）分离生命周期
-- **前置条件**：Zig 交叉编译到 SBF 的可行性验证
+## 3. 能力路线图
+
+### Stage A（已启动）
+- core/tx/rpc 高频路径
+- transport 可替换
+
+### Stage B（下一阶段）
+- interfaces 扩展：system/token/token-2022/compute-budget/memo
+- 建立接口能力覆盖矩阵
+
+### Stage C（后续）
+- signers 可插拔后端
+- 统一签名抽象与错误语义
+
+### Stage D（评估）
+- 链上语义子项目（独立生命周期）
+
+## 4. 文档协同规则
+
+- PRD 范围变化：必须同步更新 `03/04/05`。
+- 任务变化：必须同步更新 `06`（实施日志）。
+- 风险变化：必须同步更新 `07`（审查报告）。
+- 兼容变化：必须同步更新 `08`（本文件）。
+
+## 5. ADR 与决策记录
+
+- 需要 ADR 的变更类型：
+  - 兼容策略变化
+  - 公共接口破坏性变更
+  - 底层序列化/签名语义变化
+  - 模块依赖方向调整
+
+- ADR 最小字段：背景、决策、备选、影响、回滚。
+
+## 6. 度量与退出条件
+
+- M1-M3 退出条件：高频 RPC + tx 路线稳定，离线门禁持续通过。
+- M4 退出条件：主要 interface 模块有可用实现与测试。
+- M5 退出条件：至少两类 signer 后端可切换，行为一致。
+
+## 7. 长期维护清单
+
+- 定期更新 oracle 向量。
+- 定期执行 Devnet 回归。
+- 对齐官方文档新增 crate/接口条目。
