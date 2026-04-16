@@ -22,6 +22,7 @@ after each iteration and it's included in prompts for context.
 - When a JSON-RPC method legitimately returns `result.value = null` for not-found, model the success payload as `RpcResult(?T)` and reserve `error.InvalidRpcResponse` for actual schema mismatches; mock tests should cover both nullable success and typed object success.
 - For execution-style RPCs like `simulateTransaction`, preserve transport / top-level JSON-RPC failures as `.rpc_error`, but keep runtime simulation failures carried in `result.value.err` inside the typed `.ok` payload so callers can inspect logs, units, and structured failure details together.
 - For transaction-submitting RPCs, keep the ergonomic default helper as a thin wrapper over a typed options variant so serialized/base64 request construction stays shared while tests can assert optional flags like `skipPreflight` and preflight commitment overrides.
+- For environment-gated live harnesses, keep `zig build <target>` useful offline by pairing a scripted mock happy-path flow with a `SOLANA_RPC_URL`-guarded live flow, and centralize shared build/sign/confirm helpers so mock and live coverage exercise the same transaction steps.
 
 ---
 
@@ -249,5 +250,20 @@ after each iteration and it's included in prompts for context.
     - Transaction-submission RPCs fit the same default-wrapper-plus-typed-options shape as commitment-aware getters, which keeps the default payload stable while exposing optional knobs without duplicating serialization logic.
   - Gotchas encountered
     - `sendTransaction` success is a top-level base58 signature string instead of a nested `result.value` object, so malformed-success coverage needs to fail on non-string `result` while still letting `Signature.fromBase58` own signature validation.
+---
+
+## 2026-04-16 - US-017
+- What was implemented
+  - Extended `src/e2e/devnet_e2e.zig` with a mock happy-path acceptance test that now covers the full `construct -> sign -> simulate -> send -> confirm` flow during every `zig build devnet-e2e` run.
+  - Refactored the live Devnet harness to reuse shared self-transfer/signing and confirmation helpers, added the missing `simulateTransaction` step before `sendTransaction`, and kept the flow gated by `SOLANA_RPC_URL` with explicit skip output when unset or unfunded.
+  - Expanded mock/live console output to include the submitted transaction signature plus confirmation polling status, and added live simulation summary output for evidence capture.
+- Files changed
+  - `src/e2e/devnet_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - A single self-transfer builder helper is enough to keep mock and live E2E paths aligned while still exercising the real `VersionedTransaction` signing and RPC submission pipeline.
+  - Gotchas encountered
+    - `getSignatureStatuses` can return `null` or a status object with `confirmationStatus = null` before the network finalizes indexing, so the confirm loop must treat both as "not ready yet" rather than as hard failures.
 ---
 

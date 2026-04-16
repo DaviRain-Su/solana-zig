@@ -28,6 +28,16 @@ const PROGRAM_ID = Pubkey.init([_]u8{0x06} ** 32);
 const RECEIVER = Pubkey.init([_]u8{0x07} ** 32);
 const IX_DATA = [_]u8{ 0x01, 0x02, 0x03 };
 const SYSTEM_PROGRAM = Pubkey.init([_]u8{0x00} ** 32);
+const MOCK_SEND_SUCCESS =
+    \\{"jsonrpc":"2.0","id":3,"result":"1111111111111111111111111111111111111111111111111111111111111111"}
+;
+const MOCK_CONFIRM_SUCCESS =
+    \\{"jsonrpc":"2.0","id":4,"result":{"context":{"slot":100},"value":[{"slot":99,"confirmations":null,"err":null,"confirmationStatus":"confirmed"}]}}
+;
+const LIVE_SEND_LAMPORTS: u64 = 1000;
+const LIVE_AIRDROP_LAMPORTS: u64 = 100_000_000;
+const MAX_BALANCE_POLLS: u32 = 30;
+const MAX_CONFIRM_POLLS: u32 = 30;
 
 // --- Mock Transport (scripted sequence) ---
 
@@ -282,6 +292,129 @@ fn buildTransferData(lamports: u64) [12]u8 {
     return data;
 }
 
+fn buildSignedSelfTransferTx(
+    allocator: std.mem.Allocator,
+    payer: Keypair,
+    blockhash: Hash,
+    lamports: u64,
+) !VersionedTransaction {
+    const transfer_data = buildTransferData(lamports);
+    const accounts = [_]AccountMeta{
+        .{ .pubkey = payer.pubkey(), .is_signer = true, .is_writable = true },
+        .{ .pubkey = payer.pubkey(), .is_signer = false, .is_writable = true },
+    };
+    const ixs = [_]Instruction{
+        .{ .program_id = SYSTEM_PROGRAM, .accounts = &accounts, .data = &transfer_data },
+    };
+    const msg = try Message.compileLegacy(allocator, payer.pubkey(), &ixs, blockhash);
+
+    var tx = try VersionedTransaction.initUnsigned(allocator, msg);
+    errdefer tx.deinit();
+    try tx.sign(&[_]Keypair{payer});
+    try tx.verifySignatures();
+    return tx;
+}
+
+fn waitForConfirmedSignature(
+    client: *RpcClient,
+    allocator: std.mem.Allocator,
+    signature: @import("solana_zig").core.Signature,
+    log_prefix: []const u8,
+) !bool {
+    const sigs = [_]@import("solana_zig").core.Signature{signature};
+    var confirm_attempts: u32 = 0;
+
+    while (confirm_attempts < MAX_CONFIRM_POLLS) : (confirm_attempts += 1) {
+        const status_result = try client.getSignatureStatuses(&sigs);
+        switch (status_result) {
+            .ok => |maybe_status| {
+                if (maybe_status) |status_val| {
+                    var status = status_val;
+                    defer status.deinit(allocator);
+
+                    if (status.confirmation_status) |cs| {
+                        std.debug.print("[{s}] confirm poll {d}: status={s}, slot={d}\n", .{ log_prefix, confirm_attempts, cs, status.slot });
+                        if (std.mem.eql(u8, cs, "confirmed") or std.mem.eql(u8, cs, "finalized")) {
+                            if (status.err_json) |err| {
+                                std.debug.print("[{s}] tx confirmed but has error: {s}\n", .{ log_prefix, err });
+                                return error.TransactionConfirmedWithError;
+                            }
+                            return true;
+                        }
+                    } else {
+                        std.debug.print("[{s}] confirm poll {d}: status present but no confirmationStatus yet\n", .{ log_prefix, confirm_attempts });
+                    }
+                } else {
+                    std.debug.print("[{s}] confirm poll {d}: not found yet\n", .{ log_prefix, confirm_attempts });
+                }
+            },
+            .rpc_error => |rpc_err| {
+                defer rpc_err.deinit(allocator);
+                std.debug.print("[{s}] confirm poll {d}: rpc_error: {s}\n", .{ log_prefix, confirm_attempts, rpc_err.message });
+            },
+        }
+    }
+
+    return false;
+}
+
+test "US-017 mock: construct -> sign -> simulate -> send -> confirm (happy)" {
+    const gpa = std.testing.allocator;
+    const payer = try Keypair.fromSeed(PAYER_SEED);
+
+    var responses = [_][]const u8{
+        MOCK_BLOCKHASH_RESPONSE,
+        MOCK_SIMULATE_HAPPY,
+        MOCK_SEND_SUCCESS,
+        MOCK_CONFIRM_SUCCESS,
+    };
+    var mock = ScriptedMock{ .responses = &responses };
+    const transport = transport_mod.Transport.init(@ptrCast(&mock), ScriptedMock.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://mock.test", transport);
+    defer client.deinit();
+
+    const bh_result = try client.getLatestBlockhash();
+    switch (bh_result) {
+        .ok => |bh| {
+            var tx = try buildSignedSelfTransferTx(gpa, payer, bh.blockhash, LIVE_SEND_LAMPORTS);
+            defer tx.deinit();
+
+            const sim_result = try client.simulateTransaction(tx);
+            switch (sim_result) {
+                .ok => |sim_val| {
+                    var sim = sim_val;
+                    defer sim.deinit(gpa);
+                    try std.testing.expect(sim.err_json == null);
+                },
+                .rpc_error => |rpc_err| {
+                    defer rpc_err.deinit(gpa);
+                    return error.UnexpectedRpcError;
+                },
+            }
+
+            const send_result = try client.sendTransaction(tx);
+            switch (send_result) {
+                .ok => |send| {
+                    try std.testing.expectEqual(@as(usize, 64), send.signature.bytes.len);
+                    const sig_b58 = try send.signature.toBase58Alloc(gpa);
+                    defer gpa.free(sig_b58);
+                    std.debug.print("[US-017 mock] sendTransaction .ok — sig: {s}\n", .{sig_b58});
+                    try std.testing.expect(try waitForConfirmedSignature(&client, gpa, send.signature, "US-017 mock"));
+                },
+                .rpc_error => |rpc_err| {
+                    defer rpc_err.deinit(gpa);
+                    return error.UnexpectedRpcError;
+                },
+            }
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            return error.UnexpectedRpcError;
+        },
+    }
+}
+
 // --- P2-2 Failure Path: sendTransaction rpc_error (Mock) ---
 
 const MOCK_SEND_FAILURE =
@@ -370,19 +503,19 @@ test "P2-2 mock: confirm failure path (tx confirmed with error)" {
 
 // --- P2-2 Live: sendTransaction + confirm evidence (#17) ---
 
-test "P2-2 live: airdrop -> construct -> sign -> send -> confirm (sendTransaction + confirm evidence)" {
+test "US-017 live: airdrop -> construct -> sign -> simulate -> send -> confirm" {
     const gpa = std.testing.allocator;
 
     const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
         error.EnvironmentVariableMissing => {
-            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping sendTransaction E2E\n", .{});
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping US-017 live devnet E2E\n", .{});
             return;
         },
         else => return err,
     };
     defer gpa.free(endpoint);
 
-    std.debug.print("[sendTx E2E] endpoint: {s}\n", .{endpoint});
+    std.debug.print("[US-017 live] endpoint: {s}\n", .{endpoint});
 
     // Use a unique seed for the sendTx test to avoid conflicts with other tests
     // and ensure a valid fee-payer keypair.
@@ -390,21 +523,21 @@ test "P2-2 live: airdrop -> construct -> sign -> send -> confirm (sendTransactio
     const payer = try Keypair.fromSeed(SENDTX_SEED);
     const payer_b58 = try payer.pubkey().toBase58Alloc(gpa);
     defer gpa.free(payer_b58);
-    std.debug.print("[sendTx E2E] payer: {s}\n", .{payer_b58});
+    std.debug.print("[US-017 live] payer: {s}\n", .{payer_b58});
 
     var client = try RpcClient.init(gpa, std.testing.io, endpoint);
     defer client.deinit();
 
     // Step 1: Airdrop 0.1 SOL to payer (best-effort; may fail on rate-limited endpoints)
-    requestAirdrop(&client, payer_b58, 100_000_000) catch |err| {
-        std.debug.print("[sendTx E2E] airdrop failed (may be rate-limited): {}\n", .{err});
+    requestAirdrop(&client, payer_b58, LIVE_AIRDROP_LAMPORTS) catch |err| {
+        std.debug.print("[US-017 live] airdrop failed (may be rate-limited): {}\n", .{err});
         // Continue — account may already have funds from a previous run
     };
 
     // Step 2: Poll balance until > 0 (airdrop may need a moment)
     var balance: u64 = 0;
     var attempts: u32 = 0;
-    while (attempts < 30) : (attempts += 1) {
+    while (attempts < MAX_BALANCE_POLLS) : (attempts += 1) {
         const bal_result = try client.getBalance(payer.pubkey());
         switch (bal_result) {
             .ok => |b| {
@@ -413,12 +546,13 @@ test "P2-2 live: airdrop -> construct -> sign -> send -> confirm (sendTransactio
             },
             .rpc_error => |rpc_err| {
                 defer rpc_err.deinit(gpa);
+                std.debug.print("[US-017 live] balance poll {d}: rpc_error: {s}\n", .{ attempts, rpc_err.message });
             },
         }
     }
-    std.debug.print("[sendTx E2E] payer balance: {d} lamports (after {d} polls)\n", .{ balance, attempts });
+    std.debug.print("[US-017 live] payer balance: {d} lamports (after {d} polls)\n", .{ balance, attempts });
     if (balance == 0) {
-        std.debug.print("[sendTx E2E] skip: payer has no funds (airdrop may be rate-limited)\n", .{});
+        std.debug.print("[US-017 live] skip: payer has no funds (airdrop may be rate-limited)\n", .{});
         return;
     }
 
@@ -426,87 +560,54 @@ test "P2-2 live: airdrop -> construct -> sign -> send -> confirm (sendTransactio
     const bh_result = try client.getLatestBlockhash();
     switch (bh_result) {
         .ok => |bh| {
-            // Step 4: Build System Program self-transfer (payer -> payer, 1000 lamports)
+            // Step 4 + 5: Build and sign a self-transfer.
             // Self-transfer avoids needing a funded receiver account.
-            const transfer_data = buildTransferData(1000);
-            const accounts = [_]AccountMeta{
-                .{ .pubkey = payer.pubkey(), .is_signer = true, .is_writable = true },
-                .{ .pubkey = payer.pubkey(), .is_signer = false, .is_writable = true },
-            };
-            const ixs = [_]Instruction{
-                .{ .program_id = SYSTEM_PROGRAM, .accounts = &accounts, .data = &transfer_data },
-            };
-            const msg = try Message.compileLegacy(gpa, payer.pubkey(), &ixs, bh.blockhash);
-
-            // Step 5: Sign
-            var tx = try VersionedTransaction.initUnsigned(gpa, msg);
+            var tx = try buildSignedSelfTransferTx(gpa, payer, bh.blockhash, LIVE_SEND_LAMPORTS);
             defer tx.deinit();
-            try tx.sign(&[_]Keypair{payer});
-            try tx.verifySignatures();
 
-            // Step 6: sendTransaction
-            const send_result = try client.sendTransaction(tx);
-            switch (send_result) {
-                .ok => |result| {
-                    // A-SEND-1: got a signature back (64 bytes)
-                    try std.testing.expectEqual(@as(usize, 64), result.signature.bytes.len);
-                    const sig_b58 = try result.signature.toBase58Alloc(gpa);
-                    defer gpa.free(sig_b58);
-                    std.debug.print("[sendTx E2E] sendTransaction .ok — sig: {s}\n", .{sig_b58});
-
-                    // Step 7: Confirm — poll getSignatureStatuses until confirmed/finalized
-                    const sigs = [_]@import("solana_zig").core.Signature{result.signature};
-                    var confirm_attempts: u32 = 0;
-                    var confirmed = false;
-                    while (confirm_attempts < 30) : (confirm_attempts += 1) {
-                        const status_result = try client.getSignatureStatuses(&sigs);
-                        switch (status_result) {
-                            .ok => |maybe_status| {
-                                if (maybe_status) |status_val| {
-                                    var status = status_val;
-                                    defer status.deinit(gpa);
-                                    if (status.confirmation_status) |cs| {
-                                        std.debug.print("[sendTx E2E] confirm poll {d}: status={s}, slot={d}\n", .{ confirm_attempts, cs, status.slot });
-                                        if (std.mem.eql(u8, cs, "confirmed") or std.mem.eql(u8, cs, "finalized")) {
-                                            if (status.err_json) |err| {
-                                                std.debug.print("[sendTx E2E] tx confirmed but has error: {s}\n", .{err});
-                                            } else {
-                                                confirmed = true;
-                                            }
-                                            break;
-                                        }
-                                    } else {
-                                        std.debug.print("[sendTx E2E] confirm poll {d}: status present but no confirmationStatus yet\n", .{confirm_attempts});
-                                    }
-                                } else {
-                                    std.debug.print("[sendTx E2E] confirm poll {d}: not found yet\n", .{confirm_attempts});
-                                }
-                            },
-                            .rpc_error => |rpc_err| {
-                                defer rpc_err.deinit(gpa);
-                                std.debug.print("[sendTx E2E] confirm poll {d}: rpc_error: {s}\n", .{ confirm_attempts, rpc_err.message });
-                            },
-                        }
-                    }
-
-                    if (confirmed) {
-                        std.debug.print("[sendTx E2E] CONFIRMED — sig: {s} (after {d} polls)\n", .{ sig_b58, confirm_attempts });
-                    } else {
-                        std.debug.print("[sendTx E2E] WARNING: tx sent but not confirmed within 30 polls — sig: {s}\n", .{sig_b58});
-                    }
+            // Step 6: simulateTransaction
+            const sim_result = try client.simulateTransaction(tx);
+            switch (sim_result) {
+                .ok => |sim_val| {
+                    var sim = sim_val;
+                    defer sim.deinit(gpa);
+                    try std.testing.expect(sim.err_json == null);
+                    std.debug.print(
+                        "[US-017 live] simulate .ok — logs={d}, unitsConsumed={any}\n",
+                        .{ sim.logs.len, sim.units_consumed },
+                    );
                 },
                 .rpc_error => |rpc_err| {
                     defer rpc_err.deinit(gpa);
-                    // Some environments may reject (e.g., receiver not funded on surfnet).
-                    // Log but don't fail — the evidence is that sendTransaction was called
-                    // and returned a well-formed RPC response.
-                    std.debug.print("[sendTx E2E] sendTransaction rpc_error: {s}\n", .{rpc_err.message});
+                    std.debug.print("[US-017 live] simulate rpc_error: {s}\n", .{rpc_err.message});
+                    return error.DevnetSimulateFailed;
+                },
+            }
+
+            // Step 7: sendTransaction
+            const send_result = try client.sendTransaction(tx);
+            switch (send_result) {
+                .ok => |result| {
+                    try std.testing.expectEqual(@as(usize, 64), result.signature.bytes.len);
+                    const sig_b58 = try result.signature.toBase58Alloc(gpa);
+                    defer gpa.free(sig_b58);
+                    std.debug.print("[US-017 live] sendTransaction .ok — sig: {s}\n", .{sig_b58});
+
+                    // Step 8: Confirm — poll getSignatureStatuses until confirmed/finalized.
+                    const confirmed = try waitForConfirmedSignature(&client, gpa, result.signature, "US-017 live");
+                    try std.testing.expect(confirmed);
+                    std.debug.print("[US-017 live] CONFIRMED — sig: {s}\n", .{sig_b58});
+                },
+                .rpc_error => |rpc_err| {
+                    defer rpc_err.deinit(gpa);
+                    std.debug.print("[US-017 live] sendTransaction rpc_error: {s}\n", .{rpc_err.message});
+                    return error.DevnetSendFailed;
                 },
             }
         },
         .rpc_error => |rpc_err| {
             defer rpc_err.deinit(gpa);
-            std.debug.print("[sendTx E2E] getLatestBlockhash failed: {s}\n", .{rpc_err.message});
+            std.debug.print("[US-017 live] getLatestBlockhash failed: {s}\n", .{rpc_err.message});
             return error.DevnetRpcError;
         },
     }

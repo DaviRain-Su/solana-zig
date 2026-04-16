@@ -1,0 +1,42 @@
+# Iteration 17 Log
+
+## Metadata
+
+- **Task ID**: US-015
+- **Task Title**: sendTransaction RPC method
+- **Description**: As a Zig developer, I want to call sendTransaction so that I can submit signed transactions to the network.
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T12:26:38.833Z
+- **Ended At**: 2026-04-16T12:29:58.245Z
+- **Duration**: 3m 19s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-015 Verified
+
+`sendTransaction` is already implemented in the current tree and meets the acceptance criteria:
+
+- accepts a base64-encoded serialized transaction
+- returns a `Signature`
+- supports optional params via `sendTransactionWithOptions` (`skipPreflight`, `preflightCommitment`)
+- preserves structured `.rpc_error` responses
+- has mock tests for success, options, RPC error, and malformed success
+
+Verified in:
+- `src/solana/rpc/client.zig`
+- `src/solana/rpc/types.zig`
+- `.ralph-tui/progress.md` already includes the US-015 entry and reusable pattern note
+
+## Validation
+
+Ran:
+- `zig build test`
+- `zig build devnet-e2e`
+
+Both completed successfully; live devnet portions were skipped because `SOLANA_RPC_URL` is not set.
+
+<promise>COMPLETE</promise>
+]9;4;0;
