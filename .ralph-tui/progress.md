@@ -25,6 +25,7 @@ after each iteration and it's included in prompts for context.
 - Benchmark extensions fit this repo best when large RPC fixtures are generated once up front and replayed through a tiny static transport into the real typed `RpcClient` methods; this keeps benchmark coverage aligned with production parsers while avoiding live network variance.
 - Websocket codec benchmarks stay trustworthy when they invoke the exported `serialize*SubscribeRequest` / `parse*NotificationMessage` helpers directly and generate full Solana JSON-RPC notification envelopes, including `params.result` plus `params.subscription`, instead of benchmarking partial inner fragments.
 - RPC usage examples in this repo are clearest when they mirror the SDK’s ownership model directly: each snippet should `switch` on `RpcResult`, deinit owned success payloads inside the `.ok` branch, and treat nullable success values (`?T`) separately from `.rpc_error`.
+- Websocket consumer examples in this repo should use typed `read*Notification()` helpers for single-method loops, but switch to generic `readNotification()` plus `notification.method` dispatch when multiple subscription kinds may interleave on the same socket.
 
 ---
 
@@ -285,5 +286,17 @@ after each iteration and it's included in prompts for context.
     - The SDK’s `RpcResult` union plus per-type `deinit` ownership model should be shown directly in docs examples; that makes nullable successes like `getTransaction` / `getAddressLookupTable` much less error-prone for consumers.
   - Gotchas encountered
     - Several extended RPC methods return owned payloads even for read-only queries (`TransactionInfo`, `EpochInfo`, `TokenAmount`, token account lists), so example docs need to demonstrate cleanup explicitly instead of only printing fields.
+---
+
+## 2026-04-17 - US-018
+- Added `docs/websocket-guide.md` covering websocket connection setup, subscription APIs, notification handling patterns, unsubscribe flow, reconnect semantics, reconnect configuration, and runtime observability/error-handling examples.
+- Files changed:
+  - `docs/websocket-guide.md`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - The most accurate websocket consumer docs for this codebase show both sides of the API: typed `read*Notification()` helpers for single-method flows and generic `readNotification()` dispatch for mixed-method flows where Solana may interleave notifications.
+  - Gotchas encountered
+    - The current websocket transport is still `ws://`-only, so the guide needs to call out that `wss://` endpoints are unsupported today rather than implying parity with public TLS websocket RPC URLs.
 ---
 
