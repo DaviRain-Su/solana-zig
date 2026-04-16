@@ -1,18 +1,16 @@
-//! By convention, root.zig is the root source file when making a package.
 const std = @import("std");
-const Io = std.Io;
 
-/// This is a documentation comment to explain the `printAnotherMessage` function below.
-///
-/// Accepting an `Io.Writer` instance is a handy way to write reusable code.
-pub fn printAnotherMessage(writer: *Io.Writer) Io.Writer.Error!void {
-    try writer.print("Run `zig build test` to run the tests.\n", .{});
-}
+pub const solana = @import("solana/mod.zig");
+pub const core = solana.core;
+pub const tx = solana.tx;
+pub const rpc = solana.rpc;
+pub const compat = solana.compat;
 
-pub fn add(a: i32, b: i32) i32 {
-    return a + b;
-}
+test "core exports" {
+    const pk = solana.core.Pubkey.init([_]u8{1} ** 32);
+    const base58 = try pk.toBase58Alloc(std.testing.allocator);
+    defer std.testing.allocator.free(base58);
 
-test "basic add functionality" {
-    try std.testing.expect(add(3, 7) == 10);
+    const parsed = try solana.core.Pubkey.fromBase58(base58);
+    try std.testing.expect(pk.eql(parsed));
 }

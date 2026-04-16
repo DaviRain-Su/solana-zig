@@ -1,0 +1,7 @@
+[package]
+name = "solana-zig-oracle"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-sdk = "4.0.1"
