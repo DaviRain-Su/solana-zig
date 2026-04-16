@@ -738,3 +738,43 @@
   - `G-P2C-01` ✅（通过隔离 worktree canonical 固化）
   - `G-P2C-02` ✅
   - `G-P2C-05` ✅（本轮 `docs/06` / `docs/10` / `docs/15` / `docs/14a` 已同步）
+
+## 2026-04-16 第三十次增量记录（#33 P2-13: Websocket re-stabilize / re-expose 收口）
+
+### 输入
+- 第三批 `#31` 过审后，`#33` 作为最后一条未闭环实现线进入 websocket 稳态增强与公开导出恢复阶段。
+- 当前目标按 `docs/21` 的 `G-P2C-03` 固定为：
+  - backoff reconnect
+  - resubscribe 幂等
+  - duplicate notification 去重
+  - connection flap / failure-path 收口
+- `#35` 收口口径已固定：只有在 websocket 统一证据包到位后，才把 `docs/10` 的 websocket 能力从 pending/partial 转成正式状态。
+
+### 输出
+- `src/solana/rpc/ws_client.zig` 已在 `c57b189` 完成 websocket 基线恢复与稳态 hardening：
+  - `WsRpcClient.reconnectWithBackoff(retries, base_delay_ms)`
+  - 订阅注册与幂等复用（同 filter 不重复发新订阅）
+  - reconnect 后自动 resubscribe
+  - 相同通知 hash 的连续去重
+- `MockWsServer` 已重新稳定化，清除了共享工作树此前的缺失/混合态与 mock hang 前置问题，使 websocket 测试重新回到可评审状态。
+- `mod/root` 公开导出已重新接通，`#33` 达到 `re-expose` 条件。
+
+### 风险
+- 当前收口只覆盖 websocket 稳态恢复与公开导出恢复，不包含新的订阅类型扩展。
+- dedup 采用“相同通知 hash 连续去重”的最小策略；若后续需要更强的跨连接/跨会话语义，应在后续批次单独冻结范围。
+- 本轮不要求额外 live run-log，仍以 `G-P2C-03` 的测试证据与 canonical 三件套作为放行依据。
+
+### 验证
+- canonical 三件套：
+  - commit `c57b189`
+  - `git status` clean
+  - `zig build test --summary all`：`62/62 tests passed`
+- websocket 稳态测试证据：
+  - `ws_backoff_reconnect_retry_budget` — PASS
+  - `ws_resubscribe_idempotent_same_filter_returns_same_id` — PASS
+  - `ws_dedup_skip_duplicate_notifications` — PASS
+  - `ws_connection_flap_reconnect_with_backoff` — PASS
+- gate 结论：
+  - `G-P2C-01` ✅
+  - `G-P2C-03` ✅
+  - `G-P2C-05` ✅（本轮 `docs/06` / `docs/10` / `docs/15` 已同步，websocket 已达到 `re-expose` 条件）

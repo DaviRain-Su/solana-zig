@@ -71,8 +71,8 @@
 
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
-| `rpc.Websocket subscriptions` | in-progress | `#20`, `#22`, `#23`, `#24` | `WsRpcClient` 主任务 `#20` 仍在集成提审前阶段；当前已完成 transport compile fix 与 subscription lifecycle 证据，但产品面尚未最终放行 | `ws_unsubscribe_ack_success` + `ws_reconnect_subscription_response_malformed` + 单次 `zig build test` 通过 | `src/solana/rpc/ws_client.zig` tests + `docs/06` + `docs/10` | `#20` 提审通过，生命周期证据与 public surface 一致 |
-| `rpc.Websocket reconnect lifecycle` | in-progress | `#20`, `#22`, `#23`, `#24` | 断线检测 / reconnect / resubscribe 证据已齐，但仍待 `WsRpcClient` 集成段与最终 gate 汇总 | `ws_reconnect_detect_disconnect_then_reconnect` + `ws_reconnect_resubscribe_after_reconnect` + `ws_reconnect_notify_path_with_server_close` + 单次 `zig build test` 通过 | `src/solana/rpc/ws_client.zig` tests + `docs/06` + `docs/10` | `G-P2-04` 由 `#20` 最终提审统一闭环，docs 与 gate 对账完成 |
+| `rpc.Websocket subscriptions` | closed | `#20`, `#22`, `#23`, `#24`, `#33` | ~~`WsRpcClient` 主任务 `#20` 仍在集成提审前阶段；当前已完成 transport compile fix 与 subscription lifecycle 证据，但产品面尚未最终放行~~ → **已完成**：`#20` 完成最小可用闭环，`#33` 在 `c57b189` 完成 re-stabilize / re-expose，公开导出恢复并形成统一 canonical 证据包 | `ws_unsubscribe_ack_success` + `ws_reconnect_subscription_response_malformed` + `ws_resubscribe_idempotent_same_filter_returns_same_id` + `62/62 tests passed` | `src/solana/rpc/ws_client.zig` tests + `docs/06` + `docs/10` + 本矩阵 | 生命周期证据与 public surface 一致；`G-P2-04` 历史口径与 `G-P2C-01/G-P2C-03/G-P2C-05` 已闭环 |
+| `rpc.Websocket reconnect lifecycle` | closed | `#20`, `#22`, `#23`, `#24`, `#33` | ~~断线检测 / reconnect / resubscribe 证据已齐，但仍待 `WsRpcClient` 集成段与最终 gate 汇总~~ → **已完成**：`#33` 在 websocket 稳态恢复中补齐 backoff、connection flap、幂等 resubscribe 与 dedup 证据，reconnect 生命周期正式闭环 | `ws_reconnect_detect_disconnect_then_reconnect` + `ws_reconnect_resubscribe_after_reconnect` + `ws_reconnect_notify_path_with_server_close` + `ws_backoff_reconnect_retry_budget` + `ws_connection_flap_reconnect_with_backoff` + `62/62 tests passed` | `src/solana/rpc/ws_client.zig` tests + `docs/06` + `docs/10` + 本矩阵 | 已满足历史 reconnect 生命周期口径；`#33` 达到 `re-expose` 条件，docs 与 gate 对账完成 |
 
 ## 7. Phase 2 Batch 2 Extension Tracking
 
@@ -98,6 +98,7 @@
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
 | `rpc.getTokenAccountsByOwner` | closed | `#32` | ~~代码侧虽已完成 typed parse / 三类测试 / public devnet integration 空结果证据，但共享工作树上的 `#33` websocket hang 一度阻塞全量 `zig build test`，导致 canonical 三件套未闭环~~ → **已完成**：通过隔离 worktree 固化 canonical 三件套（`b99d7fc`, clean status, `47/47 tests passed`），`public devnet` integration 空结果证据已留档，无需 Batch 3 exception | `getTokenAccountsByOwner` typed parse + `happy/rpc_error/malformed` + `public devnet` empty-result integration + isolated canonical 三件套 | `src/solana/rpc/client.zig` + `src/solana/rpc/types.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` + 本矩阵 | 已满足 `G-P2C-01` canonical 三件套；已满足 `G-P2C-02` RPC gate；`G-P2C-05` 文档回写完成 |
+| `rpc.Websocket re-stabilize / re-expose` | closed | `#33` | ~~共享工作树一度存在 websocket 基线损坏/混合态与测试 hang，导致 `#35` 只能保持 pending~~ → **已完成**：`c57b189` 恢复稳定基线并补齐 backoff / idempotent resubscribe / dedup / connection flap 证据，公开导出恢复 | `ws_backoff_reconnect_retry_budget` + `ws_resubscribe_idempotent_same_filter_returns_same_id` + `ws_dedup_skip_duplicate_notifications` + `ws_connection_flap_reconnect_with_backoff` + canonical 三件套（`c57b189`, clean, `62/62 tests passed`） | `src/solana/rpc/ws_client.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2C-01` canonical 三件套；已满足 `G-P2C-03` websocket gate；`G-P2C-05` 文档回写完成；已达到 `re-expose` 条件 |
 | `interfaces.System Durable Nonce live workflow` | closed | `#34` | ~~仅最小 `query -> build -> compile/sign` workflow 已闭环，live `send/confirm` 与 run-log 尚未留档~~ → **已完成**：canonical 三件套到位（`dd6bdff`, clean status, `47/47 tests passed`），`nonce-e2e` mock/live `2/2 passed`，`query -> build -> compile/sign -> send/confirm` local-live 证据已在 `docs/14a` Run 6 留档 | `query nonce -> build advance -> compile/sign -> send/confirm` live run；create nonce tx / advance nonce tx / confirmed poll 0；canonical 三件套 | `src/e2e/nonce_e2e.zig` + `build.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` + 本矩阵 | 已满足 `G-P2C-01` canonical 三件套；已满足 `G-P2C-04` live 证据；`G-P2C-05` 文档回写完成 |
 
 ### Batch 3 Exception Register
@@ -105,6 +106,9 @@
 - `#32 rpc.getTokenAccountsByOwner`
   - 当前口径：**无例外**
   - 原因：已取得 `public devnet` integration 空结果证据，不需要退回 `local-live`
+- `#33 rpc.Websocket re-stabilize / re-expose`
+  - 当前口径：**无例外**
+  - 原因：本轮按 canonical 三件套 + websocket 稳态测试证据收口，不涉及 `local-live` / `public devnet` 替代模型
 - `#34 interfaces.System Durable Nonce live workflow`
   - 当前例外口径：本批 live 证据为 `local-live`（`http://127.0.0.1:8899`），尚未形成 `public devnet` 对应 run-log
   - 本批处理：以 `local-live send/confirm + docs/14a run-log` 收口
