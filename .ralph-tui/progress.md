@@ -18,6 +18,7 @@ after each iteration and it's included in prompts for context.
 - Oracle compatibility suites should embed the versioned JSON fixture with `@embedFile` and route each vector family through focused helper assertions (`expectPubkeyCase` / `expectMessageCase` / `expectTransactionCase`) so Rust parity coverage stays offline, deterministic, and easy to expand.
 - RPC transport plumbing uses a tiny function-pointer vtable (`Transport.init(ctx, postJson, deinit)`) around `*anyopaque`, which keeps `RpcClient` production-ready with `std.http.Client` while letting tests inject lightweight scripted mocks without changing higher-level RPC parsing.
 - For RPC methods that default to `confirmed`, preserve the ergonomic no-arg helper and add a typed `WithCommitment` variant backed by a small enum so tests can assert exact JSON-RPC config payloads for `processed` / `confirmed` / `finalized`.
+- For scalar JSON-RPC methods that return `result.value`, keep the public API as `RpcResult(u64)` and parse the payload through the shared integer helper so both JSON integers and numeric strings remain accepted while commitment-specific wrappers stay thin.
 - When a JSON-RPC method legitimately returns `result.value = null` for not-found, model the success payload as `RpcResult(?T)` and reserve `error.InvalidRpcResponse` for actual schema mismatches; mock tests should cover both nullable success and typed object success.
 
 ---
@@ -202,5 +203,19 @@ after each iteration and it's included in prompts for context.
     - Nullable JSON-RPC success responses fit cleanly into the repo's existing `RpcResult(?T)` pattern already used by `getSignatureStatuses`, so `getAccountInfo` can preserve not-found semantics without weakening typed parsing for present accounts.
   - Gotchas encountered
     - `zig build test` does not compile the separate `nonce-e2e` target from `build.zig`, so RPC signature changes used by that harness need an explicit `zig build nonce-e2e` verification pass.
+---
+
+## 2026-04-16 - US-013
+- What was implemented
+  - Extended `RpcClient.getBalance` to default to confirmed commitment via a new `getBalanceWithCommitment` helper, preserving the typed `RpcResult(u64)` lamports result.
+  - Added mock coverage for `processed` / `confirmed` / `finalized` commitment payloads, default confirmed behavior, and retained the existing success/error-path balance parsing checks.
+- Files changed
+  - `src/solana/rpc/client.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Scalar balance-style RPCs can reuse the same default-wrapper-plus-`WithCommitment` request pattern as `getLatestBlockhash` without introducing new response structs when the success payload is just a lamports `u64`.
+  - Gotchas encountered
+    - Even though `getBalance` already existed in the repo, it did not yet satisfy the story gate because the request payload omitted the optional commitment config object required by the acceptance criteria.
 ---
 

@@ -68,13 +68,17 @@ pub const RpcClient = struct {
     }
 
     pub fn getBalance(self: *RpcClient, pubkey: pubkey_mod.Pubkey) !types.RpcResult(u64) {
+        return self.getBalanceWithCommitment(pubkey, .confirmed);
+    }
+
+    pub fn getBalanceWithCommitment(self: *RpcClient, pubkey: pubkey_mod.Pubkey, commitment: types.Commitment) !types.RpcResult(u64) {
         const address = try pubkey.toBase58Alloc(self.allocator);
         defer self.allocator.free(address);
 
         const payload = try std.fmt.allocPrint(
             self.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getBalance\",\"params\":[\"{s}\"]}}",
-            .{ self.nextRpcId(), address },
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getBalance\",\"params\":[\"{s}\",{{\"commitment\":\"{s}\"}}]}}",
+            .{ self.nextRpcId(), address, commitment.jsonString() },
         );
         defer self.allocator.free(payload);
 
@@ -864,6 +868,64 @@ test "rpc client returns transport error with injected transport" {
 
     const pubkey = pubkey_mod.Pubkey.init([_]u8{3} ** 32);
     try std.testing.expectError(error.RpcTransport, client.getBalance(pubkey));
+}
+
+test "rpc client getBalance supports all commitment levels" {
+    const gpa = std.testing.allocator;
+    const cases = [_]struct {
+        commitment: types.Commitment,
+        expected_json: []const u8,
+    }{
+        .{ .commitment = .processed, .expected_json = "\"commitment\":\"processed\"" },
+        .{ .commitment = .confirmed, .expected_json = "\"commitment\":\"confirmed\"" },
+        .{ .commitment = .finalized, .expected_json = "\"commitment\":\"finalized\"" },
+    };
+
+    for (cases) |case| {
+        var mock: MockTransport = .{
+            .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":12345}}",
+            .capture_payload = true,
+        };
+        defer if (mock.captured_payload) |payload| gpa.free(payload);
+
+        const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+        var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+        defer client.deinit();
+
+        const pubkey = pubkey_mod.Pubkey.init([_]u8{31} ** 32);
+        const result = try client.getBalanceWithCommitment(pubkey, case.commitment);
+        switch (result) {
+            .ok => |lamports| try std.testing.expectEqual(@as(u64, 12345), lamports),
+            .rpc_error => return error.UnexpectedRpcError,
+        }
+
+        const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+        try std.testing.expect(std.mem.indexOf(u8, payload, case.expected_json) != null);
+    }
+}
+
+test "rpc client getBalance defaults to confirmed commitment" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":67890}}",
+        .capture_payload = true,
+    };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
+
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{32} ** 32);
+    const result = try client.getBalance(pubkey);
+    switch (result) {
+        .ok => |lamports| try std.testing.expectEqual(@as(u64, 67890), lamports),
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"commitment\":\"confirmed\"") != null);
 }
 
 test "rpc client getLatestBlockhash supports all commitment levels" {
