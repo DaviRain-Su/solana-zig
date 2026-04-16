@@ -469,3 +469,33 @@
 - `zig build test` ✅
 - `zig build devnet-e2e` ✅（6 tests pass）
 - G-P2-02 DoD: send ✓ + confirm ✓ + 成功证据 ✓ + 失败证据 ✓
+
+## 2026-04-16 第二十一次增量记录（#24: websocket lifecycle / reconnect docs backfill）
+
+### 输入
+- `#22` 已清掉 `src/solana/rpc/ws_client.zig` 的 Zig 0.16 编译阻塞：
+  - 移除无效 `std.time.sleep`
+  - `MockWsServer` 改为 `port 0 + getPort()`，避免并行测试 `AddressInUse`
+  - `std.Thread.spawn` 参数传递改为 Zig 0.16 兼容形式
+  - `stop()` 改为 dummy connect 解除 `accept()` 阻塞，避免 worker thread panic
+- `#23` 在只改测试区 + `MockWsServer` 钩子的边界内，补齐 websocket lifecycle / reconnect / failure-path 证据。
+
+### 输出
+- `ws_client.zig` 的 websocket 测试证据已形成 5 条稳定用例：
+  - `ws_unsubscribe_ack_success`
+  - `ws_reconnect_detect_disconnect_then_reconnect`
+  - `ws_reconnect_resubscribe_after_reconnect`
+  - `ws_reconnect_subscription_response_malformed`
+  - `ws_reconnect_notify_path_with_server_close`
+- `force_disconnect_after_notify` 与 `malformed_sub_reply` 两个 mock 开关已固定为本批 websocket 证据的主要触发器。
+- `docs/10` 与 `docs/15` 已同步回写为：websocket 能力已获得正式测试证据，但主任务 `#20` 的 `WsRpcClient` 集成提审仍待完成，因此状态保持 `partial / in-progress`，不提前写成 `done`。
+
+### 风险
+- 当前已证明 websocket 生命周期 / reconnect / failure-path 的测试证据成立，但 `#20` 主任务仍在进行中；在 `WsRpcClient` 集成提审前，不应把 websocket 产品能力写成完全收口。
+- 本轮 docs 回写采用“已验证的子任务证据 + 主任务仍在进行中”的口径；若 `#20` 后续改动 public surface，需要再次核对 `docs/10` / `docs/15`。
+
+### 验证
+- `zig build test` ✅（单次全量）
+- 5 条 websocket 证据用例全部 PASS
+- `G-P2-04`：subscribe/unsubscribe、disconnect detect、reconnect、resubscribe、malformed failure 均有证据
+- `G-P2-05`：`docs/06` / `docs/10` / `docs/15` 已同步回写

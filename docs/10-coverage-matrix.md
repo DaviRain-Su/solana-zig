@@ -63,7 +63,7 @@
 | 目标能力 | 计划 Zig 模块/文件 | 状态 | 文档映射 | 备注 |
 |---|---|---|---|---|
 | 扩展 RPC methods | `rpc/client.zig` 扩展或拆分 typed 子层 | partial | `docs/00` Phase 2 / `docs/04` T4-17~T4-19 / `docs/03c-rpc-extended-spec.md` | Batch A 已完成 `getTransaction / getSignaturesForAddress / getSlot`（`#18`）；`getSignatureStatuses` 作为 `send/confirm` 支撑方法也已落地 |
-| Websocket subscriptions | `src/solana/rpc/ws_*` 或独立订阅模块 | partial | `docs/00` Phase 2 / `docs/04` T4-20 / `docs/05` 5.1 | 最小 `WsClient/WsRpcClient` 已进入公开包面；subscription lifecycle / reconnect / unsubscribe 仍待收口 |
+| Websocket subscriptions | `src/solana/rpc/ws_*` 或独立订阅模块 | partial | `docs/00` Phase 2 / `docs/04` T4-20 / `docs/05` 5.1 | `WsClient/WsRpcClient` bootstrap 已存在；`#22/#23` 已完成 lifecycle / reconnect / malformed 证据并通过单次全量测试，当前只剩 `#20` 的集成提审与最终收口 |
 | Durable Nonce workflow | `interfaces/system` + tx/rpc helper composition | planned | `docs/00` Phase 2 / `docs/04` T4-21 / `docs/05` 5.1 | 指令构造归 `interfaces/system`，流程协同由更高层 helper 组合 |
 | Priority Fees / Compute Budget | `interfaces/compute_budget` | planned | `docs/00` Phase 2 / `docs/04` T4-22 / `docs/03a-interfaces-spec.md` | 可以早于完整 interfaces 落地 |
 
