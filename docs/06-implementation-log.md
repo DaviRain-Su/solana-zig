@@ -1308,3 +1308,83 @@
   - `G-P3B-03` ✅
   - `G-P3B-04` ✅
   - `G-P3B-05`（本轮 docs/gate 收口）由 `#72` 执行最终对账
+
+## 2026-04-17 第四十四次增量记录（Phase 3 Batch 3：#74/#75/#76 实现闭环 + #77 docs/gate 收口）
+
+### 输入
+- `#73`（Batch 3 scope freeze / DoD）已在 `82da1b0` 通过结构审并关闭。
+- Batch 3 canonical board 固定为：
+  - `#74` token-2022 最小 builder（P3-12）
+  - `#75` stake delegate 最小 builder（P3-13）
+  - `#76` exception convergence 收敛推进（P3-14）
+  - `#77` docs/gate reconciliation（P3-15）
+- carry-in baseline freeze point：`243ba7f`。
+
+### 输出
+- `#74` 在 `da93cfb` 完成 token-2022 最小 builder 收口：
+  - `buildMintInstruction` / `buildApproveInstruction` / `buildBurnInstruction`
+  - token-2022 与 legacy token program-id 机械区分
+  - 测试断言补齐到 legacy 同粒度（LE amount / meta 顺序 / signer-writable）
+  - reviewer：`G-P3C-01 PASS` + `G-P3C-02 PASS`
+- `#75` 在 `4d35e30` 完成 stake delegate 最小 builder 收口：
+  - `buildDelegateStakeInstruction` 落地
+  - 6 账户 meta 顺序 + signer/writable 机械断言
+  - compile/sign/verify 证据
+  - reviewer：`G-P3C-01 PASS` + `G-P3C-03 PASS`
+- `#76` 在 `da93cfb` 完成 exception convergence 收敛评估：
+  - strict tri-state 保持且 `code == 429` rate-limit 分类收紧
+  - 双 env 证据与 verdict-upgrade 输入补齐
+  - 本批结论保持：
+    - `requestAirdrop`: `partial_exception`
+    - `getAddressLookupTable`: `accepted exception path`
+  - reviewer：`G-P3C-01 PASS` + `G-P3C-04 PASS`
+
+### 风险
+- Batch 3 仍存在 `partial/accepted exception`，按 strict model 不可升级到 `可发布`。
+- 本轮结论是“能力与证据闭环 + 条件发布口径固定”，不是“exception 全清零”。
+- `docs/28` 条件回写本轮不触发：Phase 2 aggregate 升级前提仍不满足。
+
+### 验证
+- `#74/#76` canonical（isolated）：
+  - commit `da93cfb`
+  - clean status
+  - `zig build test --summary all`：`197/197 tests passed`
+- `#75` canonical（isolated）：
+  - commit `4d35e30`
+  - clean status
+  - `zig build test --summary all`：`204/204 tests passed`
+- gate 收敛结论：
+  - `G-P3C-01` ✅
+  - `G-P3C-02` ✅
+  - `G-P3C-03` ✅
+  - `G-P3C-04` ✅
+  - `G-P3C-05`（本轮 docs/gate 收口）由 `#77` 执行最终对账
+
+## 2026-04-17 第四十四次增量记录（Phase 3 Batch 3：signers + C ABI + stake 实现闭环）
+
+### 输入
+- `docs/prd-phase-3-batch-3-solana-zig-sdk-signersc-abi-stake.md` 已冻结，US-019 ~ US-028 为 Batch 3 交付范围。
+- carry-in baseline 冻结点：`efe3070`（Batch 2 收口完成）。
+
+### 输出
+- US-019：在 `src/solana/signers/signer.zig` 落地统一 signer 抽象（`Signer` vtable + `SignerError` 枚举）。
+- US-020：在 `src/solana/signers/in_memory.zig` 实现 `InMemorySigner`，包装现有 `Keypair`。
+- US-021：在 `src/solana/signers/mock_external.zig` 实现 `MockExternalSigner`，支持模拟后端失败、拒签场景。
+- US-022：在 `src/solana/tx/transaction.zig` 新增 `signWithSigners`，保留 `sign(keypairs)` 便捷 API，两者结果一致。
+- US-023~US-025：在 `src/solana/cabi/` 实现 C ABI 导出层：
+  - `core.zig`：导出 `solana_pubkey_*`、`solana_signature_*`、`solana_hash_*` 系列函数
+  - `transaction.zig`：导出 instruction / message / transaction 构建与序列化
+  - `rpc.zig`：导出最小 RPC 客户端能力（init / deinit / getLatestBlockhash / getBalance）
+  - `include/solana_zig.h`：配套 C 头文件
+- US-026：在 `src/solana/interfaces/stake.zig` 实现 Stake 完整生命周期 builder（create / delegate / deactivate / withdraw）。
+- US-027：在 `src/benchmark.zig` 新增 signer 签名与 C ABI 调用开销 benchmark。
+- US-028：文档收口（`docs/17`、`docs/cabi-guide.md`、`docs/10`、`docs/06` 更新）。
+
+### 风险
+- C ABI 的 RPC 导出当前使用 dummy transport（仅用于编译与句柄生命周期验证），真实网络调用需由调用方提供有效 endpoint 后重新初始化。
+- Stake builder 当前覆盖最小必填参数路径；`Lockup` 完整可选字段已支持，但复杂组合场景仍需后续 Devnet E2E 验证。
+
+### 验证
+- `zig build test`：197/197 tests passed
+- `zig build bench`：新增 `signer_in_memory_sign` 与 `cabi_pubkey_to_base58` 指标正常输出
+- C ABI 头文件一致性：通过 Zig 编译测试间接验证（cabi 模块被 root 引用并编译通过）

@@ -1,8 +1,8 @@
 # Phase 3 Batch 3 Release Readiness
 
 **Date**: 2026-04-17
-**Status**: Provisional
-**Owner**: `#73`（后续由 Batch 3 docs/gate 线收口）
+**Status**: Final
+**Owner**: `#77`
 **Batch**: Phase 3 Batch 3
 **Freeze point**: `243ba7f`
 
@@ -41,12 +41,12 @@
 
 ## 4. Current Snapshot
 
-- Canonical（G-P3C-01）：`PENDING`
-- token-2022 minimum（G-P3C-02）：`PENDING`
-- stake delegate minimum（G-P3C-03）：`PENDING`
-- exception convergence（G-P3C-04）：`PENDING`
-- docs/gate（G-P3C-05）：`PENDING`
-- Batch 3 verdict：`provisional: 有条件发布`
+- Canonical（G-P3C-01）：`PASS`（`da93cfb` / `4d35e30`，isolated clean，`197/197` + `204/204`）
+- token-2022 minimum（G-P3C-02）：`PASS`（`#74`, `da93cfb`）
+- stake delegate minimum（G-P3C-03）：`PASS`（`#75`, `4d35e30`）
+- exception convergence（G-P3C-04）：`PASS`（`#76`, `da93cfb`）
+- docs/gate（G-P3C-05）：`PASS`（`#77`）
+- Batch 3 verdict：`final: 有条件发布`
 
 ## 5. Upgrade Rule
 
@@ -54,6 +54,14 @@
 1. `G-P3C-01~G-P3C-05` 全部 PASS；
 2. 无未收敛 Batch 3 exception；
 3. 不存在 `partial exception` 或 `accepted exception path`（延续 strict exception model）。
+
+## 5.1 Final Verdict Rationale
+
+Batch 3 最终保持 `有条件发布`，原因：
+1. `requestAirdrop` 仍为 `partial_exception`（public devnet rate-limit + local-live success）。
+2. `getAddressLookupTable` 仍为 `accepted exception path`（method-not-found / RPC error evidence）。
+
+两条路径均符合 frozen rule 与 strict model，但尚未达到“可发布”升级条件。
 
 ## 6. Evidence Landing
 

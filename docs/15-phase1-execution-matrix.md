@@ -253,3 +253,29 @@
 
 - `docs/28-phase2-closeout-readiness.md`：本轮**不触发回写**。  
   原因：Phase 2 aggregate 仍存在 `requestAirdrop` / `getAddressLookupTable` 条件路径，未达到“无未收敛 exception”的升级条件。
+
+## 15. Phase 3 Batch 3 Tracking (`#74~#77`)
+
+> 按 `docs/34-phase3-batch3-planning.md` 的冻结口径，Batch 3 进入实现收口阶段。  
+> 当前 canonical board：`#74`（token-2022） / `#75`（stake delegate） / `#76`（exception convergence） / `#77`（docs/gate）。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `token_2022 minimum builders` | closed | `#74` | — | `da93cfb`，`mint/approve/burn` + program-id 区分，LE amount/meta 顺序/signer-writable 机械断言；isolated canonical `197/197` | `src/solana/interfaces/token_2022.zig` + `docs/06` + `docs/35` | `G-P3C-01` + `G-P3C-02` PASS |
+| `stake delegate minimum builder` | closed | `#75` | — | `4d35e30`，`buildDelegateStakeInstruction` + 6 账户 meta 机械断言 + compile/sign/verify；isolated canonical `204/204` | `src/solana/interfaces/stake.zig` + `docs/06` + `docs/35` | `G-P3C-01` + `G-P3C-03` PASS |
+| `exception convergence` | closed | `#76` | — | `da93cfb`，strict tri-state + `code==429` 分类收紧；双 env `197/197` + verdict-upgrade 输入 | `src/solana/rpc/client.zig` + `docs/14a` Run 14 + `docs/35` | `G-P3C-01` + `G-P3C-04` PASS |
+| `docs/gate reconciliation` | in-progress | `#77` | final docs commit/hash 待落盘 | `docs/06+10+14a+15+35` 对账 | 本文档 + `docs/35` | `G-P3C-05` PASS |
+
+### Phase 3 Batch 3 Exception Register
+
+- `requestAirdrop`
+  - 当前状态：`partial_exception`（public devnet rate-limit + local-live success）
+  - strict model 下未关闭，继续阻塞升级到 `可发布`
+- `getAddressLookupTable`
+  - 当前状态：`accepted exception path`（method-not-found / RPC error evidence）
+  - strict model 下未关闭，继续阻塞升级到 `可发布`
+
+### Phase 2 Artifact Conditional Writeback
+
+- `docs/28-phase2-closeout-readiness.md`：本轮**不触发回写**。  
+  原因：Batch 3 结束时仍存在 partial/accepted exception，Phase 2 aggregate 升级条件不满足。

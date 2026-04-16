@@ -81,11 +81,13 @@
 |---|---|---|---|---|
 | system interface | `src/solana/interfaces/system/*` | partial | `docs/00` Phase 3 / `docs/30` P3-02 / `docs/03a-interfaces-spec.md` | Batch 1 `#60` 已完成 `transfer/createAccount` builders（`35a731f`）；后续批次继续补其它 system 指令 |
 | token / token-2022 / ATA | `src/solana/interfaces/token*/*` | partial | `docs/00` Phase 3 / `docs/30` P3-03 / `docs/03a-interfaces-spec.md` | Batch 1 `#61` 已完成 `mint/approve/burn` builders（`b840f75`）；ATA 明确延后，不在 Batch 1 |
-| memo / stake | `src/solana/interfaces/memo|stake/*` | planned | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | 第二批接口层能力 |
-| signer abstraction | `src/solana/signers/*` | planned | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/03b-signers-spec.md` | 先抽象接口，再接入 tx |
-| external signer adapter | `src/solana/signers/external_*` | planned | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/05` 5.2 | mock/KMS/HSM stub |
-| C ABI | `src/c/*` 或等价导出层 | planned | `docs/00` Phase 3 / `docs/04` T4-27 / `docs/05` 5.2 | 需补所有权与释放规则 |
-| performance comparison report | `docs/13` + Phase 3 report artifact | planned | `docs/00` Phase 3 / `docs/04` T4-28 / `docs/05` 5.2 | 需形成 vs Rust SDK 的可复跑对比说明 |
+| memo | `src/solana/interfaces/memo.zig` | done | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | Batch 2 `#70` 完成 dual-mode builder |
+| compute_budget | `src/solana/interfaces/compute_budget.zig` | done | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | Phase 2 完成 `setComputeUnitLimit` / `setComputeUnitPrice` |
+| stake | `src/solana/interfaces/stake.zig` | done | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | Batch 3 完成 create/delegate/deactivate/withdraw builders |
+| signer abstraction | `src/solana/signers/*` | done | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/03b-signers-spec.md` | Batch 3 完成 `Signer` vtable + `InMemorySigner` + `MockExternalSigner` |
+| external signer adapter | `src/solana/signers/mock_external.zig` | done | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/05` 5.2 | Batch 3 完成 mock 后端错误/拒签语义透传 |
+| C ABI | `src/solana/cabi/*` + `include/solana_zig.h` | done | `docs/00` Phase 3 / `docs/04` T4-27 / `docs/05` 5.2 / `docs/03d-cabi-spec.md` | Batch 3 完成核心类型 + 交易构建 + RPC 最小导出 |
+| performance comparison report | `docs/13` + Phase 3 report artifact | partial | `docs/00` Phase 3 / `docs/04` T4-28 / `docs/05` 5.2 | Batch 3 完成 signer + C ABI benchmark 基线；vs Rust SDK 对比仍待后续 |
 
 ## 7. Product Phase 4 / Out of Scope for Now
 
@@ -144,3 +146,33 @@
 - `getAddressLookupTable`
   - 当前口径：`accepted exception path` 可接受（method-not-found / RPC error evidence）
   - 后续收敛：后续批次补稳定成功路径
+
+## 13. Phase 3 Batch 3 Tracking (canonical board: #74~#77)
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `interfaces.token_2022 minimum builders` | closed | `#74` | — | `da93cfb`，token-2022 `mint/approve/burn` + program-id 区分；LE amount/meta 顺序/signer-writable 机械断言；isolated canonical `197/197` | `src/solana/interfaces/token_2022.zig` + `docs/06` + `docs/35` | `G-P3C-01` + `G-P3C-02` PASS |
+| `interfaces.stake delegate minimum` | closed | `#75` | — | `4d35e30`，`buildDelegateStakeInstruction` + 6 账户 metas 机械断言 + compile/sign/verify；isolated canonical `204/204` | `src/solana/interfaces/stake.zig` + `docs/06` + `docs/35` | `G-P3C-01` + `G-P3C-03` PASS |
+| `rpc.exception convergence` | closed | `#76` | — | `da93cfb`，strict tri-state 保持 + `code==429` 分类收紧；双 env 收敛证据与 verdict-upgrade 输入；isolated canonical `197/197` | `src/solana/rpc/client.zig` + `docs/14a` + `docs/15` + `docs/35` | `G-P3C-01` + `G-P3C-04` PASS |
+| `batch3.docs/gate reconciliation` | in-progress | `#77` | 待 final docs commit/hash | `docs/06+10+14a+15+35` 对账（条件触发 `docs/28`） | 本矩阵 + `docs/35` | `G-P3C-05` PASS |
+
+### Phase 3 Batch 3 Exception Register
+
+- `requestAirdrop`
+  - 当前口径：`partial_exception`（public devnet rate-limit + local-live success）
+  - strict model 下仍未关闭
+- `getAddressLookupTable`
+  - 当前口径：`accepted exception path`（method-not-found / RPC error evidence）
+  - strict model 下仍未关闭
+
+> 结论：Batch 3 本轮仍不满足升级到 `可发布` 的条件。
+
+## 13. Phase 3 Batch 3 Tracking (canonical board)
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `signers` | closed | US-019~US-022 | — | `signer.zig` + `in_memory.zig` + `mock_external.zig` + `tx/transaction.zig` 集成，`197/197 tests passed` | `src/solana/signers/*` + `docs/06` | `zig build test` PASS |
+| `C ABI` | closed | US-023~US-025 | — | `cabi/core.zig` + `cabi/transaction.zig` + `cabi/rpc.zig` + `include/solana_zig.h`，编译通过 | `src/solana/cabi/*` + `include/solana_zig.h` + `docs/06` | `zig build test` + 头文件一致性 PASS |
+| `stake builder` | closed | US-026 | — | `stake.zig` 4 条指令 builder + 字节布局测试 | `src/solana/interfaces/stake.zig` + `docs/06` | `zig build test` PASS |
+| `benchmark extension` | closed | US-027 | — | `benchmark.zig` 新增 `signer_in_memory_sign` + `cabi_pubkey_to_base58` | `src/benchmark.zig` + `docs/13` | `zig build bench` PASS |
+| `docs closeout` | closed | US-028 | — | `docs/17` 更新 + `docs/cabi-guide.md` 新建 + `docs/10` 更新 + `docs/06` 更新 | `docs/*` | 文档完整可用 |

@@ -694,3 +694,49 @@ SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8
 
 - 本次 run 对应 `#71` 的修补复审回合（commit `efe3070`），用于关闭 `G-P3B-04` 的 strict tri-state 规则偏差。
 - 本次 run 证明“规则收敛完成”，不代表 exception 语义已完全归零。
+
+---
+
+## Run 14 — Phase 3 Batch 3 Exception Convergence Revalidation (`#76`)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-17/phase3-batch3/exception-convergence-revalidation`
+- Commit: `da93cfb`
+- Date: `2026-04-17`
+- Run Type: `gate-evidence`（strict tri-state / success-or-exception）
+- Operator: `@codex_5_3`
+- Env:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com`
+  - `SURFPOOL_RPC_URL=http://127.0.0.1:8899`
+- Entry:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes:
+  - 全量测试：`197/197 tests passed`
+  - strict tri-state 规则保持，且 `code == 429` 归类到 rate-limit 路径
+
+### 3. Evidence Checklist
+
+- [x] `requestAirdrop` tri-state 结论可复现：`partial_exception`（public devnet rate-limit + local-live success）
+- [x] `getAddressLookupTable` 结论可复现：`accepted exception path`（method-not-found / RPC error evidence）
+- [x] 双 env 全量基线通过（`197/197`）
+- [x] Batch 3 verdict-upgrade 输入已固定：仍不满足升级到 `可发布`
+
+### 4. Console / Run Evidence
+
+```
+SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all
+5/5 steps succeeded
+197/197 tests passed
+```
+
+### 5. Notes
+
+- 本次 run 对应 `#76` 的复审回合（commit `da93cfb`），用于关闭 `G-P3C-04` 的证据层缺口。
+- 本次 run 输出同时作为 Batch 3 `release verdict` 的输入：按 strict model 继续保持 `有条件发布`。
