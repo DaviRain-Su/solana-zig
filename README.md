@@ -97,6 +97,26 @@ switch (latest) {
 }
 ```
 
+## TypeScript Helper Shim (`@zignocchio/client`)
+
+For hackathon/demo adoption, this repo now includes a minimal TypeScript helper shim:
+
+- Path: `packages/client`
+- Scope: mirrors `docs/18` AC-01~AC-07 only
+- Status: `v0.1.0` first delivery (minimal helper/shim, not a standalone full SDK)
+
+Quick checks:
+
+```bash
+cd packages/client
+npm test
+```
+
+Contract mapping:
+
+- `packages/client/AC-MAPPING.md`
+- `docs/18-surfpool-e2e-contract.md`
+
 ## Optional Devnet Usage
 Set `SOLANA_RPC_URL` and call the RPC client from your own integration harness.
 
@@ -135,6 +155,7 @@ This keeps the current client path stable while making later expansion stages ex
 - Phase 1 Execution Matrix: `docs/15-phase1-execution-matrix.md`
 - Consumer / Security Notes: `docs/16-consumer-profiles-and-security-notes.md`
 - Quickstart + API Examples: `docs/17-quickstart-and-api-examples.md`
+- Surfpool E2E Contract: `docs/18-surfpool-e2e-contract.md`
 - Future Specs:
   - Interfaces: `docs/03a-interfaces-spec.md`
   - Signers: `docs/03b-signers-spec.md`

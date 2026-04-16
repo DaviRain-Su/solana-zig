@@ -173,3 +173,48 @@ For hackathon/demo messaging, keep claims within Phase 1:
   - "full Solana SDK parity shipped"
   - "Phase 2/3 capabilities already complete"
 
+---
+
+## 5. `@zignocchio/client` Quickstart (K2)
+
+`#3 K2` delivered a minimal TypeScript helper/shim under `packages/client`.
+This is an adoption layer for Phase 1, not an independent full SDK line.
+
+### 5.1 Install and test
+
+```bash
+cd packages/client
+npm install
+npm test
+```
+
+### 5.2 K3-H1 happy-path example
+
+```bash
+cd packages/client
+SURFPOOL_RPC_URL=http://127.0.0.1:8899 npx tsx examples/k3-h1-happy.ts
+```
+
+### 5.3 Contract and acceptance mapping
+
+- Contract source of truth: `docs/18-surfpool-e2e-contract.md`
+- AC mapping: `packages/client/AC-MAPPING.md`
+
+### 5.4 Locked scope boundary
+
+`@zignocchio/client v0.1.0` only covers `docs/18` AC-01~AC-07:
+
+- transport injection
+- `getLatestBlockhash` typed response
+- `simulateTransaction` raw JSON preservation
+- `sign` + `verifySignatures`
+- `compileLegacy` parameter order
+- `sigVerify: true` in simulate payload
+- configurable endpoint
+
+Out of scope in this version:
+
+- websocket/subscriptions
+- token/ATA/compute-budget helpers
+- C ABI
+- full Phase 2/3 capability surface
