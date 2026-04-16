@@ -145,8 +145,18 @@ test "token-2022 mint/approve/burn byte layout and account metas" {
     defer allocator.free(mint_ix.data);
     defer allocator.free(mint_ix.accounts);
     try std.testing.expectEqual(@as(u8, @intFromEnum(Discriminant.mint_to)), mint_ix.data[0]);
+    try std.testing.expectEqual(@as(u64, 1_000), std.mem.readInt(u64, mint_ix.data[1..9], .little));
     try std.testing.expect(mint_ix.program_id.eql(programId()));
     try std.testing.expectEqual(@as(usize, 3), mint_ix.accounts.len);
+    try std.testing.expect(mint_ix.accounts[0].pubkey.eql(mint));
+    try std.testing.expect(!mint_ix.accounts[0].is_signer);
+    try std.testing.expect(mint_ix.accounts[0].is_writable);
+    try std.testing.expect(mint_ix.accounts[1].pubkey.eql(destination));
+    try std.testing.expect(!mint_ix.accounts[1].is_signer);
+    try std.testing.expect(mint_ix.accounts[1].is_writable);
+    try std.testing.expect(mint_ix.accounts[2].pubkey.eql(authority));
+    try std.testing.expect(mint_ix.accounts[2].is_signer);
+    try std.testing.expect(!mint_ix.accounts[2].is_writable);
 
     const approve_ix = try buildApproveInstruction(allocator, .{
         .source = source,
@@ -157,8 +167,18 @@ test "token-2022 mint/approve/burn byte layout and account metas" {
     defer allocator.free(approve_ix.data);
     defer allocator.free(approve_ix.accounts);
     try std.testing.expectEqual(@as(u8, @intFromEnum(Discriminant.approve)), approve_ix.data[0]);
+    try std.testing.expectEqual(@as(u64, 2_000), std.mem.readInt(u64, approve_ix.data[1..9], .little));
     try std.testing.expect(approve_ix.program_id.eql(programId()));
     try std.testing.expectEqual(@as(usize, 3), approve_ix.accounts.len);
+    try std.testing.expect(approve_ix.accounts[0].pubkey.eql(source));
+    try std.testing.expect(!approve_ix.accounts[0].is_signer);
+    try std.testing.expect(approve_ix.accounts[0].is_writable);
+    try std.testing.expect(approve_ix.accounts[1].pubkey.eql(delegate));
+    try std.testing.expect(!approve_ix.accounts[1].is_signer);
+    try std.testing.expect(!approve_ix.accounts[1].is_writable);
+    try std.testing.expect(approve_ix.accounts[2].pubkey.eql(owner));
+    try std.testing.expect(approve_ix.accounts[2].is_signer);
+    try std.testing.expect(!approve_ix.accounts[2].is_writable);
 
     const burn_ix = try buildBurnInstruction(allocator, .{
         .source = source,
@@ -169,8 +189,18 @@ test "token-2022 mint/approve/burn byte layout and account metas" {
     defer allocator.free(burn_ix.data);
     defer allocator.free(burn_ix.accounts);
     try std.testing.expectEqual(@as(u8, @intFromEnum(Discriminant.burn)), burn_ix.data[0]);
+    try std.testing.expectEqual(@as(u64, 3_000), std.mem.readInt(u64, burn_ix.data[1..9], .little));
     try std.testing.expect(burn_ix.program_id.eql(programId()));
     try std.testing.expectEqual(@as(usize, 3), burn_ix.accounts.len);
+    try std.testing.expect(burn_ix.accounts[0].pubkey.eql(source));
+    try std.testing.expect(!burn_ix.accounts[0].is_signer);
+    try std.testing.expect(burn_ix.accounts[0].is_writable);
+    try std.testing.expect(burn_ix.accounts[1].pubkey.eql(mint));
+    try std.testing.expect(!burn_ix.accounts[1].is_signer);
+    try std.testing.expect(burn_ix.accounts[1].is_writable);
+    try std.testing.expect(burn_ix.accounts[2].pubkey.eql(owner));
+    try std.testing.expect(burn_ix.accounts[2].is_signer);
+    try std.testing.expect(!burn_ix.accounts[2].is_writable);
 }
 
 test "token-2022 program id is mechanically distinct from legacy token id" {
