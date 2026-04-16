@@ -601,3 +601,53 @@
   - 参数边界校验完成
   - Rust 参考字节对照已留档
 - `G-P2B-05` 本轮通过：`docs/06` / `docs/10` / `docs/15` 已同步从 checkpoint 骨架转为正式状态
+
+## 2026-04-16 第二十四次增量记录（#28 P2-8: Durable Nonce workflow 收口）
+
+### 输入
+- `#26` 已冻结通过，`#28` 按 `docs/20` §2.2 与 `docs/03a` §5.1 进入正式实现。
+- `#28` checkpoint 已提交，范围固定为：
+  - `parseNonceAccountData`
+  - `NonceState` typed parse
+  - `buildAdvanceNonceAccountInstruction`
+  - `query nonce -> build advance ix -> compile/sign` 最小流程测试
+
+### 输出
+- 新建 `src/solana/interfaces/system.zig`，已落地：
+  - `programId()`
+  - `buildAdvanceNonceAccountInstruction`
+- `src/solana/mod.zig` / `src/root.zig` 已接通 `interfaces.system` 导出。
+- `parseNonceAccountData` 已支持两种输入模式：
+  - 直接 `State`（68 bytes）
+  - `Versions` 包装（72 bytes）
+- `NonceState` typed parse 已支持：
+  - `uninitialized`
+  - `initialized`（authority + blockhash）
+- `AdvanceNonceAccount` builder 已验证：
+  - discriminant `0x04`（u32 little-endian）
+  - 账户顺序固定为 `nonce writable` / `recent_blockhashes sysvar readonly` / `authority signer`
+- 最小流程测试已形成：
+  - `query nonce account -> build advance ix -> compile/sign`
+  - 包含 tx sign + serialize roundtrip
+
+### 风险
+- 当前 nonce 流程测试以 mock 账户路径完成端到端 `compile/sign` 验证，尚未要求 live nonce account。
+- `recent_blockhashes sysvar` 目前仍按 Rust 4.0.1 参考实现保留为必需只读账户；若后续链语义变化，需要在下一阶段同步调整 builder 与文档依据。
+- 目前未触发 Batch 2 exception：`#28` 已满足本批最小流程 gate，不需要额外例外登记。
+
+### 验证
+- canonical 三件套：
+  - commit `5eca510`
+  - `git status --short` 为空（commit 时刻 clean）
+  - `zig build test` ✅
+- 关键测试证据：
+  - `parseNonceAccountData direct state initialized` — PASS
+  - `parseNonceAccountData with Versions wrapper` — PASS
+  - `parseNonceAccountData uninitialized` — PASS
+  - `parseNonceAccountData rejects truncated` — PASS
+  - `buildAdvanceNonceAccountInstruction byte layout and accounts` — PASS
+  - `nonce workflow minimal compileLegacy` — PASS
+  - `nonce workflow: query -> build advance ix -> compile and sign` — PASS
+- gate 结论：
+  - `G-P2B-03` ✅
+  - `G-P2B-05` ✅（`docs/06` / `docs/10` / `docs/15` 已同步回写）
