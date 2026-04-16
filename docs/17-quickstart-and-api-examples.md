@@ -18,14 +18,17 @@ It does **not** claim Phase 2/3 capabilities (websocket/signers/C ABI/interfaces
 zig build test
 ```
 
-### 1.2 Optional Devnet acceptance wrapper
+### 1.2 Optional Devnet acceptance paths
 
 ```bash
+SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e
 SOLANA_RPC_URL=https://api.devnet.solana.com scripts/devnet/phase1_acceptance.sh
 ```
 
-Note: this wrapper currently records environment metadata and runs `zig build test`.  
-True in-tree full Devnet E2E harness is tracked in closeout items.
+Notes:
+- `zig build devnet-e2e` 是当前真实 in-tree live harness，覆盖 `construct -> sign -> simulate`。
+- `scripts/devnet/phase1_acceptance.sh` 仍是包装式留档路径，只记录环境元数据并运行离线门禁。
+- 完整 `construct -> sign -> simulate -> send` 仍未由当前 harness 全部覆盖，`sendTransaction` live 证据继续在 closeout 项中跟踪。
 
 ---
 

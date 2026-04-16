@@ -64,3 +64,25 @@
 - M3 完成后进行一次“Phase 1 Closeout Review”，确认是否可以结束 Product Phase 1。
 - 进入 Product Phase 2 前进行一次“扩展 RPC / Websocket 设计审查”。
 - 进入 Product Phase 3 前进行一次“interfaces / signers / C ABI 设计审查”。
+
+## 7. Closeout Checkpoint (2026-04-16)
+
+本节用于对齐 `#7/#8/#9/#10` 收口结果，并作为 `docs/11` gate review 的输入摘要。
+
+### 7.1 Gate 快照
+
+| Gate | 状态 | 证据 |
+|---|---|---|
+| G-CLOSE-01 Test Gate | pass | `zig build test` 全量通过（含 `#7/#8/#9`） |
+| G-CLOSE-02 Oracle Gate | pass | `#9` (`6fa3029`): `core + keypair + message + transaction` 向量 + Zig 消费断言 |
+| G-CLOSE-03 RPC Gate | pass | `#7` (`892cfd8`): `getAccountInfo`/`simulateTransaction` typed 收敛 + happy/rpc_error/malformed 覆盖 |
+| G-CLOSE-04 v0/Tx Gate | pass | `#8` (`d905ca2` + `f546b03`): v0/ALT 与 versioned tx 失败路径补齐，泄漏修复 |
+| G-CLOSE-05 Devnet Gate | in-progress | `#10` (`609f173`): 已有 `construct -> sign -> simulate` 的 devnet/surfnet live 证据；`sendTransaction` live 发送证据仍缺 |
+| G-CLOSE-06 Documentation Gate | in-progress | 主文档已同步到当前 harness / typed RPC 语义，但 `docs/15` 仍有 `open / in-progress / closeable` 条目未完成最终 closeout 处置 |
+
+### 7.2 当前结论
+
+- Product Phase 1 的关键实现证据已明显收敛，但 Devnet send 路径与若干 execution-matrix 条目仍未完成最终处置。
+- 结论：**当前不应宣称 Product Phase 1 已完成 closeout**；可以宣称的是：
+  - in-tree live harness 已存在并已留下 `construct -> sign -> simulate` 证据
+  - typed RPC public API 已进入 Phase 1 最小收敛状态

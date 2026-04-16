@@ -24,7 +24,7 @@
 
 - 默认：`zig build test`
 - Devnet 验收路径启用：`SOLANA_RPC_URL` 存在
-- 当前 L4 通过外部 acceptance wrapper / harness 执行，不等同于 `zig build test` 内建测试层
+- 当前 L4 通过仓库内 `zig build devnet-e2e` live harness + acceptance wrapper 执行，不等同于 `zig build test` 主离线门禁层
 - 无 `SOLANA_RPC_URL`：L4 不执行，不影响离线门禁
 - 所有涉及动态分配的测试必须使用 `std.testing.allocator` 并通过泄漏检测
 

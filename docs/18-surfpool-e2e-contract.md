@@ -2,6 +2,8 @@
 
 > `#4 K3` 交付产物：surfpool（本地 RPC / test-validator）E2E 可执行契约模板。  
 > 目标：为 `#3 K2`（`@zignocchio/client`）提供行为基线，并为 `#10 C4`（Devnet E2E）提供同构复用模板。
+>
+> 注：当前 Zig 主库的 RPC public API 已前进到 typed `AccountInfo` / `SimulateTransactionResult`。本文对 wrapper 的要求也以“保留 typed 语义 + 原始 JSON 旁路”为准，不再把 `simulateTransaction` 视为纯 `OwnedJson` 黑盒。
 
 ---
 
@@ -58,7 +60,7 @@
 | S5 | 验签通过 | `A-H3b: try tx.verifySignatures();`（已在步骤中执行，断言为不抛错） |
 | S2 | blockhash 非空（可 base58 编码） | `A-H3c: blockhash.toBase58Alloc 成功且结果长度 > 0` |
 | S6 | `.ok` variant | `A-H4: try std.testing.expect(sim == .ok);` |
-| S6 | simulation 结果可解析并保留 `value.err` 语义 | `A-H5: 解析 sim.ok.value；若 `value.err` 存在，可为 `null` 或非空错误对象，但不得因 JSON 结构不稳而无法检查` |
+| S6 | simulation 结果保留 typed + raw 语义 | `A-H5: 可检查 sim.ok.logs / sim.ok.units_consumed，并通过 sim.ok.err_json / sim.ok.raw_json 保留错误与原始响应语义` |
 
 ---
 
@@ -90,7 +92,7 @@
 | 步骤 | 预期返回 | 断言 |
 |---|---|---|
 | S6 | **首选**：`.rpc_error` variant | `A-F1: try std.testing.expect(sim == .rpc_error);` |
-| S6 | **兜底**：若返回 `.ok`，则 `value.err != null` | `A-F1-fallback: switch (sim) { .ok => |v| { /* 解析 v.value 确认 err != null */ }, .rpc_error => {} }` |
+| S6 | **兜底**：若返回 `.ok`，则 `err_json != null` | `A-F1-fallback: switch (sim) { .ok => |v| { /* 断言 v.err_json != null */ }, .rpc_error => {} }` |
 | S6 | `.rpc_error` 时 `code < 0` | `A-F2: try std.testing.expect(sim.rpc_error.code < 0);` |
 | S6 | `.rpc_error` 时 `message` 非空 | `A-F3: try std.testing.expect(sim.rpc_error.message.len > 0);` |
 | 全局 | 零泄漏 | `A-F4: std.testing.allocator 自动检测` |
@@ -117,7 +119,7 @@
 |---|---|---|---|
 | **C-01** | `RpcClient` 必须保留 `initWithTransport(allocator, endpoint, transport)`，支持 transport 注入。 | `client.zig` | mock / E2E /
 | **C-02** | `getLatestBlockhash()` 返回 `RpcResult(LatestBlockhash)`，结构体字段名为 `blockhash` + `last_valid_block_height`。 | `rpc/types.zig` | wrapper 类型映射 |
-| **C-03** | `simulateTransaction(tx)` 返回 `RpcResult(OwnedJson)`；wrapper 不能提前把 JSON 丢弃或强制收敛为不完整类型。 | `client.zig` | error / result 包装 |
+| **C-03** | 高频 typed RPC 结果必须跟随当前 Zig public API：`getAccountInfo -> RpcResult(AccountInfo)`、`simulateTransaction -> RpcResult(SimulateTransactionResult)`；wrapper 至少保留关键 typed 字段与 `raw_json/err_json` 旁路，不能退化为丢语义的黑盒 JSON。 | `client.zig` / `rpc/types.zig` | error / result 包装 |
 | **C-04** | `VersionedTransaction.sign(&[_]Keypair{...})` 接收 signer 切片；签名后 `verifySignatures()` 独立可用。 | `tx/transaction.zig` | TS API 签名 |
 | **C-05** | `Message.compileLegacy(allocator, payer, instructions, recent_blockhash)` 参数顺序与类型固定。 | `tx/message.zig` | TS helper 映射 |
 | **C-06** | `simulateTransaction` 发出的 RPC payload 必须固定携带 `"sigVerify": true`；否则 K3-F1 失效。 | `client.zig` | RPC 请求构造 |
@@ -158,7 +160,7 @@
 |---|---|---|
 | **AC-01** | client 支持 transport 注入 | 提供 `initWithTransport` 等价方法；mock transport 单测通过 |
 | **AC-02** | `getLatestBlockhash` 返回结构不变 | 调用后读取 `.ok.blockhash` 与 `.ok.last_valid_block_height` 成功 |
-| **AC-03** | `simulateTransaction` 保留原始 JSON | 返回对象可直接访问底层 error/value 字段，不丢失信息 |
+| **AC-03** | 高频 typed RPC 结果不丢语义 | `simulateTransaction` 至少暴露等价的 `err/logs/units_consumed/raw_json` 语义；若提供 `getAccountInfo`，至少暴露 `lamports/owner/executable/rent_epoch` + 原始旁路 |
 | **AC-04** | `sign` + `verifySignatures` 独立可用 | 签名切片输入 + 签名后 `verifySignatures()` 不抛错 |
 | **AC-05** | `compileLegacy` 参数顺序不变 | 传入 `(allocator, payer, instructions, recent_blockhash)` 成功 |
 | **AC-06** | simulate payload 带 `sigVerify: true` | mock transport 捕获请求体，正则/assert 包含 `"sigVerify":true` |

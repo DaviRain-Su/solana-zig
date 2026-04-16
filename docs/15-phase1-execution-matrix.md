@@ -26,26 +26,26 @@
 | `tx.Message (v0)` | in-progress | `T4-06`, `T4-07` | 已补反序列化失败路径与 Rust oracle 对照；剩余 blocker 是 ALT 权限正确性与更系统的 closeout 留档 | ALT 正向/重复/冲突/过量账户测试 + writable/readonly 权限错配断言 | `src/solana/tx/message.zig` tests + `testdata/oracle_vectors.json` + `docs/06/07` | v0 关键语义闭环 |
 | `tx.AddressLookupTable` | open | `T4-06`, `T4-07` | 目前主要停留在 compile 语义，lookup 权限正确性尚未形成完整 closeout 证据 | lookup 注入、冲突语义与 writable-vs-readonly 正确性用例 | `src/solana/tx/message.zig` tests + `docs/06/07` | lookup 行为有证据固定 |
 | `tx.VersionedTransaction` | closeable | `T4-08`, `T4-09` | 失败路径与 legacy/v0 oracle 对照已补齐，待 closeout review 固化 | sign/verify/serialize/deserialize 正反测试 | `src/solana/tx/transaction.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | tx 边界场景到位 |
-| `rpc.RpcClient` 基础解析 | in-progress | `T4-11`, `T4-12`, `T4-13` | 动态 JSON 解析仍偏多，typed parse 收敛不足 | malformed/rpc_error/number_string/生命周期测试 | `src/solana/rpc/client.zig` tests + `docs/06/07` | 关键方法解析稳定 |
+| `rpc.RpcClient` 基础解析 | in-progress | `T4-11`, `T4-12`, `T4-13` | typed parse 虽已明显收敛，但其余 malformed / 生命周期 / closeout 留档仍需继续固化 | malformed/rpc_error/number_string/生命周期测试 | `src/solana/rpc/client.zig` tests + `docs/06/07` | 关键方法解析稳定 |
 | `getLatestBlockhash` | closeable | `T4-11` | typed schema 还可收紧 | happy + malformed + rpc_error | `src/solana/rpc/client.zig` tests + `docs/06` | LatestBlockhash 结构稳定 |
-| `getAccountInfo` | open | `T4-11`, `T4-12` | 当前仍以 `OwnedJson` 为主 | typed 子字段或明确边界说明 | `src/solana/rpc/client.zig` tests + `docs/03/06/07` | 至少达到 PRD 认可的 typed 收敛水平 |
+| `getAccountInfo` | closeable | `T4-11`, `T4-12` | 已完成 typed 子集收敛（`AccountInfo`）并保留 `raw_json` 旁路，待 gate 固化 | happy/rpc_error/malformed 三类覆盖 + typed 字段断言 | `src/solana/rpc/client.zig` tests + `docs/03/06/07` | typed 子集进入 gate 固化即可 |
 | `getBalance` | closeable | `T4-11` | 主要剩回归与留档 | happy + error + number_string | `src/solana/rpc/client.zig` tests + `docs/06` | 测试与文档映射闭环 |
-| `simulateTransaction` | in-progress | `T4-12`, `T4-14` | ~~仍以 `OwnedJson` 输出~~ → #7 已完成 typed parse（`892cfd8`）；Devnet live 证据已补齐（`docs/14a` Run 2） | base64 输入 + 模拟 happy/error + Devnet 证据 | `src/solana/rpc/client.zig` tests + `artifacts/devnet/*` + `docs/06/14` | 能支撑最小 E2E 闭环 |
-| `sendTransaction` | open | `T4-12`, `T4-14`, `T4-15` | 发送路径缺少真实 Devnet harness 验证 | base64 happy/error + Devnet 发送证据 | `src/solana/rpc/client.zig` tests + `artifacts/devnet/*` + `docs/06/14` | 发送链路可复现 |
+| `simulateTransaction` | closeable | `T4-12`, `T4-14` | 已完成 `SimulateTransactionResult` typed parse；剩余工作主要是 closeout 留档与 send 路径解耦表述 | base64 输入 + 模拟 happy/error + live harness 证据 | `src/solana/rpc/client.zig` tests + `docs/06/14` | `simulate` 路径可独立稳定支撑 live harness |
+| `sendTransaction` | open | `T4-12`, `T4-14`, `T4-15` | 发送路径缺少 mock/real Devnet 的完整收口证据，尤其是 live harness 发送留档 | base64 happy/error + Devnet 发送证据 | `src/solana/rpc/client.zig` tests + `artifacts/devnet/*` + `docs/06/14` | 发送链路可复现 |
 | `compat.oracle_vector` | closed | `T4-01` + `T4-02~T4-09` | 已扩到 `docs/12` 最低集合；Zig 消费断言覆盖 core/keypair/message/transaction | 扩充后的 JSON + Zig 消费测试 | `testdata/oracle_vectors.json` + `scripts/oracle/*` + `src/solana/compat/oracle_vector.zig` tests + `docs/12` | 满足 `docs/12` 最低集合 |
 | benchmark baseline | closeable | `T4-16` | 首版基线已记录（`docs/13a` Run 1），待 closeout review 确认 | 至少一版基线记录 | `docs/13` + `docs/13a-benchmark-baseline-results.md` + `src/benchmark.zig` + `docs/06` | 满足 `docs/13` 要求 |
-| Devnet E2E evidence | closeable | `T4-14`, `T4-15`, `T4-16` | ~~mock harness 已落地~~ → **已完成**：mock + devnet live 均已通过（`docs/14a` Run 2, endpoint `api.devnet.solana.com`, exit 0） | 验收日志 + 提交哈希 + 结果摘要 + 真实 E2E 证据 | `src/e2e/devnet_e2e.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` | mock done + devnet live done → 满足 `docs/14` |
+| Devnet E2E evidence | in-progress | `T4-14`, `T4-15`, `T4-16` | 真实 in-tree live harness 已落地并已留 `construct -> sign -> simulate` 证据，但 `sendTransaction` live 发送仍缺，尚不能写成完整闭环已完成 | 验收日志 + 提交哈希 + live harness 输出 + 发送证据/例外项决议 | `src/e2e/devnet_e2e.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06/07` | 至少补齐 `send` live 证据，或在 gate review 中正式记录为 Phase 1 例外项 |
 
 ## 3. Blocker Summary
 
 ### High-priority blockers
 - v0 / ALT 语义的正反路径仍未完全收口
 - ALT 权限正确性（writable 账户不能被 readonly lookup 错配）仍需作为独立收口信号固定
-- ~~Devnet E2E 真实实跑证据仍缺~~ → **已解决**：mock + devnet live 均已通过（`docs/14a` Run 2）
+- Devnet live harness 虽已落地，但当前只覆盖到 `simulate`；`sendTransaction` live 证据仍缺
 
 ### Medium-priority blockers
-- `getAccountInfo` / `simulateTransaction` / `sendTransaction` 的 typed parse 或边界说明仍不够收敛
-- ~~benchmark baseline 尚未建立第一版真实记录~~ → **已解决**：首版基线已记录于 `docs/13a`
+- `sendTransaction` 的真实发送链路证据仍待补齐（当前 live 证据聚焦到 simulate 路径）
+- benchmark baseline 已建立第一版记录，但仍待 closeout review 固化
 
 ## 4. Phase 1 Closeout Rule
 

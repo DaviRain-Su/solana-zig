@@ -54,13 +54,16 @@ exe.root_module.addImport("solana_zig", solana_dep.module("solana_zig"));
 zig build test
 ```
 
-### 3) Optional Devnet acceptance wrapper
+### 3) Optional Devnet acceptance paths
 
 ```bash
+SOLANA_RPC_URL=<your-devnet-endpoint> zig build devnet-e2e
 SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
 ```
 
-For now this wrapper records env metadata and runs `zig build test`; it is not yet an in-tree full Devnet harness.
+- `zig build devnet-e2e` 是当前仓库内的 live harness：在设置 `SOLANA_RPC_URL` 时执行 `construct -> sign -> simulate`。
+- `scripts/devnet/phase1_acceptance.sh` 仍是包装脚本：记录环境元数据并运行离线门禁，本身不等同于真实 harness。
+- `sendTransaction` 的 live 发送证据仍单独跟踪，尚未纳入当前 in-tree harness。
 
 ## API Usage Examples
 
@@ -103,7 +106,7 @@ For hackathon/demo adoption, this repo now includes a minimal TypeScript helper 
 
 - Path: `packages/client`
 - Scope: mirrors `docs/18` AC-01~AC-07 only
-- Status: `v0.1.0` first delivery (minimal helper/shim, not a standalone full SDK)
+- Status: `v0.1.0` first delivery (minimal helper/shim, not a standalone full SDK；与当前 Zig typed RPC API 仍非完全 parity)
 
 Quick checks:
 
@@ -118,13 +121,17 @@ Contract mapping:
 - `docs/18-surfpool-e2e-contract.md`
 
 ## Optional Devnet Usage
-Set `SOLANA_RPC_URL` and call the RPC client from your own integration harness.
-
-For the current Phase 1 acceptance wrapper (it only records env metadata and runs `zig build test`; it is not yet a true in-tree Devnet E2E harness), run:
+Set `SOLANA_RPC_URL` and choose one of the two paths below:
 
 ```bash
+SOLANA_RPC_URL=<your-devnet-endpoint> zig build devnet-e2e
 SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
 ```
+
+说明：
+- `zig build devnet-e2e` 是当前真实 in-tree harness，覆盖 `getLatestBlockhash -> compileLegacy -> sign -> verify -> simulate`。
+- `scripts/devnet/phase1_acceptance.sh` 只是包装式验收路径，用于留档环境与离线门禁。
+- 若要宣称完整 `construct -> sign -> simulate -> send` 已完成，仍需额外的 `sendTransaction` live 证据。
 
 ## Scope Strategy: Product Roadmap Phases
 Yes, target is to cover both off-chain and, eventually, on-chain capabilities, but under one unified product roadmap:

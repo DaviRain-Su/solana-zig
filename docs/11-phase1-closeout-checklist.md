@@ -12,7 +12,7 @@
 
 1. **兼容性**：核心离线能力与锁定 Rust 基线的字节/行为兼容证据完整
 2. **测试性**：离线门禁稳定，全量关键 public API 有 Happy + Error 覆盖
-3. **可展示性**：Devnet acceptance path 可复现，且流程证据可留档；若尚未提供真正的 E2E harness，必须明确标注当前仅为包装脚本/外部 harness
+3. **可展示性**：Devnet acceptance path 可复现，且流程证据可留档；当前仓库已提供 in-tree live harness（`zig build devnet-e2e`）用于 `construct -> sign -> simulate`，若要宣称完整闭环，则仍需额外说明 `sendTransaction` 是否已被 live 证据覆盖
 4. **可追踪性**：coverage / execution / implementation log / review 文档已同步收口
 
 ## 2. Required Evidence Packs
@@ -32,11 +32,13 @@
 
 ### 2.3 Devnet E2E Evidence
 - 见：`docs/14-devnet-e2e-acceptance.md`
-- 必须证明最小闭环可复现：
+- 当前至少必须证明 in-tree live harness 可复现：
   - 构造
   - 签名
   - 模拟
+- 若要把 G-CLOSE-05 直接判为完全收口，还需额外补齐：
   - 发送
+- 若 `sendTransaction` 仍未被 live 证据覆盖，则必须在 `docs/07` / `docs/08` / `docs/15` 作为明确例外项处理，不能写成“完整闭环已完成”
 
 ### 2.4 Execution Evidence
 - 见：`docs/15-phase1-execution-matrix.md`
@@ -68,7 +70,11 @@
 - versioned transaction 的签名、验签、序列化、反序列化闭环稳定
 
 ### G-CLOSE-05: Devnet Gate
-- 在配置 `SOLANA_RPC_URL` 时，当前 Devnet 验收路径可执行，且文档需明确其是否已达到真正的“构造->签名->模拟->发送”E2E 闭环
+- 在配置 `SOLANA_RPC_URL` 时，当前 in-tree live harness（`zig build devnet-e2e`）可执行，并留下 `construct -> sign -> simulate` 的真实留档
+- 文档必须明确区分：
+  - 当前 live harness 已覆盖到哪里
+  - `sendTransaction` 是否已有 live 证据
+- 若缺 `sendTransaction` live 证据，不得把结果写成完整“构造->签名->模拟->发送”已收口
 - 产出留档日志、提交哈希、执行时间和结果摘要
 
 ### G-CLOSE-06: Documentation Gate
@@ -78,8 +84,8 @@
 ## 4. Current Closeout Blockers (as of 2026-04-16)
 
 - oracle 向量规模不足
-- benchmark baseline 尚未形成第一版真实记录
-- 真正的 Devnet E2E harness 仍未落地；当前仅有包装脚本与说明文档
+- benchmark baseline 首版记录已建立，但 closeout review 尚未最终固化
+- 真实 in-tree Devnet harness 已落地，但当前 live 证据只覆盖到 `simulateTransaction`；`sendTransaction` 仍缺真实发送留档
 - execution matrix 中多个 `open / in-progress` 项仍未推进到 `closeable / closed`
 
 ## 5. Recommended Closeout Order

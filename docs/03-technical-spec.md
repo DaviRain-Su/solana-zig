@@ -131,9 +131,9 @@ pub fn VersionedTransaction.deserialize(allocator: std.mem.Allocator, bytes: []c
 
 ```zig
 pub fn RpcClient.getLatestBlockhash(self: *RpcClient) !RpcResult(LatestBlockhash)
-pub fn RpcClient.getAccountInfo(self: *RpcClient, pubkey: Pubkey) !RpcResult(OwnedJson)
+pub fn RpcClient.getAccountInfo(self: *RpcClient, pubkey: Pubkey) !RpcResult(AccountInfo)
 pub fn RpcClient.getBalance(self: *RpcClient, pubkey: Pubkey) !RpcResult(u64)
-pub fn RpcClient.simulateTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(OwnedJson)
+pub fn RpcClient.simulateTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(SimulateTransactionResult)
 pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(SendTransactionResult)
 ```
 
@@ -145,22 +145,36 @@ pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !Rp
 - 若响应含 `error` 字段，返回 `RpcResult.rpc_error`
 - 非 200 HTTP 状态码映射为 `error.RpcTransport`
 - JSON 结构不符合预期映射为 `error.InvalidRpcResponse`
+- typed RPC 结果在保留关键字段结构化输出的同时，可通过 `raw_json` / `err_json` 保留原始语义旁路
 
 ### 3.3.1 Phase 1 `getAccountInfo` 最小 typed 子集
 
-当前公开 API 仍允许 `getAccountInfo(...) !RpcResult(OwnedJson)`，以保留兼容与渐进收敛空间。
-但在 Product Phase 1 closeout 时，`AccountInfo` 至少应能稳定抽取并校验以下最小 typed 子集：
+当前公开 API 已前进为 `getAccountInfo(...) !RpcResult(AccountInfo)`。
+Product Phase 1 closeout 约束的最小 typed 子集为：
 - `lamports: u64`
 - `owner: Pubkey`
 - `executable: bool`
-- `rentEpoch: u64`
+- `rent_epoch: u64`
 
-当前阶段可继续保留为未完全 typed / 原样承载的内容：
-- `data`
-- 更复杂 encoding 变体
-- 暂未稳定建模的扩展字段
+当前实现同时保留：
+- `data: []u8`（从 RPC `data` 字段解码出的字节）
+- `raw_json: ?[]const u8`（用于保真与排障）
 
-这意味着：Phase 1 关注的是“高价值基础字段”的最小收敛，而不是把完整 `AccountInfo` 一次性 fully typed 化。
+这意味着：Phase 1 关注的是“高价值基础字段”的最小收敛，并允许通过 `raw_json` 保留暂未稳定建模的扩展语义。
+
+### 3.3.2 Phase 1 `simulateTransaction` typed 结果
+
+当前公开 API 已前进为 `simulateTransaction(...) !RpcResult(SimulateTransactionResult)`。
+Product Phase 1 最小可检查语义包括：
+- `err_json: ?[]const u8`
+- `logs: [][]const u8`
+- `units_consumed: ?u64`
+- `raw_json: ?[]const u8`
+
+其中：
+- `err_json` 用于保留模拟失败/非空错误对象的原始 JSON 语义
+- `logs` / `units_consumed` 提供最小 typed 检查面
+- `raw_json` 保留完整响应旁路，避免文档或 wrapper 提前丢失信息
 
 ---
 
@@ -358,7 +372,7 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 后续必须补齐（下一阶段 04/05 执行）：
 - 更完整的 v0 / ALT oracle 与失败路径覆盖（尤其是多 lookup / versioned tx 场景）
 - RPC 其余高频方法的 malformed/typed parse 收口与更系统的错误路径覆盖
-- 真正的 Devnet acceptance harness / E2E 证据链（当前仍只有 wrapper / 外部 harness 路径）
+- `sendTransaction` 的 mock/live 证据与完整 Devnet closeout 留档（当前 in-tree harness 已覆盖到 `simulate`，但 `send` 仍待补齐）
 
 ---
 

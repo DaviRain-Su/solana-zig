@@ -85,3 +85,21 @@
 - 定期执行 Devnet / Websocket 回归。
 - 对齐官方文档新增 crate/接口条目。
 - 定期复核 backlog 与 roadmap 的 phase 映射是否仍一致。
+
+## 9. Phase 1 Potential Exception Register（2026-04-16）
+
+> 依据 `docs/11-phase1-closeout-checklist.md` 与 `docs/15-phase1-execution-matrix.md`，以下条目目前作为 **候选例外项** 跟踪。
+> 在最终 closeout review 正式批准前，这些条目仍不能被视为“已完成例外化处理”，也不能单独支撑 Phase 1 closeout 声明。
+
+| 条目 | 候选类型 | 当前边界 | 后续阶段 |
+|---|---|---|---|
+| `sendTransaction` live send/confirm 证据 | scope-candidate | 当前 live harness 只覆盖到 `construct -> sign -> simulate`，未纳入 send/confirm | 待 closeout review 决定 |
+| `rpc.RpcClient` 更广泛 typed parse 扩展 | scope-candidate | 高频路径已收敛（`#7`），扩展 typed parse 是否下沉到 Phase 2 待最终确认 | 待 closeout review 决定 |
+| `tx.AddressLookupTable` 更细粒度权限语义 | quality-candidate | 关键失败路径已补齐（`#8`），高复杂度语义场景继续加固 | 待 closeout review 决定 |
+| `core.base58` / `core.shortvec` / `core.Hash` 样本扩展 | quality-candidate | 已满足最低集合，边界样本仍可继续扩充 | 待 closeout review 决定 |
+
+### 9.1 治理约束
+
+- 候选例外项只有在 closeout review 中被正式批准后，才可转为真正的 Phase 1 exception。
+- 在批准前，相关条目仍需继续在 `docs/15` 中按实际状态跟踪，不得提前写成“已不阻塞 closeout”。
+- 若任一候选例外项边界发生变化，必须同步回写 `docs/04`、`docs/07`、`docs/10`、`docs/15` 与本文件。

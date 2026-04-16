@@ -1,11 +1,13 @@
 # Devnet E2E Run Log
 
 **Template Date**: 2026-04-16
-**Purpose**: 记录 Product Phase 1 的 Devnet 验收实际执行结果，区分"包装式验收"与"真实 E2E harness"。
+**Purpose**: 记录 Product Phase 1 的 Devnet 验收实际执行结果，区分"包装式验收"、当前真实 in-tree harness，以及尚未补齐的 `sendTransaction` live 路径。
 
 > 本文是 `docs/14-devnet-e2e-acceptance.md` 的结果模板。
 >
-> 重要：只有 `Run Type = real-harness` 且留下 `construct -> sign -> simulate -> send` 证据时，才可用作"真实 Devnet E2E 已完成"的依据。
+> 重要：
+> - `Run Type = real-harness` 且覆盖 `construct -> sign -> simulate`，可作为“当前 in-tree live harness 已存在”的依据。
+> - 只有额外留下 `sendTransaction` 的 live 证据时，才可作为“完整 `construct -> sign -> simulate -> send` 已完成”的依据。
 
 ---
 
@@ -33,11 +35,11 @@
 #### 3.1 Wrapper Run
 N/A (this is a mock harness run, not the wrapper script)
 
-#### 3.2 Mock Harness Run (aligned with docs/18 contract)
+#### 3.2 Mock Harness Run
 - [x] transaction constructed (K3-H1 S3: `Message.compileLegacy`)
 - [x] transaction signed (K3-H1 S5: `tx.sign + verifySignatures`)
-- [x] simulation executed — happy (K3-H1 S6: mock returns `.ok` with `err: null`)
-- [x] simulation executed — failure (K3-F1 S6: mock returns `.rpc_error` with `code < 0`)
+- [x] simulation executed — happy (K3-H1 S6: mock returns `.ok`)
+- [x] simulation executed — failure (K3-F1 S6: mock returns `.rpc_error`)
 - [x] `std.testing.allocator` zero-leak (K3-H1 + K3-F1)
 
 #### 3.3 Real Harness Run (Devnet)
@@ -45,7 +47,7 @@ N/A (this is a mock harness run, not the wrapper script)
 - [ ] transaction constructed
 - [ ] transaction signed
 - [ ] simulation executed
-- [ ] send executed (not in current contract scope — contract stops at simulate)
+- [ ] send executed
 - [ ] result / signature / error captured
 
 ### 4. Detailed Notes
@@ -55,7 +57,7 @@ N/A (this is a mock harness run, not the wrapper script)
 - Compiled legacy message with 1 instruction, 2 accounts
 - Signed with deterministic keypair (`seed=[1]*32`)
 - Verified: signature length = 64 bytes, `verifySignatures()` passes
-- Scripted `simulateTransaction` returns `.ok` with `err: null`
+- Scripted `simulateTransaction` returns `.ok`
 - All assertions pass, zero memory leaks
 
 #### Mock K3-F1 (Failure Path)
@@ -63,12 +65,6 @@ N/A (this is a mock harness run, not the wrapper script)
 - Scripted `simulateTransaction` returns `.rpc_error` (`code=-32002, "Transaction signature verification failure"`)
 - Assertions: `code < 0`, `message.len > 0`
 - All assertions pass, zero memory leaks
-
-#### Devnet Live Path
-- Gated by `SOLANA_RPC_URL` env var
-- When not set: prints `[skip]` and returns (D-04 contract compliance)
-- When set: executes full `getLatestBlockhash → compileLegacy → sign → verify → simulate` flow
-- Devnet may reject dummy tx (acceptable — evidence is that the RPC round-trip completes)
 
 ### 5. Artifacts
 
@@ -78,18 +74,18 @@ N/A (this is a mock harness run, not the wrapper script)
 
 ### 6. Follow-up Actions
 
-- Related implementation log update: `docs/06-implementation-log.md` (pending)
+- Related implementation log update: `docs/06-implementation-log.md`
 - Related review update needed: no
 - Related execution matrix rows to update:
-  - `docs/15` "Devnet E2E evidence": `open` → `in-progress` (mock done, devnet pending)
+  - `docs/15` "Devnet E2E evidence": `open` → `in-progress` (mock done, live pending)
   - `docs/15` "benchmark baseline": `open` → `closeable` (first baseline recorded)
 
-### 7. What Remains for Full Devnet Evidence
+### 7. What Remains for Live Evidence
 
-To move "Devnet E2E evidence" from `in-progress` to `closeable`:
+To move beyond mock-only status:
 1. Set `SOLANA_RPC_URL` to a devnet endpoint
 2. Run `zig build devnet-e2e`
-3. Capture output showing `getLatestBlockhash → sign → simulate` completing
+3. Capture output showing `getLatestBlockhash -> sign -> simulate` completing
 4. Record commit, endpoint (redacted), and result in a new Run section below
 
 ---
@@ -112,7 +108,7 @@ To move "Devnet E2E evidence" from `in-progress` to `closeable`:
 
 - Overall Result: **pass**
 - Failure Stage: none
-- Notes: All 3 tests pass (2 mock + 1 devnet live). Devnet live test successfully completed the full `getLatestBlockhash → compileLegacy → sign → verify → simulate` flow against the public devnet endpoint.
+- Notes: All 3 tests pass (2 mock + 1 devnet live). Devnet live test successfully completed `getLatestBlockhash -> compileLegacy -> sign -> verify -> simulate` against the public devnet endpoint.
 
 ### 3. Evidence Checklist
 
@@ -126,8 +122,9 @@ To move "Devnet E2E evidence" from `in-progress` to `closeable`:
 - [x] `getLatestBlockhash` returned live blockhash from devnet
 - [x] transaction constructed (`Message.compileLegacy`)
 - [x] transaction signed (`tx.sign` + `verifySignatures`)
-- [x] simulation executed — `simulate returned .ok`
-- [x] zero memory leaks (gpa enforced)
+- [x] simulation executed (`simulateTransaction` returned `.ok` in this run)
+- [ ] send executed
+- [ ] send result / signature captured
 
 #### 3.3 Console Output (captured)
 ```
@@ -138,8 +135,9 @@ To move "Devnet E2E evidence" from `in-progress` to `closeable`:
 ### 4. Detailed Notes
 
 - The E2E harness required a one-line fix: `sim_json.parsed.deinit()` → `var sim = sim_val; sim.deinit(gpa)` (3 occurrences). This is because #7 (commit `892cfd8`) refactored `SimulateTransactionResult` to have a direct `deinit(allocator)` method instead of the previous `.parsed` wrapper.
-- The devnet accepted the simulate request and returned `.ok`. This is expected — the dummy transaction uses a valid signature but references accounts that won't have state on devnet, so the validator may accept simulation without error.
-- Contract compliance: the live test exercises the same S2→S3→S4→S5→S6 flow as the K3-H1 mock, but against a real RPC endpoint.
+- The devnet accepted the simulate request and returned `.ok`. This confirms the live RPC round-trip through `simulateTransaction` completed successfully.
+- Contract compliance: the live test exercises S2→S6 (`getLatestBlockhash -> compileLegacy -> sign -> verify -> simulate`) against a real RPC endpoint.
+- **Non-claim**: this run does **not** exercise `sendTransaction`, so it cannot by itself support the statement that full `construct -> sign -> simulate -> send` closeout is complete.
 
 ### 5. Artifacts
 
@@ -149,11 +147,15 @@ To move "Devnet E2E evidence" from `in-progress` to `closeable`:
 
 ### 6. Conclusion
 
-Devnet E2E evidence is now complete. Both mock and live runs pass. The `docs/15` execution matrix "Devnet E2E evidence" row can be moved from `in-progress` → `closeable`.
+Current in-tree Devnet live harness evidence is established for `construct -> sign -> simulate`.
+
+`docs/15` 中的 "Devnet E2E evidence" 应维持为 `in-progress`：
+- live harness 已有真实证据
+- 但 `sendTransaction` live 发送证据仍未纳入当前 harness / closeout pack
 
 ---
 
-## Run 3 — Local Surfnet Live (Fallback Confirmation)
+## Run 3 — Local Surfnet Live (Supplementary Confirmation)
 
 ### 1. Run Metadata
 
@@ -170,7 +172,7 @@ Devnet E2E evidence is now complete. Both mock and live runs pass. The `docs/15`
 
 - Overall Result: **pass**
 - Failure Stage: none
-- Notes: All 3 tests pass. Local surfnet live test also completed the full `getLatestBlockhash → compileLegacy → sign → verify → simulate` flow.
+- Notes: All 3 tests pass. Local surfnet live test also completed the same `getLatestBlockhash -> compileLegacy -> sign -> verify -> simulate` flow.
 
 ### 3. Console Output (captured)
 ```
@@ -180,6 +182,7 @@ Devnet E2E evidence is now complete. Both mock and live runs pass. The `docs/15`
 
 ### 4. Notes
 
-- This run confirms the E2E harness works against both public devnet and local surfnet.
-- Surfnet was started by @davirain with mainnet-beta as datasource (not devnet), but the RPC interface is identical for the methods exercised (getLatestBlockhash, simulateTransaction).
-- Run 2 (public devnet) remains the primary evidence; this run is supplementary confirmation.
+- This run confirms the current harness works against both public devnet and local surfnet-style endpoints.
+- Surfnet was started by @davirain with mainnet-beta as datasource (not devnet), but the RPC interface is identical for the methods exercised here.
+- Run 2 (public devnet) remains the primary evidence; this run is supplementary confirmation only.
+- As with Run 2, this run does **not** provide `sendTransaction` live evidence.

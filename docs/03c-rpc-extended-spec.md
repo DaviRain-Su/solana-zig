@@ -24,11 +24,16 @@
 
 ## 3. Parse Strategy
 
-当前 `RpcClient` 已可工作，但仍较多返回 `OwnedJson`。
+当前 `RpcClient` 已完成一轮 Phase 1 高频方法 typed 收敛：
+- `getLatestBlockhash` / `getBalance` 为直接 typed 返回
+- `getAccountInfo` 返回 `AccountInfo`（最小 typed 子集 + `data` + `raw_json`）
+- `simulateTransaction` 返回 `SimulateTransactionResult`（`err_json/logs/units_consumed/raw_json`）
+- `sendTransaction` 返回 `SendTransactionResult`
 
 边界约定：
-- **Phase 1 closeout** 仅要求对当前 5 个高频方法完成“最小可接受”的 typed schema 收敛（至少 `LatestBlockhash`、`AccountInfo`）。
-- 其中 `AccountInfo` 的 Phase 1 最小 typed 子集，至少包括：`lamports`、`owner`、`executable`、`rentEpoch`；`data` 与更复杂扩展字段可继续保留为 `OwnedJson` / 原始承载。
+- **Phase 1 closeout** 仅要求对当前 5 个高频方法完成“最小可接受”的 typed schema 收敛。
+- 其中 `AccountInfo` 的最小 typed 子集至少包括：`lamports`、`owner`、`executable`、`rent_epoch`；不稳定扩展仍可经 `raw_json` 保留。
+- `simulateTransaction` 的错误语义与原始响应不再以纯 `OwnedJson` 暴露，而是通过 `err_json/raw_json` 旁路保真。
 - **Phase 2** 再继续推进更广泛的 typed parse 子层与扩展 RPC 的结构化输出。
 
 Phase 2 的目标是逐步引入 typed parse 子层：
@@ -40,7 +45,7 @@ pub const ParsedTransaction = struct { ... };
 
 约束：
 - 新增 typed parse 时，不破坏现有错误保真策略
-- 无法稳定建模的字段可继续保留 `OwnedJson` 子字段
+- 无法稳定建模的字段可继续通过 `raw_json` / 局部原始字段保留
 - 先做“高价值、结构稳定”的字段 typed 化，再扩展到完整 schema
 
 ## 4. Websocket Lifecycle

@@ -323,3 +323,79 @@
 
 ### 验证
 - 文档之间的 L4 / wrapper / harness 口径已进一步对齐：`README -> docs/02 -> docs/05 -> docs/14 -> docs/15`。
+
+## 2026-04-16 第十七次增量记录（C5/C6: Closeout 文档统一与 Gate Review）
+
+### 输入
+- `#7/#8/#9/#10` 已完成，需要按 `docs/11` 执行一次 Phase 1 closeout gate review，并统一回写 `docs/06/07/10/14a/15`。
+
+### 输出
+- `docs/10-coverage-matrix.md` 已同步最新收口基线（对齐 `#7/#8/#9/#10`），修正旧的 typed/oracle/E2E 过时描述。
+- `docs/07-review-report.md` 新增 `Closeout Checkpoint (2026-04-16)`，给出 G-CLOSE-01..06 快照与证据引用。
+- `docs/14a-devnet-e2e-run-log.md` 已包含 Run 2（public devnet）与 Run 3（local surfnet）live 证据。
+- `docs/15-phase1-execution-matrix.md` 已更新 Devnet E2E 为 `closeable`，并回写 oracle 与 typed parse 的进展。
+
+### Gate Review 结论（按 `docs/11`）
+- G-CLOSE-01 Test Gate: pass
+- G-CLOSE-02 Oracle Gate: pass
+- G-CLOSE-03 RPC Gate: pass（以 `#7` typed parse 收敛与边界覆盖为准）
+- G-CLOSE-04 v0/Tx Gate: pass（以 `#8` 失败路径补齐与泄漏修复为准）
+- G-CLOSE-05 Devnet Gate: **in-progress**
+  - 已有 `construct -> sign -> simulate` 的 live 证据（devnet + surfnet）
+  - `send` 证据仍未纳入当前 harness contract
+- G-CLOSE-06 Documentation Gate: in-progress（文档已大体同步，但最终例外项归档仍需锁定）
+
+### 风险
+- 若直接宣称“Phase 1 fully closed out”，会与 `docs/11` 对 Devnet Gate 的 `construct -> sign -> simulate -> send` 要求冲突。
+- `docs/15` 仍存在 `open/in-progress/closeable` 条目，最终需在 gate review 中明确“继续收敛”或“记录为 Phase 1 例外项”。
+
+### 验证
+- `zig build test`
+- `cargo run --manifest-path scripts/oracle/Cargo.toml --release`
+- `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e`
+- `SOLANA_RPC_URL=http://127.0.0.1:8899 zig build devnet-e2e`
+
+## 2026-04-16 第十八次增量记录（文档复核吸收：E2E 口径与 typed RPC 同步）
+
+### 输入
+- 复核发现主规格与 closeout 文档未完全跟上最近这波 E2E / typed parse 演进：
+  - `docs/14/14a/15/11/README` 对 real harness / wrapper / send gap 的口径不完全一致
+  - `docs/03` / `docs/03c` / `docs/18` 仍残留 `OwnedJson` 时代的 RPC 签名描述
+
+### 输出
+- `docs/14-devnet-e2e-acceptance.md` 改为明确区分：
+  - wrapper 留档路径
+  - 当前 in-tree live harness（到 `simulate`）
+  - 尚未收口的 `sendTransaction` live 证据
+- `docs/14a-devnet-e2e-run-log.md` 回写 Run 2 / Run 3 的真实含义：可支撑 `construct -> sign -> simulate` live 证据，但**不能**单独宣称完整 `send` 闭环已完成。
+- `docs/15-phase1-execution-matrix.md` 将 `Devnet E2E evidence` 从过度乐观表述拉回 `in-progress`，与 `sendTransaction` 行状态重新对齐。
+- `docs/11-phase1-closeout-checklist.md`、`README.md`、`docs/01`、`docs/05`、`docs/17` 同步更新主叙事，避免继续把仓库状态写成“只有 wrapper、没有 real harness”。
+- `docs/03-technical-spec.md`、`docs/03c-rpc-extended-spec.md`、`docs/18-surfpool-e2e-contract.md` 回写当前 public API：
+  - `getAccountInfo -> RpcResult(AccountInfo)`
+  - `simulateTransaction -> RpcResult(SimulateTransactionResult)`
+  - 并明确 `raw_json/err_json` 作为原始语义旁路
+
+### 风险
+- 文档已改为更保守且更贴近当前实现，但这不代表 `sendTransaction` closeout blocker 已消失。
+- `packages/client` 仍是最小 shim；与当前 Zig typed RPC API 并非完全 parity，需要后续单独收敛。
+
+### 验证
+- 文档交叉核对：`README -> docs/01 -> docs/03 -> docs/11 -> docs/14 -> docs/15 -> docs/18`
+
+## 2026-04-16 第十八次增量记录（Phase 1 Closeout Declaration）
+
+### Closeout Declaration
+
+- Commit: `609f173`（Devnet live 证据） + `6fa3029`（oracle 收口） + `f546b03`（v0/tx 失败路径收口） + `892cfd8`（RPC typed parse 收口）
+- Test gate: pass
+- Oracle gate: pass
+- Benchmark baseline: recorded（`docs/13a`）
+- Devnet E2E: pass-with-exception（`construct -> sign -> simulate` 已有 devnet/surfnet live；`send/confirm` 见例外项）
+- Remaining exceptions:
+  - `sendTransaction` live send/confirm（`docs/18` scope-exception，转入 Phase 2）
+  - 扩展 typed parse / ALT 高复杂语义 / core 边界样本扩充（见 `docs/08` 与 `docs/15`）
+- Review reference: `docs/07-review-report.md`
+
+### 说明
+
+- 本次 closeout 采用 “with documented exceptions” 口径，例外项已在 `docs/08` 与 `docs/15` 固化。
