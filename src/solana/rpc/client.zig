@@ -89,7 +89,7 @@ pub const RpcClient = struct {
         return .{ .ok = lamports };
     }
 
-    pub fn getAccountInfo(self: *RpcClient, pubkey: pubkey_mod.Pubkey) !types.RpcResult(types.OwnedJson) {
+    pub fn getAccountInfo(self: *RpcClient, pubkey: pubkey_mod.Pubkey) !types.RpcResult(types.AccountInfo) {
         const address = try pubkey.toBase58Alloc(self.allocator);
         defer self.allocator.free(address);
 
@@ -110,11 +110,32 @@ pub const RpcClient = struct {
 
         const root = &response.parsed.value;
         const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        const value = getObjectField(result, "value") orelse return error.InvalidRpcResponse;
 
-        return .{ .ok = .{ .parsed = response.parsed, .value = result.* } };
+        const lamports = getU64Field(value, "lamports") orelse return error.InvalidRpcResponse;
+        const owner_str = getStringField(value, "owner") orelse return error.InvalidRpcResponse;
+        const owner = try pubkey_mod.Pubkey.fromBase58(owner_str);
+        const executable = getBoolField(value, "executable") orelse return error.InvalidRpcResponse;
+        const rent_epoch = getU64Field(value, "rentEpoch") orelse 0;
+
+        const data_decoded = try decodeAccountData(self.allocator, value);
+        errdefer self.allocator.free(data_decoded);
+
+        const raw_json = try stringifyValue(self.allocator, value.*);
+        errdefer self.allocator.free(raw_json);
+
+        response.parsed.deinit();
+        return .{ .ok = .{
+            .lamports = lamports,
+            .owner = owner,
+            .executable = executable,
+            .rent_epoch = rent_epoch,
+            .data = data_decoded,
+            .raw_json = raw_json,
+        } };
     }
 
-    pub fn simulateTransaction(self: *RpcClient, tx: transaction_mod.VersionedTransaction) !types.RpcResult(types.OwnedJson) {
+    pub fn simulateTransaction(self: *RpcClient, tx: transaction_mod.VersionedTransaction) !types.RpcResult(types.SimulateTransactionResult) {
         const tx_bytes = try tx.serialize(self.allocator);
         defer self.allocator.free(tx_bytes);
 
@@ -138,7 +159,29 @@ pub const RpcClient = struct {
 
         const root = &response.parsed.value;
         const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
-        return .{ .ok = .{ .parsed = response.parsed, .value = result.* } };
+        const value = getObjectField(result, "value") orelse return error.InvalidRpcResponse;
+
+        const err_json = try extractSimulationError(self.allocator, value);
+        errdefer if (err_json) |err| self.allocator.free(err);
+
+        const logs = try parseStringArray(self.allocator, value, "logs");
+        errdefer {
+            for (logs) |log| self.allocator.free(log);
+            self.allocator.free(logs);
+        }
+
+        const units_consumed = getU64Field(value, "unitsConsumed");
+
+        const raw_json = try stringifyValue(self.allocator, value.*);
+        errdefer self.allocator.free(raw_json);
+
+        response.parsed.deinit();
+        return .{ .ok = .{
+            .err_json = err_json,
+            .logs = logs,
+            .units_consumed = units_consumed,
+            .raw_json = raw_json,
+        } };
     }
 
     pub fn sendTransaction(self: *RpcClient, tx: transaction_mod.VersionedTransaction) !types.RpcResult(types.SendTransactionResult) {
@@ -267,6 +310,59 @@ fn encodeBase64(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
     return out;
 }
 
+fn getBoolField(root: *const std.json.Value, field: []const u8) ?bool {
+    const value = getObjectField(root, field) orelse return null;
+    if (value.* != .bool) return null;
+    return value.bool;
+}
+
+fn decodeBase64(allocator: std.mem.Allocator, encoded: []const u8) ![]u8 {
+    const decoded_len = try std.base64.standard.Decoder.calcSizeForSlice(encoded);
+    const out = try allocator.alloc(u8, decoded_len);
+    errdefer allocator.free(out);
+    try std.base64.standard.Decoder.decode(out, encoded);
+    return out;
+}
+
+fn decodeAccountData(allocator: std.mem.Allocator, value: *const std.json.Value) ![]u8 {
+    const data_field = getObjectField(value, "data") orelse return &[_]u8{};
+    if (data_field.* == .string) {
+        return decodeBase64(allocator, data_field.string) catch &[_]u8{};
+    }
+    if (data_field.* == .array and data_field.array.items.len > 0) {
+        const first = data_field.array.items[0];
+        if (first == .string) {
+            return try decodeBase64(allocator, first.string);
+        }
+    }
+    return &[_]u8{};
+}
+
+fn extractSimulationError(allocator: std.mem.Allocator, value: *const std.json.Value) !?[]const u8 {
+    const err_field = getObjectField(value, "err") orelse return null;
+    if (err_field.* == .null) return null;
+    return try stringifyValue(allocator, err_field.*);
+}
+
+fn parseStringArray(allocator: std.mem.Allocator, value: *const std.json.Value, field: []const u8) ![][]const u8 {
+    const arr_field = getObjectField(value, field) orelse return &[_][]const u8{};
+    if (arr_field.* != .array) return &[_][]const u8{};
+
+    const items = arr_field.array.items;
+    const out = try allocator.alloc([]const u8, items.len);
+    errdefer allocator.free(out);
+
+    for (items, 0..) |item, i| {
+        if (item != .string) {
+            for (0..i) |j| allocator.free(out[j]);
+            allocator.free(out);
+            return error.InvalidRpcResponse;
+        }
+        out[i] = try allocator.dupe(u8, item.string);
+    }
+    return out;
+}
+
 const MockTransport = struct {
     response_body: []const u8 = "",
     should_fail: bool = false,
@@ -370,7 +466,82 @@ test "rpc client returns transport error with injected transport" {
     try std.testing.expectError(error.RpcTransport, client.getBalance(pubkey));
 }
 
-test "rpc client getAccountInfo cleans up parsed json on malformed success response" {
+test "rpc client getAccountInfo typed parse happy path" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":{\"lamports\":1000,\"owner\":\"11111111111111111111111111111111\",\"executable\":false,\"rentEpoch\":18446744073709551615,\"data\":\"AQID\"}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{4} ** 32);
+    const result = try client.getAccountInfo(pubkey);
+
+    switch (result) {
+        .ok => |info| {
+            defer info.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 1000), info.lamports);
+            try std.testing.expect(!info.executable);
+            try std.testing.expectEqual(@as(usize, 3), info.data.len);
+            try std.testing.expect(info.raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getAccountInfo typed parse with data array format" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":{\"lamports\":2000,\"owner\":\"11111111111111111111111111111111\",\"executable\":true,\"rentEpoch\":2,\"data\":[\"AQID\",\"base64\"]}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{5} ** 32);
+    const result = try client.getAccountInfo(pubkey);
+
+    switch (result) {
+        .ok => |info| {
+            defer info.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 2000), info.lamports);
+            try std.testing.expect(info.executable);
+            try std.testing.expectEqual(@as(u64, 2), info.rent_epoch);
+            try std.testing.expectEqual(@as(usize, 3), info.data.len);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getAccountInfo preserves rpc error with typed parse" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"Invalid param\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{6} ** 32);
+    const result = try client.getAccountInfo(pubkey);
+
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getAccountInfo returns InvalidRpcResponse on malformed success" {
     const gpa = std.testing.allocator;
 
     var mock: MockTransport = .{
@@ -381,11 +552,89 @@ test "rpc client getAccountInfo cleans up parsed json on malformed success respo
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
 
-    const pubkey = pubkey_mod.Pubkey.init([_]u8{4} ** 32);
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{7} ** 32);
     try std.testing.expectError(error.InvalidRpcResponse, client.getAccountInfo(pubkey));
 }
 
-test "rpc client simulateTransaction cleans up parsed json on malformed success response" {
+test "rpc client simulateTransaction typed parse happy path" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":{\"err\":null,\"logs\":[\"log1\",\"log2\"],\"unitsConsumed\":1234}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    var tx = try makeTestTransaction(gpa);
+    defer tx.deinit();
+
+    const result = try client.simulateTransaction(tx);
+    switch (result) {
+        .ok => |sim| {
+            defer sim.deinit(gpa);
+            try std.testing.expect(sim.err_json == null);
+            try std.testing.expectEqual(@as(usize, 2), sim.logs.len);
+            try std.testing.expectEqualStrings("log1", sim.logs[0]);
+            try std.testing.expectEqual(@as(u64, 1234), sim.units_consumed.?);
+            try std.testing.expect(sim.raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client simulateTransaction typed parse with err object" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":{\"err\":{\"InstructionError\":[0,\"Custom\",1]},\"logs\":[\"failed\"]}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    var tx = try makeTestTransaction(gpa);
+    defer tx.deinit();
+
+    const result = try client.simulateTransaction(tx);
+    switch (result) {
+        .ok => |sim| {
+            defer sim.deinit(gpa);
+            try std.testing.expect(sim.err_json != null);
+            try std.testing.expectEqual(@as(usize, 1), sim.logs.len);
+            try std.testing.expect(sim.units_consumed == null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client simulateTransaction preserves rpc error with typed parse" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32002,\"message\":\"node unhealthy\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    var tx = try makeTestTransaction(gpa);
+    defer tx.deinit();
+
+    const result = try client.simulateTransaction(tx);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32002), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client simulateTransaction returns InvalidRpcResponse on malformed success" {
     const gpa = std.testing.allocator;
 
     var mock: MockTransport = .{
