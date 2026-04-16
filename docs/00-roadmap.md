@@ -61,7 +61,7 @@
 
 ---
 
-## Phase 3 — Interfaces + Signers + C ABI（✅ 已完成）
+## Phase 3 — Interfaces + Signers + C ABI（Batch 4 收口中）
 
 **目标**：提供 Token 等高频接口层抽象、可插拔 signer 后端，并暴露 C ABI 供其他语言调用。
 
@@ -83,6 +83,12 @@
   - 头文件生成（`include/solana_zig.h`）
   - 内存所有权约定文档（`docs/cabi-guide.md`）
 - Benchmark 扩展：signer + C ABI 基线
+
+**当前收口重点（2026-04-17 全量 review）**：
+- `MockExternalSigner` 需修复消息签名正确性，并补齐 `pubkey mismatch` 语义
+- Stake create helper 的 API/实现契约需对齐，并补齐负路径测试
+- C ABI 的 RPC surface 需明确为真实可用或显式保持 scaffold，并补齐 header/core/test 一致性
+- 详细状态与后续任务以 `docs/10-coverage-matrix.md`、`docs/36-phase3-batch4-planning.md`、`docs/37-phase3-batch4-release-readiness.md` 为准
 
 ---
 

@@ -12,25 +12,35 @@
 
 ### High
 
-- ~~H-01: Product Phase 2 / 3 范围（扩展 RPC、Websocket、interfaces、signers、C ABI）尚未形成完整可宣称能力面~~
-- **已解决**：Phase 1/2/3 全部完成。16 个 RPC 方法、7 种 WebSocket 订阅、7 个 interface 模块、Signer 抽象、C ABI 导出均已落地。
+- H-01: 顶层状态文档一度把 Phase 3 写成“已全部完成”，但代码与细粒度追踪文档仍显示 closeout 未完成。
+  - 影响：对外状态口径不可信，容易把“主体能力已落地”误写成“验收闭环完成”。
+  - 当前处理：本轮 review 已回写 `README.md`、`docs/00-roadmap.md`、`docs/10-coverage-matrix.md`、`docs/36/37`。
+
+- H-02: `MockExternalSigner` 存在 correctness gap。
+  - 证据：`src/solana/signers/mock_external.zig` 的 `signMessage(...)` 当前忽略输入消息并签名空字符串。
+  - 影响：mock external signer 不能作为可靠的 transaction-level signing 证据。
+
+- H-03: Stake create helper 的 API/实现契约不一致。
+  - 证据：`buildCreateStakeAccountInstruction(...)` 接口接收 `lamports`，但当前实现仅序列化 `StakeInstruction.initialize` 路径。
+  - 影响：API 名称和行为不一致，且会误导调用方与文档示例。
 
 ### Medium
 
-- ~~M-01: RPC 解析仍以动态 JSON 为主，typed schema 收敛不足~~
-- **已解决**：16 个 RPC 方法全部 typed parse，保留 `raw_json` 旁路。
-- ~~M-02: Devnet E2E 与未来 Websocket 测试依赖外部环境稳定性~~
-- **已解决**：已采用环境变量 / opt-in 门控策略，mock 模式始终可用。
+- M-01: C ABI 已有可用 surface，但 RPC 仍是 scaffold 级别。
+  - 证据：`src/solana/cabi/rpc.zig` 通过 dummy transport 初始化 `RpcClientHandle`。
+  - 影响：当前不能把 C ABI RPC 写成“可直接发真实链请求的已完成能力”。
+
+- M-02: C ABI header / core / tests 仍未完全对齐。
+  - 证据：`include/solana_zig.h` 与 `src/solana/cabi/core.zig` 的能力面、测试命名与 roundtrip 语义仍有偏差。
+  - 影响：会削弱 C ABI 首版的可审计性与后续版本化基线。
 
 ### Low
 
-- L-01: oracle 最低集合已满足，但样本规模仍可继续扩充
-- 影响：当前不再构成 gate blocker，但兼容回归信号仍可继续增强
-- 状态：作为非阻塞扩样本与维护项持续推进
+- L-01: oracle / benchmark / E2E 仍值得持续扩样本
+  - 影响：当前不构成 blocker，但作为回归与版本升级保护网仍应继续维护
 
-- L-02: 目标用户仍偏宽（嵌入式 / FFI / 高性能场景）
-- 影响：Phase 3 已落地 C ABI / Signer，用户范围已自然收敛
-- 状态：已在 `docs/16` 中收敛说明
+- L-02: 运营类状态文档（如 `MEMORY.md`、`notes/project-state.md`）容易滞后
+  - 影响：对协作代理和后续维护者造成误导
 
 ## 3. 已解决项
 
@@ -43,27 +53,32 @@
 
 | 风险 | 等级 | 当前控制 |
 |---|---|---|
+| `MockExternalSigner` 误导 transaction-level 签名语义 | 高 | 已在 `docs/10` / `docs/36` 标为 Batch 4 首要修复项 |
+| Stake create helper API/实现漂移 | 高 | 已在 `docs/10` / `docs/36` 标为 Batch 4 首要修复项 |
+| C ABI RPC 被误认为真实可用 | 中 | `docs/cabi-guide.md` 已显式降级说明；后续由 Batch 4 决定是补真实 transport 还是缩 surface |
 | Rust 版本演进漂移 | 中 | 基线锁定 + 兼容矩阵 + oracle 回归 |
-| RPC 动态解析误判 | 低 | 16 方法 typed parse + mock 覆盖 |
-| Devnet / Websocket 外部不稳定 | 低 | opt-in 集成门控 + mock 始终可用 |
-| oracle 覆盖不足 | 低 | 向量扩展计划（core + keypair + message + transaction） |
-| future scope 膨胀 | 低 | Product Phase 分阶段治理（Phase 4 独立评估） |
+| 运营/状态文档继续漂移 | 低 | 本轮已明确 `docs/10`、`docs/36`、`docs/37` 为当前权威跟踪文档 |
 
 ## 5. 结论
 
-- 当前阶段可判定为：**Product Phase 1/2/3 全部完成**。
-- 当前对外表述应限定为：16 个 RPC 方法、7 种 WebSocket 订阅、7 个 interface 模块、Signer 抽象、C ABI 导出。
-- Phase 4（链上程序支持）作为独立子项目评估，不与当前 client SDK 生命周期耦合。
+- 当前阶段可判定为：**Product Phase 1/2 已完成；Phase 3 主体能力已落地，但仍处于 Batch 4 closeout**。
+- 当前对外表述应限定为：
+  - 16 个 RPC 方法、7 种 WebSocket 订阅、7 个 interface 模块已实现
+  - signer abstraction / C ABI / stake 已有主实现，但仍有 correctness 与 closeout 项待处理
+- Phase 4（链上程序支持）仍作为独立子项目评估，不与当前 client SDK 生命周期耦合。
 
 ## 6. 下一步审查门槛
 
-- Phase 1/2/3 closeout 已完成，进入维护模式。
-- Phase 4 进入前进行一次"链上程序支持设计审查"。
-- 每次 Rust SDK 版本升级时执行 oracle 向量回归。
+- 先完成 Phase 3 Batch 4 closeout：
+  1. 修复 `MockExternalSigner` correctness gap；
+  2. 对齐 stake create helper 契约并补负路径测试；
+  3. 收紧 C ABI scope 与验证证据；
+  4. 完成顶层状态文档与 planning/readiness artifact 对账。
+- 之后再进入常规维护模式与 Phase 4 设计审查。
 
 ## 7. Closeout Checkpoint (2026-04-16) — Historical
 
-> 本节为历史快照，记录 Phase 1 closeout 评审过程。Phase 1/2/3 现已全部完成。
+> 本节为历史快照，记录 Phase 1 closeout 评审过程；不代表当前 Phase 3 已完成最终 closeout。
 
 ### 7.1 Gate 快照
 
@@ -78,5 +93,5 @@
 
 ### 7.2 结论
 
-- Phase 1/2/3 全部完成，208 tests pass，zero memory leaks。
-- 所有 closeout gates 均已通过。
+- Phase 1 closeout gates 已通过。
+- 该历史结论不覆盖当前 Phase 3 Batch 4 closeout 状态。

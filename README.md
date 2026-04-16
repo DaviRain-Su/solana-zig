@@ -4,13 +4,14 @@ Zig implementation of Solana SDK, aligned to Rust SDK 4.0.1 semantics.
 
 ## Current Status
 
-**All three product phases have shipped.** 208 tests pass, zero memory leaks.
+**Phase 1 / Phase 2 have shipped. Phase 3 is in final closeout review (Batch 4).**
+The main implementation surface is present, but the authoritative status for remaining gaps is `docs/10-coverage-matrix.md` and `docs/36-phase3-batch4-planning.md`.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
 | **Phase 1** — Core / Tx / RPC foundations | `core`, `tx`, 5 RPC methods, oracle vectors, Devnet E2E | ✅ Complete |
 | **Phase 2** — Extended RPC / WebSocket / Nonce | 11 extended RPC methods, WebSocket (7 subscription types), Durable Nonce, ComputeBudget | ✅ Complete |
-| **Phase 3** — Interfaces / Signers / C ABI | System/Token/Token-2022/Memo/Stake builders, Signer abstraction (vtable), C ABI export | ✅ Complete |
+| **Phase 3** — Interfaces / Signers / C ABI | System/Token/Token-2022/Memo/Stake builders, Signer abstraction (vtable), C ABI export | In closeout review |
 
 ### Capabilities
 
@@ -20,8 +21,8 @@ Zig implementation of Solana SDK, aligned to Rust SDK 4.0.1 semantics.
 - **RPC retry**: exponential backoff, rate-limit aware (HTTP 429/5xx)
 - **WebSocket**: `WsRpcClient` — 7 subscription types (`account`/`program`/`signature`/`slot`/`root`/`logs`/`block`), auto-reconnect with backoff, dedup ring buffer, `WsStats` observability
 - **Interfaces**: `system` (Transfer/CreateAccount/AdvanceNonceAccount), `token` (TransferChecked/CloseAccount/MintTo/Approve/Burn), `token_2022`, `compute_budget` (SetComputeUnitLimit/SetComputeUnitPrice), `memo`, `stake` (Create/Delegate/Deactivate/Withdraw), `ata` (Associated Token Account)
-- **Signers**: `Signer` vtable abstraction, `InMemorySigner`, `MockExternalSigner`
-- **C ABI**: Core types + tx build + RPC minimum export (`include/solana_zig.h`)
+- **Signers**: `Signer` vtable abstraction, `InMemorySigner`, `MockExternalSigner` (final correctness closeout pending)
+- **C ABI**: Core types + tx build exported; RPC minimum export is still under closeout review (`include/solana_zig.h`)
 - **E2E**: Devnet (`zig build devnet-e2e`), Nonce (`zig build nonce-e2e`), Surfpool (`zig build e2e`)
 - **Benchmark**: `zig build bench` — serialization/deserialization baseline
 
@@ -124,7 +125,7 @@ Contract mapping: `packages/client/AC-MAPPING.md`, `docs/18-surfpool-e2e-contrac
 
 - **Phase 1** ✅: off-chain SDK foundations (`core/tx/rpc`) + compatibility closeout
 - **Phase 2** ✅: extended RPC (16 methods total), WebSocket subscriptions (7 types), Durable Nonce workflow, ComputeBudget helpers
-- **Phase 3** ✅: interface modules (system/token/token-2022/memo/stake/ata), signer backends, C ABI export
+- **Phase 3**: interface modules (system/token/token-2022/memo/stake/ata), signer backends, C ABI export — main surface landed, Batch 4 closeout in progress
 - **Phase 4** (future): on-chain semantics as a **separate subproject** (`solana-program-zig`)
 
 ## Roadmap Documents

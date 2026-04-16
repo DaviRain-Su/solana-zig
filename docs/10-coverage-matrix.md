@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-17
 **Last reviewed**: 2026-04-17
-**Last synced docs commit**: `da93cfb`
+**Last synced docs commit**: `e3a3794`
 
 > 注：本矩阵按最近一次文档同步基线维护；若工作区存在未提交代码改动，实际实现状态可能先于本文。
 
@@ -83,10 +83,10 @@
 | token / token-2022 / ATA | `src/solana/interfaces/token*/*` | partial | `docs/00` Phase 3 / `docs/30` P3-03 / `docs/03a-interfaces-spec.md` | Batch 1 `#61` 已完成 `mint/approve/burn` builders（`b840f75`）；ATA 明确延后，不在 Batch 1 |
 | memo | `src/solana/interfaces/memo.zig` | done | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | Batch 2 `#70` 完成 dual-mode builder |
 | compute_budget | `src/solana/interfaces/compute_budget.zig` | done | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | Phase 2 完成 `setComputeUnitLimit` / `setComputeUnitPrice` |
-| stake | `src/solana/interfaces/stake.zig` | partial | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | create/delegate/deactivate/withdraw builders 已落地；当前仍缺非法参数 / 缺失 authority 负路径证据 |
-| signer abstraction | `src/solana/signers/*` | partial | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/03b-signers-spec.md` | `Signer` vtable + `InMemorySigner` + `signWithSigners(...)` 已落地；缺显式 multi-signer signer-path 等价证据 |
-| external signer adapter | `src/solana/signers/mock_external.zig` | partial | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/05` 5.2 | 已覆盖 backend failure / rejected；`pubkey mismatch` 语义仍未单独闭环 |
-| C ABI | `src/solana/cabi/*` + `include/solana_zig.h` | partial | `docs/00` Phase 3 / `docs/04` T4-27 / `docs/05` 5.2 / `docs/03d-cabi-spec.md` | 核心类型 + 交易构建已落地；RPC handle 仍为 dummy transport，且缺 `hash compare` / 仓内 C 集成测试工件 |
+| stake | `src/solana/interfaces/stake.zig` | partial | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | create/delegate/deactivate/withdraw builders 已落地；`buildCreateStakeAccountInstruction(...)` 当前仍偏 initialize-only，且负路径测试不足 |
+| signer abstraction | `src/solana/signers/*` | done | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/03b-signers-spec.md` | `Signer` vtable + `InMemorySigner` + `signWithSigners(...)` 已落地；已有 signer-path/keypair-path 等价与 legacy 多签证据 |
+| external signer adapter | `src/solana/signers/mock_external.zig` | partial | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/05` 5.2 | 已覆盖 backend failure / rejected；当前仍存在“忽略输入消息签名”与 `pubkey mismatch` 语义未闭环问题 |
+| C ABI | `src/solana/cabi/*` + `include/solana_zig.h` | partial | `docs/00` Phase 3 / `docs/04` T4-27 / `docs/05` 5.2 / `docs/03d-cabi-spec.md` | 核心类型 + 交易构建可用；RPC handle 仍为 dummy transport，且 header/core/test surface 仍需对齐 |
 | performance comparison report | `docs/13` + Phase 3 report artifact | partial | `docs/00` Phase 3 / `docs/04` T4-28 / `docs/05` 5.2 | Batch 3 完成 signer + C ABI benchmark 基线；vs Rust SDK 对比仍待后续 |
 
 ## 7. Product Phase 4 / Out of Scope for Now
@@ -98,12 +98,12 @@
 
 ## 8. 当前最值得补齐的缺口
 
-> Phase 1/2/3 已全部完成。以下为非阻塞维护项：
+> Phase 1/2 已完成；Phase 3 主体能力已落地，但仍处于 Batch 4 closeout。以下为当前最值得补齐的缺口：
 
-1. `core.base58` / `core.shortvec` / `core.Hash` 的边界样本可继续扩充（不阻塞当前状态）。
-2. v0/ALT 语义已收口，可继续累积高复杂度场景样本。
-3. benchmark baseline 可继续更新对比数据。
-4. Devnet E2E 持续回归与文档同步。
+1. `MockExternalSigner` 当前对输入消息签名不正确，且 `pubkey mismatch` 语义仍未闭环。
+2. C ABI 虽有头文件与最小导出，但 live RPC transport / header-core-surface 对齐 / 仓内 C 集成测试仍未闭环。
+3. stake builder 已覆盖完整生命周期最小路径，但 create helper 契约与负路径测试仍需补齐。
+4. benchmark baseline 与 execution-matrix 的最终 closeout 处置仍需继续收口。
 
 ## 9. 配套文档
 
@@ -138,7 +138,7 @@
 | `interfaces.ATA helper minimal` | closed | `#69` | — | `616c42c`，`createProgramAddress/findProgramAddress` + `findAssociatedTokenAddress(owner,mint,token_program_id)` + `createATA builder`，`193/193 tests passed` | `src/solana/core/pubkey.zig` + `src/solana/interfaces/ata.zig` + `docs/06` + `docs/33` | `G-P3B-01` + `G-P3B-02` PASS |
 | `interfaces.assign + memo dual-mode` | closed | `#70` | — | `efe3070`，`buildAssignInstruction` + `buildMemoInstruction(signer_mode)`，no-signer/signer 双路径证据，`193/193 tests passed` | `src/solana/interfaces/system.zig` + `src/solana/interfaces/memo.zig` + `docs/06` + `docs/33` | `G-P3B-01` + `G-P3B-03` PASS |
 | `rpc.Exception convergence` | closed | `#71` | — | `efe3070`，`requestAirdrop` strict tri-state + `getAddressLookupTable` success-or-exception，双 env 全量 `193/193 tests passed` | `src/solana/rpc/client.zig` + `docs/14a` + `docs/15` + `docs/33` | `G-P3B-01` + `G-P3B-04` PASS |
-| `batch2.docs/gate reconciliation` | in-progress | `#72` | 待 final docs commit/hash | `docs/06+10+14a+15+33` 对账 | 本矩阵 + `docs/33` | `G-P3B-05` PASS |
+| `batch2.docs/gate reconciliation` | closed | `#72` | — | `docs/06+10+14a+15+33` 对账完成 | 本矩阵 + `docs/33` | `G-P3B-05` PASS |
 
 ### Phase 3 Batch 2 Exception Register
 
@@ -174,12 +174,12 @@
 | PRD Story | 当前状态 | 代码证据 | 备注 |
 |---|---|---|---|
 | US-019 `Signer` 接口定义 | done | `src/solana/signers/signer.zig` | `Signer` vtable + `SignerError` 已落地 |
-| US-020 `InMemorySigner` | partial | `src/solana/signers/in_memory.zig`, `src/solana/tx/transaction.zig` | 已证实单 signer 等价；缺 multi-signer signer-path 证据 |
-| US-021 `MockExternalSigner` | partial | `src/solana/signers/mock_external.zig` | 已覆盖 backend failure / rejected；缺 `pubkey mismatch` 语义 |
+| US-020 `InMemorySigner` | done | `src/solana/signers/in_memory.zig`, `src/solana/tx/transaction.zig` | signer-path/keypair-path 等价已覆盖，legacy 多签顺序无关证据已存在 |
+| US-021 `MockExternalSigner` | partial | `src/solana/signers/mock_external.zig` | 已覆盖 backend failure / rejected；仍需修复“忽略输入消息签名”与 `pubkey mismatch` 语义 |
 | US-022 `signWithSigners(...)` | done | `src/solana/tx/transaction.zig` | 缺签错误与 keypair-path 单 signer 等价已覆盖 |
-| US-023 C ABI 核心类型 | partial | `src/solana/cabi/core.zig`, `include/solana_zig.h` | `hash compare` 未导出；仓内无稳定 C integration test |
+| US-023 C ABI 核心类型 | partial | `src/solana/cabi/core.zig`, `include/solana_zig.h` | header/core/test surface 仍未完全对齐，且仓内无稳定 C integration test |
 | US-024 C ABI 交易构建 | done | `src/solana/cabi/transaction.zig` | instruction → message → tx → serialize 闭环已覆盖 |
 | US-025 C ABI RPC 最小导出 | partial | `src/solana/cabi/rpc.zig` | surface 已导出，但 runtime 仍绑定 dummy transport |
-| US-026 Stake 完整生命周期 | partial | `src/solana/interfaces/stake.zig` | 四类 builder 已有；负路径测试仍不足 |
+| US-026 Stake 完整生命周期 | partial | `src/solana/interfaces/stake.zig` | 四类 builder 已有；create helper 契约与负路径测试仍不足 |
 | US-027 benchmark 扩展 | done | `src/benchmark.zig` | `zig build bench` 已输出 signer/C ABI 指标 |
 | US-028 文档收口 | done | `docs/prd-phase-3-batch-3-solana-zig-sdk-signersc-abi-stake.md`, `docs/17-quickstart-and-api-examples.md`, `docs/cabi-guide.md`, `docs/06-implementation-log.md`, `docs/10-coverage-matrix.md` | 2026-04-17 已按复核结论回写 |
