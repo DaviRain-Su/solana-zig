@@ -172,34 +172,6 @@
 - 新增 parser hardening / malformed response 回归测试。
 - 计划执行：`zig build test` + package packaging smoke test。
 
-## 2026-04-16 第十一次增量记录（结果模板 / C ABI / ADR / 总索引）
-
-### 输入
-- 需要按优先级继续完善文档：先补 Phase 1 的真实结果模板，再补 Phase 3 的 C ABI 子规格、ADR 模板、文档总索引，以及用户/安全约束收敛说明。
-
-### 输出
-- 新增 `docs/13a-benchmark-baseline-results.md`，作为 benchmark 第一版真实结果模板。
-- 新增 `docs/14a-devnet-e2e-run-log.md`，作为 Devnet 包装式验收 / 真实 harness 结果模板。
-- 新增 `docs/03d-cabi-spec.md`，沉淀 C ABI 的导出边界、所有权模型、错误码与版本化策略。
-- 新增 `docs/adr/README.md` 与 `docs/adr/ADR-template.md`，使 ADR 机制从规则变成可执行模板。
-- 新增 `docs/README.md`，为当前多层文档体系提供统一索引。
-- 新增 `docs/16-consumer-profiles-and-security-notes.md`，收敛主用户、未来用户与安全/所有权约束。
-- `README.md`、`docs/00`、`docs/03`、`docs/08`、`docs/09`、`docs/10`、`docs/13`、`docs/14`、`docs/15` 同步接入这些新文档的引用与维护关系。
-
-### 风险
-- 新增的是模板与边界文档，并不等于已经产出真实 benchmark / Devnet 运行结果；后续仍需把模板真正填起来。
-- C ABI 规格已建立，但在进入 Phase 3 前仍需持续收紧为可执行接口清单。
-
-### 验证
-- 文档链进一步完整：`README -> docs/README -> 03/03d -> 13/13a -> 14/14a -> 16 -> adr/*`。
-
-### 风险
-- 当前变更主要是治理与命名统一，不直接提升实现覆盖率。
-- 如果后续 roadmap 再调整，仍需同步回写 `docs/01/04/05/08`。
-
-### 验证
-- 文档链路已按统一命名复核：`00 -> 01 -> 04 -> 05 -> 08 -> README`。
-
 ## 2026-04-16 第十次增量记录（public API / ALT 语义 / oracle v2）
 
 ### 输入
@@ -221,3 +193,24 @@
 
 ### 验证
 - 计划执行：`zig build test`、`bash -n scripts/devnet/phase1_acceptance.sh`、`cargo run --manifest-path scripts/oracle/Cargo.toml --release`。
+
+## 2026-04-16 第十一次增量记录（结果模板 / C ABI / ADR / 总索引）
+
+### 输入
+- 需要按优先级继续完善文档：先补 Phase 1 的真实结果模板，再补 Phase 3 的 C ABI 子规格、ADR 模板、文档总索引，以及用户/安全约束收敛说明。
+
+### 输出
+- 新增 `docs/13a-benchmark-baseline-results.md`，作为 benchmark 第一版真实结果模板。
+- 新增 `docs/14a-devnet-e2e-run-log.md`，作为 Devnet 包装式验收 / 真实 harness 结果模板。
+- 新增 `docs/03d-cabi-spec.md`，沉淀 C ABI 的导出边界、所有权模型、错误码与版本化策略。
+- 新增 `docs/adr/README.md` 与 `docs/adr/ADR-template.md`，使 ADR 机制从规则变成可执行模板。
+- 新增 `docs/README.md`，为当前多层文档体系提供统一索引。
+- 新增 `docs/16-consumer-profiles-and-security-notes.md`，收敛主用户、未来用户与安全/所有权约束。
+- `README.md`、`docs/00`、`docs/03`、`docs/08`、`docs/09`、`docs/10`、`docs/13`、`docs/14`、`docs/15` 同步接入这些新文档的引用与维护关系。
+
+### 风险
+- 新增的是模板与边界文档，并不等于已经产出真实 benchmark / Devnet 运行结果；后续仍需把模板真正填起来。
+- C ABI 规格已建立，但在进入 Phase 3 前仍需持续收紧为可执行接口清单。
+
+### 验证
+- 文档链进一步完整：`README -> docs/README -> 03/03d -> 13/13a -> 14/14a -> 16 -> adr/*`。
