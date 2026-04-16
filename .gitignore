@@ -6,3 +6,5 @@ zig-pkg/
 .tmp-*
 node_modules/
 test_time
+.surfpool
+dist

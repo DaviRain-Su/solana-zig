@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-16
 **Last reviewed**: 2026-04-16
-**Last synced docs commit**: `d1c90c2`
+**Last synced docs commit**: `609f173`
 
 > 注：本矩阵按最近一次文档同步基线维护；若工作区存在未提交代码改动，实际实现状态可能先于本文。
 
@@ -20,7 +20,7 @@
 |---|---|---|---|---|---|
 | `solana-pubkey` | `core.Pubkey` | done | `src/solana/core/pubkey.zig` | `docs/03` 2.1 / `docs/05` 4.3 | 已支持 base58 roundtrip |
 | `solana-signature` | `core.Signature` | done | `src/solana/core/signature.zig` | `docs/03` 2.1 / `docs/05` 4.3 | 已支持 verify |
-| `solana-keypair` | `core.Keypair` | partial | `src/solana/core/keypair.zig` | `docs/03` 3.1 / `docs/05` 4.3 | 多消息/更多 oracle 仍待补强 |
+| `solana-keypair` | `core.Keypair` | partial | `src/solana/core/keypair.zig` | `docs/03` 3.1 / `docs/05` 4.3 | 固定 seed 签名向量已补齐（`#9`），仍可继续扩样本规模 |
 | `solana-hash` | `core.Hash` | partial | `src/solana/core/hash.zig` | `docs/03` 2.1 / `docs/05` 4.3 | roundtrip/边界仍可继续加固 |
 | `solana-short-vec` | `core.shortvec` | partial | `src/solana/core/shortvec.zig` | `docs/03` 2.2 / `docs/05` 4.2 | 已有基础覆盖，仍待更多溢出边界 |
 | base58 codec | `core.base58` | partial | `src/solana/core/base58.zig` | `docs/03` 3.1 / `docs/05` 4.1 | oracle 向量仍偏少 |
@@ -31,9 +31,9 @@
 |---|---|---|---|---|---|
 | `solana-instruction` 风格账户模型 | `tx.AccountMeta` / `tx.Instruction` | done | `src/solana/tx/instruction.zig` | `docs/03` 2.3 / `docs/05` 4.4 | 基础结构已稳定 |
 | legacy message compile/serialize | `tx.Message` | done | `src/solana/tx/message.zig` | `docs/03` 3.2 / `docs/05` 4.4 | 已有编译/序列化/反序列化测试 |
-| v0 message compile/serialize | `tx.Message` | partial | `src/solana/tx/message.zig` | `docs/03` 5.2 / `docs/05` 4.4 | 失败路径、oracle 对照、更多 ALT 场景仍待收口 |
-| ALT lookup model | `tx.AddressLookupTable` | partial | `src/solana/tx/address_lookup_table.zig` | `docs/03` 5.2 / `docs/05` 4.4 | 当前以 compile 语义支持为主 |
-| versioned transaction sign/verify | `tx.VersionedTransaction` | partial | `src/solana/tx/transaction.zig` | `docs/03` 3.2 / `docs/05` 4.4 | 已有基础测试，v0 完整路径仍待补齐 |
+| v0 message compile/serialize | `tx.Message` | partial | `src/solana/tx/message.zig` | `docs/03` 5.2 / `docs/05` 4.4 | 已补失败路径（`#8`），ALT 权限语义仍作为收口观察项 |
+| ALT lookup model | `tx.AddressLookupTable` | partial | `src/solana/tx/address_lookup_table.zig` | `docs/03` 5.2 / `docs/05` 4.4 | 关键失败路径已补（`#8`），行为稳定性由 `docs/15` 持续跟踪 |
+| versioned transaction sign/verify | `tx.VersionedTransaction` | partial | `src/solana/tx/transaction.zig` | `docs/03` 3.2 / `docs/05` 4.4 | sign/verify/serialize/deserialize 正反路径已覆盖（`#8`） |
 
 ## 3. RPC Capabilities (Current Product Phase 1)
 
@@ -43,19 +43,19 @@
 | transport abstraction | `rpc.Transport` | done | `src/solana/rpc/transport.zig` | `docs/02` 4.1 / `docs/07` 3 | 注入式 mock 已建立 |
 | HTTP transport | `rpc.HttpTransport` | done | `src/solana/rpc/http_transport.zig` | `docs/02` 4.1 | 默认实现已接入 |
 | `getLatestBlockhash` | `rpc.RpcClient.getLatestBlockhash` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | typed schema 可继续收紧 |
-| `getAccountInfo` | `rpc.RpcClient.getAccountInfo` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | 当前返回 `OwnedJson`，未完全 typed |
+| `getAccountInfo` | `rpc.RpcClient.getAccountInfo` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | 已完成 typed 子集收敛并保留 `raw_json` 旁路（`#7`） |
 | `getBalance` | `rpc.RpcClient.getBalance` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | number_string 已兼容 |
-| `simulateTransaction` | `rpc.RpcClient.simulateTransaction` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | 当前返回 `OwnedJson` |
-| `sendTransaction` | `rpc.RpcClient.sendTransaction` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | Happy path 已有，E2E 仍待收口 |
+| `simulateTransaction` | `rpc.RpcClient.simulateTransaction` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | 已完成 typed 收敛；devnet + surfnet live 证据已留档（`#7/#10`） |
+| `sendTransaction` | `rpc.RpcClient.sendTransaction` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | Happy path 已有；作为 Phase 1 留痕项在 `docs/15` 持续跟踪 |
 | RPC error preservation | `rpc.types.RpcErrorObject/RpcResult` | done | `src/solana/rpc/types.zig` | `docs/03` 7 / `docs/07` 3 | code/message/data_json 已保留 |
 
 ## 4. Compat / Oracle
 
 | Rust 参考能力 | Zig 模块 | 状态 | 代码入口 | 测试/文档映射 | 备注 |
 |---|---|---|---|---|---|
-| oracle vector loading | `compat.oracle_vector` | partial | `src/solana/compat/oracle_vector.zig` | `docs/05` 4.6 | 打包缺口已修复；向量文件当前规模仍偏小 |
+| oracle vector loading | `compat.oracle_vector` | done | `src/solana/compat/oracle_vector.zig` | `docs/05` 4.6 | Phase 1 最低集合已补齐并通过 Zig 消费断言（`#9`） |
 | bincode helper subset | `compat.bincode_compat` | partial | `src/solana/compat/bincode_compat.zig` | `docs/03` 1 / `docs/07` 2 | 当前仅最小辅助能力 |
-| Rust vector generator (`v2` core) | `scripts/oracle/*` | partial | `scripts/oracle/generate_vectors.rs` | `README` / `docs/01` 11 | `v2` core generator 已可用；keypair/message/transaction 向量仍待补齐 |
+| Rust vector generator (`v2` core) | `scripts/oracle/*` | done | `scripts/oracle/generate_vectors.rs` | `README` / `docs/01` 11 | 已扩到 `core + keypair + message + transaction`（`#9`） |
 
 ## 5. Product Phase 2 Planned Coverage
 
@@ -87,10 +87,10 @@
 
 ## 8. 当前最值得补齐的缺口
 
-1. `oracle_vectors.json` 覆盖仍不足以支撑 Phase 1 兼容声明。
-2. `rpc/client.zig` 的 typed parse 收敛仍不够，`OwnedJson` 返回较多。
-3. v0 message / versioned transaction 仍需更完整的 oracle 与失败路径覆盖。
-4. Devnet 真正的 E2E harness 与 benchmark baseline 还未形成 Phase 1 closeout 信号；当前仅有包装式验收脚本。
+1. `sendTransaction` 的真实发送链路证据仍需持续留档（当前 `docs/15` 维持跟踪）。
+2. `core.base58` / `core.shortvec` / `core.Hash` 的边界样本仍可继续扩充（不阻塞当前 closeout 评审）。
+3. v0/ALT 语义虽已补关键失败路径，仍建议继续累积高复杂度场景样本。
+4. Devnet E2E 与 benchmark 首版证据已形成，后续重点是持续回归与文档同步。
 
 ## 9. 配套文档
 

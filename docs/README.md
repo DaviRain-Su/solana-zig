@@ -45,3 +45,4 @@
 - `16-consumer-profiles-and-security-notes.md`：目标用户、FFI / signer / 安全约束说明
 - `17-quickstart-and-api-examples.md`：面向消费者的 Quickstart 与 API 最小示例
 - `18-surfpool-e2e-contract.md`：K3 本地 E2E contract（AC-01~AC-07 单一真源）
+- `19-phase2-planning.md`：Product Phase 2 第一批规划（范围/DoD/依赖/放行条件）
