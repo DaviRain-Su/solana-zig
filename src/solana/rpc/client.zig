@@ -172,7 +172,7 @@ pub const RpcClient = struct {
         } };
     }
 
-    pub fn getMinimumBalanceForRentExemption(self: *RpcClient, data_len: u64) !types.RpcResult(u64) {
+    pub fn getMinimumBalanceForRentExemption(self: *RpcClient, data_len: usize) !types.RpcResult(u64) {
         const payload = try std.fmt.allocPrint(
             self.allocator,
             "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getMinimumBalanceForRentExemption\",\"params\":[{d}]}}",
@@ -2311,17 +2311,23 @@ test "rpc client getEpochInfo returns InvalidRpcResponse on malformed success" {
 test "rpc client getMinimumBalanceForRentExemption typed parse happy path" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
-        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":2039280}",
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":1781760}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
 
     const result = try client.getMinimumBalanceForRentExemption(128);
     switch (result) {
-        .ok => |lamports| try std.testing.expectEqual(@as(u64, 2039280), lamports),
+        .ok => |lamports| try std.testing.expectEqual(@as(u64, 1781760), lamports),
         .rpc_error => return error.UnexpectedRpcError,
     }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"method\":\"getMinimumBalanceForRentExemption\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"params\":[128]") != null);
 }
 
 test "rpc client getMinimumBalanceForRentExemption preserves rpc error" {

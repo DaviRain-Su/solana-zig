@@ -11,6 +11,7 @@ after each iteration and it's included in prompts for context.
 - When an RPC method grows multiple optional request parameters, assemble the JSON payload with `std.Io.Writer.Allocating` instead of branching `allocPrint` permutations; keep a deterministic field order so payload-capture unit tests can assert on the wire shape.
 - Batch-style RPC lookups should preserve Solana’s positional response semantics with `[]?T` result items; single-signature confirmation helpers can still layer on top by reading `items[0]`, while tests assert both payload shape and null-slot mapping.
 - For scalar/object read RPCs that only need a configurable `commitment`, prefer a tiny `*Options` struct plus a convenience wrapper that forwards to `WithOptions`; this keeps the public API uniform with richer RPC methods and makes payload-capture tests straightforward.
+- For scalar RPCs with stable public-cluster economics (for example rent-exemption quotes), combine payload-capture unit tests with a table-driven Devnet E2E that asserts a few canonical input/output pairs; this catches both wire-shape regressions and semantic drift without needing funded accounts.
 
 ---
 
@@ -76,5 +77,19 @@ after each iteration and it's included in prompts for context.
     - Payload-capture unit tests are the cheapest way to verify `commitment` plumbing without needing separate mock fixtures for every enum value.
   - Gotchas encountered
     - `zig build devnet-e2e` remains environment-gated; with `SOLANA_RPC_URL` unset the new US-004 live branch is validated only through the expected skip path, not an actual Devnet call.
+---
+
+## 2026-04-16 - US-005
+- Tightened `getMinimumBalanceForRentExemption` to take `usize` data lengths while keeping the `u64` lamports result, and upgraded the mock happy-path test to assert the exact JSON-RPC payload for the requested size.
+- Added a dedicated gated Devnet E2E case that verifies canonical rent-exemption quotes for `0`, `80`, and `128` byte account sizes against current Devnet expectations.
+- Files changed:
+  - `src/solana/rpc/client.zig`
+  - `src/e2e/devnet_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Stable scalar RPCs benefit from table-driven live assertions of a few canonical values, which gives stronger coverage than only checking for positive/non-zero outputs.
+  - Gotchas encountered
+    - The previous mock fixture for the 128-byte rent quote did not match current Devnet economics, so the unit fixture and live expectations needed to be aligned separately instead of assuming arbitrary mock numbers were safe as acceptance evidence.
 ---
 

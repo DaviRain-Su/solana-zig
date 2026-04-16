@@ -80,9 +80,10 @@
         "Devnet E2E 验证：常见数据长度返回值与预期一致"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "labels": [],
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-006",
@@ -293,6 +294,6 @@
     "createdAt": "2026-04-16T13:19:37.279Z",
     "version": "1.0.0",
     "sourcePrd": "tasks/prd-phase-2-solana-zig-sdk-rpcwebsocket.md",
-    "updatedAt": "2026-04-16T14:01:32.314Z"
+    "updatedAt": "2026-04-16T14:10:20.277Z"
   }
 }

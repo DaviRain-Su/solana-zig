@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T14:01:32.316Z",
-  "currentIteration": 4,
+  "updatedAt": "2026-04-16T14:10:20.278Z",
+  "currentIteration": 5,
   "maxIterations": 0,
-  "tasksCompleted": 3,
+  "tasksCompleted": 4,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -54,6 +54,16 @@
       "durationMs": 596179,
       "startedAt": "2026-04-16T13:43:28.688Z",
       "endedAt": "2026-04-16T13:53:24.867Z"
+    },
+    {
+      "iteration": 5,
+      "status": "completed",
+      "taskId": "US-004",
+      "taskTitle": "getSlot / getEpochInfo RPC 方法",
+      "taskCompleted": true,
+      "durationMs": 486357,
+      "startedAt": "2026-04-16T13:53:25.953Z",
+      "endedAt": "2026-04-16T14:01:32.310Z"
     }
   ],
   "skippedTaskIds": [],

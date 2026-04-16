@@ -776,3 +776,51 @@ test "US-004 live: getSlot and getEpochInfo return positive values and structure
         },
     }
 }
+
+test "US-005 live: getMinimumBalanceForRentExemption returns expected lamports for common lengths" {
+    const gpa = std.testing.allocator;
+
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping US-005 live devnet E2E\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    std.debug.print("[US-005 live] endpoint: {s}\n", .{endpoint});
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const cases = [_]struct {
+        data_len: usize,
+        expected_lamports: u64,
+    }{
+        .{ .data_len = 0, .expected_lamports = 890_880 },
+        .{ .data_len = 80, .expected_lamports = 1_447_680 },
+        .{ .data_len = 128, .expected_lamports = 1_781_760 },
+    };
+
+    for (cases) |case| {
+        const result = try client.getMinimumBalanceForRentExemption(case.data_len);
+        switch (result) {
+            .ok => |lamports| {
+                try std.testing.expectEqual(case.expected_lamports, lamports);
+                std.debug.print(
+                    "[US-005 live] getMinimumBalanceForRentExemption({d}) .ok — lamports={d}\n",
+                    .{ case.data_len, lamports },
+                );
+            },
+            .rpc_error => |rpc_err| {
+                defer rpc_err.deinit(gpa);
+                std.debug.print(
+                    "[US-005 live] getMinimumBalanceForRentExemption({d}) rpc_error: {s}\n",
+                    .{ case.data_len, rpc_err.message },
+                );
+                return error.DevnetRpcError;
+            },
+        }
+    }
+}
