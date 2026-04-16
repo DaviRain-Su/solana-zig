@@ -499,3 +499,81 @@
 - 5 条 websocket 证据用例全部 PASS
 - `G-P2-04`：subscribe/unsubscribe、disconnect detect、reconnect、resubscribe、malformed failure 均有证据
 - `G-P2-05`：`docs/06` / `docs/10` / `docs/15` 已同步回写
+
+## 2026-04-16 第二十二次增量记录（#27 P2-7: RPC Batch B 首个 checkpoint）
+
+### 输入
+- `#26` 已通过第二轮 review，`docs/20-phase2-batch2-planning.md` 已冻结；第二批实现线正式放行。
+- `#27` 首个 checkpoint 已提交，范围固定为：
+  - `getEpochInfo`
+  - `getMinimumBalanceForRentExemption`
+  - `requestAirdrop`
+  - `getAddressLookupTable`
+
+### 输出
+- `src/solana/rpc/types.zig` 已补充 Batch B 结果类型骨架：
+  - `EpochInfo`
+  - `RequestAirdropResult`
+  - `AddressLookupTableResult`
+- `src/solana/rpc/client.zig` 已落地 4 个方法的 typed parse 代码。
+- `src/solana/rpc/client.zig` 已补齐每方法的三类测试代码：
+  - `happy`
+  - `rpc_error`
+  - `malformed/invalid response`
+- `docs/10` / `docs/15` 已为 Batch B 打开实时跟踪条目，但当前只记到 `in-progress / pending verification`，不提前升档。
+
+### 风险
+- 当前仍是“代码已落地” checkpoint，尚未拿到 `#27` 的 canonical 三件套，不能据此宣称 `G-P2B-02` 已通过。
+- `G-P2B-02` 的 integration-evidence 还需按 `docs/20` 分流：
+  - `requestAirdrop` 必须给出 live 证据
+  - 只读方法若走 `mock + local-live`，需在 `docs/15` 登记 `Batch 2 exception`
+
+### 验证
+- 本条仅记录代码落地 checkpoint；正式验证待 `#27` 提供：
+  - clean `git status`
+  - commit hash
+  - 单次全量 `zig build test`
+  - 以及 `G-P2B-02` 对应的 integration-evidence
+
+## 2026-04-16 第二十三次增量记录（#29 P2-9: ComputeBudget builders 首个 checkpoint）
+
+### 输入
+- `#26` 已冻结通过，`#29` 按 `docs/20` §2.3 与 `docs/03a` §5.2 进入正式实现。
+- `#29` 首个 checkpoint 已提交，当前落点已回到 `interfaces/compute_budget`，未出现文件归属漂移。
+
+### 输出
+- 新建 `src/solana/interfaces/compute_budget.zig`，已落地：
+  - `programId()`
+  - `buildSetComputeUnitLimitInstruction`
+  - `buildSetComputeUnitPriceInstruction`
+- `src/solana/mod.zig` / `src/root.zig` 已接通 `interfaces.compute_budget` 导出。
+- 证据侧已拿到：
+  - `programId` 常量断言
+  - `setComputeUnitLimit` happy / zero / max u32 / Rust 参考字节
+  - `setComputeUnitPrice` happy / zero / max u64 / Rust 参考字节
+  - 单次全量 `zig build test` `RC=0`
+- `docs/10` / `docs/15` 已为 ComputeBudget 打开实时跟踪条目，但当前仍记为 `in-progress / pending canonical`，等待 commit hash + clean status 补齐。
+
+### 风险
+- 当前证据已明显满足 `G-P2B-04` 主体要求，但 `G-P2B-01` 的 canonical 三件套还缺：
+  - clean `git status`
+  - commit hash
+  - 原始测试结果留档
+- 在三件套到位前，`#29` 不应提升为正式放行状态。
+
+### 验证
+- checkpoint 自报：
+  - 全量 `zig build test` `RC=0`
+  - 字节布局 / 边界 / Rust 参考对照均通过
+- 正式验证待 `#29` 提交 canonical 三件套后收口
+
+### 收口更新
+- `#29` 已补齐 canonical 三件套：
+  - commit `fffbc87`
+  - `git status` clean（`#29` 相关 3 文件已提交，无遗留）
+  - `zig build test --summary all`：`42/42 tests passed, EXIT=0`
+- `G-P2B-04` 已满足：
+  - `setComputeUnitLimit` / `setComputeUnitPrice` builder 可用
+  - 参数边界校验完成
+  - Rust 参考字节对照已留档
+- `G-P2B-05` 本轮通过：`docs/06` / `docs/10` / `docs/15` 已同步从 checkpoint 骨架转为正式状态

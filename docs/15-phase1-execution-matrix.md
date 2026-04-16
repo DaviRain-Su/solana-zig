@@ -73,3 +73,12 @@
 |---|---|---|---|---|---|---|
 | `rpc.Websocket subscriptions` | in-progress | `#20`, `#22`, `#23`, `#24` | `WsRpcClient` 主任务 `#20` 仍在集成提审前阶段；当前已完成 transport compile fix 与 subscription lifecycle 证据，但产品面尚未最终放行 | `ws_unsubscribe_ack_success` + `ws_reconnect_subscription_response_malformed` + 单次 `zig build test` 通过 | `src/solana/rpc/ws_client.zig` tests + `docs/06` + `docs/10` | `#20` 提审通过，生命周期证据与 public surface 一致 |
 | `rpc.Websocket reconnect lifecycle` | in-progress | `#20`, `#22`, `#23`, `#24` | 断线检测 / reconnect / resubscribe 证据已齐，但仍待 `WsRpcClient` 集成段与最终 gate 汇总 | `ws_reconnect_detect_disconnect_then_reconnect` + `ws_reconnect_resubscribe_after_reconnect` + `ws_reconnect_notify_path_with_server_close` + 单次 `zig build test` 通过 | `src/solana/rpc/ws_client.zig` tests + `docs/06` + `docs/10` | `G-P2-04` 由 `#20` 最终提审统一闭环，docs 与 gate 对账完成 |
+
+## 7. Phase 2 Batch 2 Extension Tracking
+
+> 按 `docs/20-phase2-batch2-planning.md` 的冻结口径，第二批实现 / 例外 / gate 统一继续落在本矩阵中留痕。以下状态不影响 Phase 1 closeout，仅用于跟踪 Phase 2 Batch 2 的实现收口与 `Batch 2 exception`。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `rpc.Batch B methods` | in-progress | `#27` | 4 个方法的 typed parse 与三类测试代码已落地，但 canonical 三件套与 integration-evidence 尚未提交；只读方法是否使用 `mock + local-live` 例外也尚未正式留痕 | `getEpochInfo/getMinimumBalanceForRentExemption/requestAirdrop/getAddressLookupTable` 的 typed parse + `happy/rpc_error/malformed`；后续补 `requestAirdrop` live 与必要的 `Batch 2 exception` | `src/solana/rpc/client.zig` + `src/solana/rpc/types.zig` + `docs/06` + `docs/10` + 本矩阵 | 满足 `G-P2B-01` canonical 三件套；满足 `G-P2B-02` integration-evidence；若只读方法走 `mock + local-live`，则在本矩阵登记 `Batch 2 exception` |
+| `interfaces.ComputeBudget builders` | closed | `#29` | ~~builders / 导出 / 字节对照与边界测试已落地，当前只差 canonical 三件套留档~~ → **已完成**：canonical 三件套到位（`fffbc87`, clean status, `42/42 tests passed`），`G-P2B-04`/`G-P2B-05` 均已满足 | `setComputeUnitLimit` / `setComputeUnitPrice` builder + Rust 参考字节对照 + boundary（0 / max）+ 全量 `zig build test` 通过 | `src/solana/interfaces/compute_budget.zig` + `src/solana/mod.zig` + `src/root.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2B-01` canonical 三件套；已满足 `G-P2B-04` 证据；docs/gate 对账完成 |
