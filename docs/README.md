@@ -56,3 +56,5 @@
 - `27-batch6-release-readiness.md`：Batch 6 专属发布前清单（不覆盖 Batch 5 final artifact）
 - `28-phase2-closeout-readiness.md`：Phase 2 跨批次总收口专属产物（不覆盖 Batch 5/6 batch-level artifacts）
 - `29-phase2-batch7-planning.md`：Product Phase 2 第七批规划（Batch B landing + smoke 收敛 + Phase 2 closeout artifact）
+- `30-phase3-batch1-planning.md`：Product Phase 3 第一批规划（System/Token interfaces + exception 收敛）
+- `31-phase3-batch1-release-readiness.md`：Phase 3 Batch 1 专属发布就绪清单（不覆盖 phase-level artifact）
