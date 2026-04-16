@@ -80,5 +80,12 @@
 
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
-| `rpc.Batch B methods` | in-progress | `#27` | 4 个方法的 typed parse 与三类测试代码已落地，但 canonical 三件套与 integration-evidence 尚未提交；只读方法是否使用 `mock + local-live` 例外也尚未正式留痕 | `getEpochInfo/getMinimumBalanceForRentExemption/requestAirdrop/getAddressLookupTable` 的 typed parse + `happy/rpc_error/malformed`；后续补 `requestAirdrop` live 与必要的 `Batch 2 exception` | `src/solana/rpc/client.zig` + `src/solana/rpc/types.zig` + `docs/06` + `docs/10` + 本矩阵 | 满足 `G-P2B-01` canonical 三件套；满足 `G-P2B-02` integration-evidence；若只读方法走 `mock + local-live`，则在本矩阵登记 `Batch 2 exception` |
+| `rpc.Batch B methods` | closed | `#27` | ~~4 个方法的 typed parse 与三类测试代码已落地，但 canonical 三件套与 integration-evidence 尚未提交；只读方法是否使用 `mock + local-live` 例外也尚未正式留痕~~ → **已完成**：canonical 三件套到位（`0070fa8`, clean worktree, `32/32 tests passed`），`requestAirdrop` local-live 成功，`getEpochInfo/getMinimumBalanceForRentExemption` 具备 `public devnet + local-live`，`getAddressLookupTable` 已按 `Batch 2 exception` 收口 | `getEpochInfo/getMinimumBalanceForRentExemption/requestAirdrop/getAddressLookupTable` 的 typed parse + `happy/rpc_error/malformed`；`requestAirdrop` live；只读方法 integration / exception 证据 | `src/solana/rpc/client.zig` + `src/solana/rpc/types.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2B-01` canonical 三件套；已满足 `G-P2B-02` integration-evidence；`getAddressLookupTable` 例外已登记 |
 | `interfaces.ComputeBudget builders` | closed | `#29` | ~~builders / 导出 / 字节对照与边界测试已落地，当前只差 canonical 三件套留档~~ → **已完成**：canonical 三件套到位（`fffbc87`, clean status, `42/42 tests passed`），`G-P2B-04`/`G-P2B-05` 均已满足 | `setComputeUnitLimit` / `setComputeUnitPrice` builder + Rust 参考字节对照 + boundary（0 / max）+ 全量 `zig build test` 通过 | `src/solana/interfaces/compute_budget.zig` + `src/solana/mod.zig` + `src/root.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2B-01` canonical 三件套；已满足 `G-P2B-04` 证据；docs/gate 对账完成 |
+
+### Batch 2 Exception Register
+
+- `#27 rpc.Batch B methods` → `getAddressLookupTable`
+  - 当前例外口径：`public devnet` 与 `local-live` 均返回 `-32601 Method not found`
+  - 本批处理：以 `mock + local-live RPC error evidence` 收口
+  - 后续收敛：下一阶段继续补实际可用 endpoint / integration 路径

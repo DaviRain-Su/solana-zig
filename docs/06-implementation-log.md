@@ -535,6 +535,30 @@
   - 单次全量 `zig build test`
   - 以及 `G-P2B-02` 对应的 integration-evidence
 
+### 收口更新
+- `#27` 已补齐 canonical 三件套：
+  - worktree: `/tmp/solana-zig-p2b27-164030`
+  - commit `0070fa8`
+  - `git status --short` 为空（clean）
+  - `zig build test --summary all`：`5/5 steps; 32/32 tests passed`
+- 4 个方法的方法级测试均通过（每方法 `happy / rpc_error / malformed` 三类覆盖）：
+  - `getEpochInfo`
+  - `getMinimumBalanceForRentExemption`
+  - `requestAirdrop`
+  - `getAddressLookupTable`
+- integration-evidence 已形成：
+  - `requestAirdrop`：local-live 成功（surfnet `127.0.0.1:8899`，`AIRDROP_SIGNATURE=2MiKthPH...`）
+  - `getEpochInfo` / `getMinimumBalanceForRentExemption`：`public devnet + local-live` 成功
+  - `getAddressLookupTable`：`public devnet` 与 `local-live` 均返回 `-32601 Method not found`
+- 按 `docs/20` 的 Batch 2 固定例外口径，`getAddressLookupTable` 已登记为 `Batch 2 exception`：
+  - 本批以 `mock + local-live RPC error evidence` 收口
+  - 后续阶段继续收敛实际可用 endpoint / integration 路径
+
+### 验证补充
+- `G-P2B-01`：canonical 三件套 ✅
+- `G-P2B-02`：typed parse + method-level tests + integration/exception 模型 ✅
+- `G-P2B-05`：`docs/06` / `docs/10` / `docs/15` 已同步从骨架转为正式留痕
+
 ## 2026-04-16 第二十三次增量记录（#29 P2-9: ComputeBudget builders 首个 checkpoint）
 
 ### 输入
