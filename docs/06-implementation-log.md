@@ -949,3 +949,50 @@
   - `G-P2E-01` ✅
   - `G-P2E-03` ✅
   - `G-P2E-05` ✅
+
+## 2026-04-16 第三十五次增量记录（#46 P2-24: 发布前自动化收口）
+
+### 输入
+- 第五批 `#43` 已通过结构审并放行实现；`#46` 按 `docs/24` §2.3 与 `G-P2E-04` 进入发布前自动化收口。
+- 本轮冻结目标固定为：
+  - 新增独立 preflight 入口脚本
+  - 生成标准报告产物
+  - 将 Batch 5 release verdict 输入对齐到 `docs/25`
+
+### 输出
+- 新增 `scripts/release/preflight_batch5.sh`，统一收集：
+  - build/test
+  - smoke（public devnet / local-live）
+  - docs consistency
+  - verdict input
+- `docs/25-batch5-release-readiness.md` 已对齐 Batch 5 preflight 自动化路径与输出格式：
+  - 脚本路径：`scripts/release/preflight_batch5.sh`
+  - 报告产物：`artifacts/release/batch5-preflight-<timestamp>-<commit>.md`
+  - logs：`artifacts/release/batch5-*.log`
+- 支持 `ALLOW_BATCH5_EXCEPTION=true` 走 `有条件发布` 路径，用于 smoke 缺失时的标准化报告输出。
+
+### 风险
+- 当前可复现样例运行未提供 `SOLANA_RPC_URL` 与 `SURFPOOL_RPC_URL`，因此 smoke 两侧均为 `MISSING`。
+- 这意味着本轮 **触发 Batch 5 exception**；脚本与报告链路已经成立，但 Batch 5 最终 release verdict 仍不能提前升为 `可发布`。
+- 本轮收口的是自动化入口与标准报告能力，不把“缺 smoke 的 conditional verdict”误写成 Batch 5 的 final release verdict。
+
+### 验证
+- canonical 三件套（隔离 worktree）：
+  - worktree `/tmp/solana-zig-b5-46-e7f8987`
+  - commit `3e34225`
+  - `git status --short` 为空（clean）
+  - `zig build test --summary all`：`82/82 tests passed`
+- preflight 样例运行：
+  - command：`ALLOW_BATCH5_EXCEPTION=true scripts/release/preflight_batch5.sh /tmp/batch5-preflight-3e34225`
+  - report：`/tmp/batch5-preflight-3e34225/batch5-preflight-20260416-194418-3e34225.md`
+  - result：
+    - `build/test`: `PASS`
+    - `smoke(public devnet)`: `MISSING`
+    - `smoke(local-live)`: `MISSING`
+    - `docs consistency`: `PASS`
+    - `exception_required`: `true`
+    - `verdict`: `有条件发布`
+- gate 结论：
+  - `G-P2E-01` ✅
+  - `G-P2E-04` ✅
+  - `G-P2E-05` ✅

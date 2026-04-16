@@ -140,9 +140,17 @@
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
 | `rpc.Websocket observability` | closed | `#45` | ~~等待冻结 snapshot schema、counter/state 可复现证据与 canonical 三件套统一收口~~ → **已完成**：`e7f8987` 已补齐冻结 `WsStats` schema、reconnect / dedup / subscription / error state instrumentation，canonical 三件套完成（`82/82 tests passed`），无 Batch 5 exception | `ws_observability_snapshot_initial_state` + `ws_observability_counters_after_subscribe` + `ws_observability_reconnect_counter_increments` + `ws_observability_dedup_dropped_counter` + `ws_observability_backoff_error_state` + canonical 三件套 | `src/solana/rpc/ws_client.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2E-01` canonical 三件套；已满足 `G-P2E-03` websocket observability gate；`G-P2E-05` 文档回写完成 |
+| `release.Batch 5 preflight automation` | closed | `#46` | ~~等待 preflight 入口脚本 / 标准报告 / verdict 输入与 canonical 三件套统一收口~~ → **已完成**：`3e34225` 已新增 `scripts/release/preflight_batch5.sh`，对齐 `docs/25` 报告格式并形成可复现 conditional 路径样例，canonical 三件套完成（`82/82 tests passed`） | `scripts/release/preflight_batch5.sh` + `ALLOW_BATCH5_EXCEPTION=true` 样例运行 + 标准报告路径 + canonical 三件套 | `scripts/release/preflight_batch5.sh` + `docs/25-batch5-release-readiness.md` + `docs/06` + 本矩阵 | 已满足 `G-P2E-01` canonical 三件套；已满足 `G-P2E-04` preflight automation gate；`G-P2E-05` 文档回写完成 |
 
 ### Batch 5 Exception Register
 
 - `#45 rpc.Websocket observability`
   - 当前口径：**无例外**
   - 原因：本轮按 canonical 三件套 + observability 测试证据收口，不涉及 live/integration 替代模型
+- `#46 release.Batch 5 preflight automation`
+  - 当前例外口径：`public devnet` smoke 与 `local-live` smoke 在样例运行环境中均缺失
+  - 本批处理：以 `ALLOW_BATCH5_EXCEPTION=true` 生成标准报告，当前 verdict = `有条件发布`
+  - 直接原因：
+    - `public devnet` smoke missing（执行环境未提供 `SOLANA_RPC_URL`）
+    - `local-live` smoke missing（执行环境未提供 `SURFPOOL_RPC_URL`）
+  - 后续收敛：在 CI / nightly 环境补齐双侧 smoke 后，将 verdict 升级到 `可发布`
