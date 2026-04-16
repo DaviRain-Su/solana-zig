@@ -55,6 +55,25 @@ pub const GetEpochInfoOptions = struct {
     commitment: Commitment = .confirmed,
 };
 
+pub const AccountEncoding = enum {
+    base64,
+
+    pub fn jsonString(self: AccountEncoding) []const u8 {
+        return @tagName(self);
+    }
+};
+
+pub const GetTokenAccountsByOwnerFilter = union(enum) {
+    program_id: pubkey_mod.Pubkey,
+    mint: pubkey_mod.Pubkey,
+};
+
+pub const GetTokenAccountsByOwnerOptions = struct {
+    filter: GetTokenAccountsByOwnerFilter,
+    encoding: AccountEncoding = .base64,
+    commitment: Commitment = .confirmed,
+};
+
 pub const AccountInfo = struct {
     lamports: u64,
     owner: pubkey_mod.Pubkey,
@@ -199,16 +218,12 @@ pub const EpochInfo = struct {
 
 pub const TokenAccountInfo = struct {
     pubkey: pubkey_mod.Pubkey,
-    owner: pubkey_mod.Pubkey,
-    lamports: u64,
-    data: []u8,
+    account_info: AccountInfo,
     data_encoding: ?[]const u8 = null,
-    raw_json: ?[]const u8 = null,
 
     pub fn deinit(self: *TokenAccountInfo, allocator: std.mem.Allocator) void {
-        allocator.free(self.data);
+        self.account_info.deinit(allocator);
         if (self.data_encoding) |encoding| allocator.free(encoding);
-        if (self.raw_json) |raw| allocator.free(raw);
     }
 };
 

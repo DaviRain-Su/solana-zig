@@ -396,17 +396,51 @@ pub const RpcClient = struct {
         return .{ .ok = .{ .items = items } };
     }
 
-    pub fn getTokenAccountsByOwner(self: *RpcClient, owner: pubkey_mod.Pubkey, program_id: pubkey_mod.Pubkey) !types.RpcResult(types.TokenAccountsByOwnerResult) {
+    pub fn getTokenAccountsByOwner(
+        self: *RpcClient,
+        owner: pubkey_mod.Pubkey,
+        program_id: pubkey_mod.Pubkey,
+    ) !types.RpcResult(types.TokenAccountsByOwnerResult) {
+        return self.getTokenAccountsByOwnerWithOptions(owner, .{
+            .filter = .{ .program_id = program_id },
+        });
+    }
+
+    pub fn getTokenAccountsByOwnerWithOptions(
+        self: *RpcClient,
+        owner: pubkey_mod.Pubkey,
+        options: types.GetTokenAccountsByOwnerOptions,
+    ) !types.RpcResult(types.TokenAccountsByOwnerResult) {
         const owner_b58 = try owner.toBase58Alloc(self.allocator);
         defer self.allocator.free(owner_b58);
-        const program_b58 = try program_id.toBase58Alloc(self.allocator);
-        defer self.allocator.free(program_b58);
 
-        const payload = try std.fmt.allocPrint(
-            self.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getTokenAccountsByOwner\",\"params\":[\"{s}\",{{\"programId\":\"{s}\"}},{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
-            .{ self.nextRpcId(), owner_b58, program_b58 },
+        var payload_out: std.Io.Writer.Allocating = .init(self.allocator);
+        defer payload_out.deinit();
+
+        try payload_out.writer.print(
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getTokenAccountsByOwner\",\"params\":[\"{s}\",",
+            .{ self.nextRpcId(), owner_b58 },
         );
+
+        switch (options.filter) {
+            .program_id => |program_id| {
+                const program_b58 = try program_id.toBase58Alloc(self.allocator);
+                defer self.allocator.free(program_b58);
+                try payload_out.writer.print("{{\"programId\":\"{s}\"}}", .{program_b58});
+            },
+            .mint => |mint| {
+                const mint_b58 = try mint.toBase58Alloc(self.allocator);
+                defer self.allocator.free(mint_b58);
+                try payload_out.writer.print("{{\"mint\":\"{s}\"}}", .{mint_b58});
+            },
+        }
+
+        try payload_out.writer.print(
+            ",{{\"encoding\":\"{s}\",\"commitment\":\"{s}\"}}]}}",
+            .{ options.encoding.jsonString(), options.commitment.jsonString() },
+        );
+
+        const payload = try self.allocator.dupe(u8, payload_out.written());
         defer self.allocator.free(payload);
 
         var response = try self.callAndParse(payload);
@@ -440,6 +474,8 @@ pub const RpcClient = struct {
             const lamports = getU64Field(account, "lamports") orelse return error.InvalidRpcResponse;
             const account_owner_str = getStringField(account, "owner") orelse return error.InvalidRpcResponse;
             const account_owner = try pubkey_mod.Pubkey.fromBase58(account_owner_str);
+            const executable = getBoolField(account, "executable") orelse return error.InvalidRpcResponse;
+            const rent_epoch = getU64Field(account, "rentEpoch") orelse 0;
 
             const data = try decodeAccountData(self.allocator, account);
             errdefer self.allocator.free(data);
@@ -450,11 +486,15 @@ pub const RpcClient = struct {
 
             items[i] = .{
                 .pubkey = pubkey,
-                .owner = account_owner,
-                .lamports = lamports,
-                .data = data,
+                .account_info = .{
+                    .lamports = lamports,
+                    .owner = account_owner,
+                    .executable = executable,
+                    .rent_epoch = rent_epoch,
+                    .data = data,
+                    .raw_json = raw_json,
+                },
                 .data_encoding = data_encoding,
-                .raw_json = raw_json,
             };
             initialized += 1;
         }
@@ -2075,7 +2115,9 @@ test "rpc client getTokenAccountsByOwner typed parse happy path" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
         .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":[{\"pubkey\":\"11111111111111111111111111111111\",\"account\":{\"lamports\":2039280,\"owner\":\"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\",\"data\":[\"AQID\",\"base64\"],\"executable\":false,\"rentEpoch\":1}}]}}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
@@ -2089,13 +2131,60 @@ test "rpc client getTokenAccountsByOwner typed parse happy path" {
             var owned = token_accounts;
             defer owned.deinit(gpa);
             try std.testing.expectEqual(@as(usize, 1), owned.items.len);
-            try std.testing.expectEqual(@as(u64, 2039280), owned.items[0].lamports);
-            try std.testing.expectEqual(@as(usize, 3), owned.items[0].data.len);
+            try std.testing.expectEqual(@as(u64, 2039280), owned.items[0].account_info.lamports);
+            try std.testing.expectEqual(@as(usize, 3), owned.items[0].account_info.data.len);
+            try std.testing.expect(!owned.items[0].account_info.executable);
+            try std.testing.expectEqual(@as(u64, 1), owned.items[0].account_info.rent_epoch);
             try std.testing.expectEqualStrings("base64", owned.items[0].data_encoding.?);
-            try std.testing.expect(owned.items[0].raw_json != null);
+            try std.testing.expect(owned.items[0].account_info.raw_json != null);
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"method\":\"getTokenAccountsByOwner\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"programId\":\"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"encoding\":\"base64\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"commitment\":\"confirmed\"") != null);
+}
+
+test "rpc client getTokenAccountsByOwnerWithOptions supports mint filter and empty list" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":[]}}",
+        .capture_payload = true,
+    };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const owner = pubkey_mod.Pubkey.init([_]u8{45} ** 32);
+    const mint = pubkey_mod.Pubkey.init([_]u8{46} ** 32);
+    const result = try client.getTokenAccountsByOwnerWithOptions(owner, .{
+        .filter = .{ .mint = mint },
+        .encoding = .base64,
+        .commitment = .finalized,
+    });
+
+    switch (result) {
+        .ok => |token_accounts| {
+            var owned = token_accounts;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(usize, 0), owned.items.len);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    const mint_b58 = try mint.toBase58Alloc(gpa);
+    defer gpa.free(mint_b58);
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"method\":\"getTokenAccountsByOwner\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"mint\":\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, mint_b58) != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"encoding\":\"base64\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"commitment\":\"finalized\"") != null);
 }
 
 test "rpc client getTokenAccountsByOwner preserves rpc error" {

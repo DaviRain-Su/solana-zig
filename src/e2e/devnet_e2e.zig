@@ -40,6 +40,7 @@ const MAX_BALANCE_POLLS: u32 = 30;
 const MAX_CONFIRM_POLLS: u32 = 30;
 const MAX_GET_TRANSACTION_POLLS: u32 = 30;
 const MAX_ALT_DISCOVERY_BLOCKS: u64 = 32;
+const WRAPPED_SOL_MINT_STR = "So11111111111111111111111111111111111111112";
 
 fn isRateLimitedRpcError(code: i64, message: []const u8) bool {
     if (code == -32005) return true;
@@ -369,6 +370,77 @@ fn discoverRecentAddressLookupTable(client: *RpcClient, allocator: std.mem.Alloc
                 const account_key = getJsonStringField(&lookup_item, "accountKey") orelse continue;
                 return try Pubkey.fromBase58(account_key);
             }
+        }
+    }
+
+    return null;
+}
+
+const DiscoveredTokenOwner = struct {
+    token_account: Pubkey,
+    owner: Pubkey,
+};
+
+fn discoverTokenOwnerForMint(
+    client: *RpcClient,
+    allocator: std.mem.Allocator,
+    mint: Pubkey,
+) !?DiscoveredTokenOwner {
+    const mint_b58 = try mint.toBase58Alloc(allocator);
+    defer allocator.free(mint_b58);
+
+    const payload = try std.fmt.allocPrint(
+        allocator,
+        "{{\"jsonrpc\":\"2.0\",\"id\":201,\"method\":\"getTokenLargestAccounts\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+        .{mint_b58},
+    );
+    defer allocator.free(payload);
+
+    var parsed = postJsonAndParse(client, allocator, payload) catch |err| switch (err) {
+        error.RpcTransport, error.RpcParse, error.InvalidRpcResponse => return null,
+        else => return err,
+    };
+    defer parsed.deinit();
+
+    const root_value = &parsed.value;
+    if (getJsonField(root_value, "error") != null) return null;
+
+    const result = getJsonField(root_value, "result") orelse return null;
+    const value = getJsonField(result, "value") orelse return null;
+    if (value.* != .array) return null;
+
+    const token_program = root.interfaces.token.programId();
+    for (value.array.items) |item| {
+        const token_account_str = getJsonStringField(&item, "address") orelse continue;
+        const token_account = Pubkey.fromBase58(token_account_str) catch continue;
+
+        const account_result = try client.getAccountInfo(token_account);
+        switch (account_result) {
+            .ok => |maybe_account| {
+                if (maybe_account == null) continue;
+
+                var account_info = maybe_account.?;
+                defer account_info.deinit(allocator);
+
+                if (!account_info.owner.eql(token_program)) continue;
+                if (account_info.data.len < (Pubkey.LENGTH * 2)) continue;
+
+                const discovered_mint = try Pubkey.fromSlice(account_info.data[0..Pubkey.LENGTH]);
+                if (!discovered_mint.eql(mint)) continue;
+
+                const owner = try Pubkey.fromSlice(account_info.data[Pubkey.LENGTH .. Pubkey.LENGTH * 2]);
+                return .{
+                    .token_account = token_account,
+                    .owner = owner,
+                };
+            },
+            .rpc_error => |rpc_err| {
+                defer rpc_err.deinit(allocator);
+                std.debug.print(
+                    "[US-008 live] getAccountInfo rpc_error during owner discovery for {s}: {s}\n",
+                    .{ token_account_str, rpc_err.message },
+                );
+            },
         }
     }
 
@@ -1039,6 +1111,108 @@ test "US-007 live: getAddressLookupTable returns account state for a recent devn
         .rpc_error => |rpc_err| {
             defer rpc_err.deinit(gpa);
             std.debug.print("[US-007 live] getAddressLookupTable rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
+}
+
+test "US-008 live: getTokenAccountsByOwner returns token accounts for a discovered holder" {
+    const gpa = std.testing.allocator;
+
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping US-008 live devnet E2E\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    std.debug.print("[US-008 live] endpoint: {s}\n", .{endpoint});
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const wrapped_sol_mint = try Pubkey.fromBase58(WRAPPED_SOL_MINT_STR);
+    const discovered = (try discoverTokenOwnerForMint(&client, gpa, wrapped_sol_mint)) orelse {
+        std.debug.print("[US-008 live] skip: unable to discover a Devnet owner for the wrapped SOL mint\n", .{});
+        return;
+    };
+
+    const owner_b58 = try discovered.owner.toBase58Alloc(gpa);
+    defer gpa.free(owner_b58);
+    const token_account_b58 = try discovered.token_account.toBase58Alloc(gpa);
+    defer gpa.free(token_account_b58);
+
+    const token_program = root.interfaces.token.programId();
+
+    const program_result = try client.getTokenAccountsByOwner(discovered.owner, token_program);
+    switch (program_result) {
+        .ok => |token_accounts_result| {
+            var token_accounts = token_accounts_result;
+            defer token_accounts.deinit(gpa);
+
+            try std.testing.expect(token_accounts.items.len > 0);
+
+            var found_discovered_account = false;
+            for (token_accounts.items) |item| {
+                if (item.pubkey.eql(discovered.token_account)) {
+                    found_discovered_account = true;
+                    try std.testing.expect(item.account_info.owner.eql(token_program));
+                    try std.testing.expect(item.account_info.data.len >= (Pubkey.LENGTH * 2));
+                    try std.testing.expect(item.data_encoding != null);
+                    try std.testing.expectEqualStrings("base64", item.data_encoding.?);
+                }
+            }
+
+            try std.testing.expect(found_discovered_account);
+            std.debug.print(
+                "[US-008 live] programId filter .ok — owner={s}, count={d}, sample_account={s}\n",
+                .{ owner_b58, token_accounts.items.len, token_account_b58 },
+            );
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-008 live] getTokenAccountsByOwner(programId) rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
+
+    const mint_result = try client.getTokenAccountsByOwnerWithOptions(discovered.owner, .{
+        .filter = .{ .mint = wrapped_sol_mint },
+        .encoding = .base64,
+    });
+    switch (mint_result) {
+        .ok => |token_accounts_result| {
+            var token_accounts = token_accounts_result;
+            defer token_accounts.deinit(gpa);
+
+            try std.testing.expect(token_accounts.items.len > 0);
+
+            var found_discovered_account = false;
+            for (token_accounts.items) |item| {
+                try std.testing.expect(item.account_info.owner.eql(token_program));
+                try std.testing.expect(item.account_info.data.len >= (Pubkey.LENGTH * 2));
+                try std.testing.expect(item.data_encoding != null);
+                try std.testing.expectEqualStrings("base64", item.data_encoding.?);
+
+                const item_mint = try Pubkey.fromSlice(item.account_info.data[0..Pubkey.LENGTH]);
+                try std.testing.expect(item_mint.eql(wrapped_sol_mint));
+
+                if (item.pubkey.eql(discovered.token_account)) {
+                    found_discovered_account = true;
+                }
+            }
+
+            try std.testing.expect(found_discovered_account);
+            std.debug.print(
+                "[US-008 live] mint filter .ok — owner={s}, mint={s}, count={d}\n",
+                .{ owner_b58, WRAPPED_SOL_MINT_STR, token_accounts.items.len },
+            );
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-008 live] getTokenAccountsByOwner(mint) rpc_error: {s}\n", .{rpc_err.message});
             return error.DevnetRpcError;
         },
     }

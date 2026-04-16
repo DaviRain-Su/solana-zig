@@ -14,6 +14,7 @@ after each iteration and it's included in prompts for context.
 - For scalar RPCs with stable public-cluster economics (for example rent-exemption quotes), combine payload-capture unit tests with a table-driven Devnet E2E that asserts a few canonical input/output pairs; this catches both wire-shape regressions and semantic drift without needing funded accounts.
 - For live Devnet RPCs that mutate state and can be faucet-limited, prefer a typed end-to-end assertion that captures the returned signature, polls the affected account for a before/after state delta, and explicitly treats rate-limit RPC errors as a logged skip path instead of a hard failure.
 - For live Devnet acceptance that needs a non-ephemeral on-chain artifact (for example an ALT account), prefer a discovery helper that scans recent blocks via raw JSON-RPC and reuses the discovered key in the typed client assertion; this avoids hardcoding addresses that may disappear while still validating the real parser.
+- For token-account live acceptance, prefer discovering a sample token account via raw helper RPCs (for example `getTokenLargestAccounts`), then decode the canonical SPL Token account layout through the typed `getAccountInfo` path to derive a reusable owner/mint fixture before asserting higher-level typed RPC filters.
 
 ---
 
@@ -121,5 +122,21 @@ after each iteration and it's included in prompts for context.
     - For live ALT verification, scanning recent `getBlock` results for `message.addressTableLookups[*].accountKey` is a practical way to discover a currently active table without hardcoding a brittle Devnet fixture.
   - Gotchas encountered
     - Zig rejects function parameters that shadow a top-level declaration in the same file, so local JSON helper argument names in `devnet_e2e.zig` must avoid `root` because that file already imports `const root = @import("solana_zig");`.
+---
+
+## 2026-04-16 - US-008
+- Implemented `getTokenAccountsByOwnerWithOptions` with typed `programId` / `mint` filters, configurable `encoding` + `commitment`, and reshaped results so each item now exposes `pubkey` plus nested `account_info` while preserving decoded account data and raw account JSON.
+- Added mock coverage for the programId happy path payload, mint-filter empty-list handling, RPC error preservation, and malformed responses; added a gated Devnet E2E that discovers a wrapped-SOL holder via `getTokenLargestAccounts`, decodes the owner from the token account bytes, and validates both filter modes against live RPC.
+- Files changed:
+  - `src/solana/rpc/types.zig`
+  - `src/solana/rpc/client.zig`
+  - `src/e2e/devnet_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - `getTokenAccountsByOwner` fits the repo’s extended-RPC pattern best with a `WithOptions` variant whose required filter is a small tagged union, keeping the legacy convenience wrapper for the common `programId` case while still making payload assertions deterministic.
+    - Live token-account validation is most robust when a raw discovery helper finds a current token account first and the typed `getAccountInfo` parser is then reused to decode the canonical `[mint|owner|...]` account layout for downstream assertions.
+  - Gotchas encountered
+    - Declaring a `Pubkey.fromBase58(...)` constant at file scope triggered Zig comptime branch-quota errors in the E2E target, so the wrapped-SOL mint had to stay as a string constant and be parsed at runtime inside the test.
 ---
 

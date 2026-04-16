@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T14:26:45.714Z",
-  "currentIteration": 7,
+  "updatedAt": "2026-04-16T14:38:23.517Z",
+  "currentIteration": 9,
   "maxIterations": 0,
-  "tasksCompleted": 6,
+  "tasksCompleted": 7,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -84,6 +84,26 @@
       "durationMs": 436366,
       "startedAt": "2026-04-16T14:10:21.367Z",
       "endedAt": "2026-04-16T14:17:37.733Z"
+    },
+    {
+      "iteration": 8,
+      "status": "completed",
+      "taskId": "US-007",
+      "taskTitle": "getAddressLookupTable RPC 方法",
+      "taskCompleted": true,
+      "durationMs": 546892,
+      "startedAt": "2026-04-16T14:17:38.815Z",
+      "endedAt": "2026-04-16T14:26:45.707Z"
+    },
+    {
+      "iteration": 9,
+      "status": "failed",
+      "taskId": "US-008",
+      "taskTitle": "getTokenAccountsByOwner RPC 方法",
+      "taskCompleted": false,
+      "durationMs": 600049,
+      "startedAt": "2026-04-16T14:26:46.788Z",
+      "endedAt": "2026-04-16T14:36:46.837Z"
     }
   ],
   "skippedTaskIds": [],

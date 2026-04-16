@@ -1,0 +1,30 @@
+# Iteration 8 Log
+
+## Metadata
+
+- **Task ID**: US-007
+- **Task Title**: getAddressLookupTable RPC 方法
+- **Description**: As a Zig 开发者, I want 调用 getAddressLookupTable so that 我可以读取链上地址查找表内容用于 v0 交易。
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T14:17:38.815Z
+- **Ended At**: 2026-04-16T14:26:45.707Z
+- **Duration**: 9m 6s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# Done
+
+Implemented US-007 end-to-end: `getAddressLookupTable` now yields a typed `AddressLookupTableAccount` shape (`key` + `state` with `addresses`), added mock coverage for success / not-found (`null`) / error paths, added a gated Devnet E2E that discovers a recent live ALT and validates typed parsing, and appended the required entry to `.ralph-tui/progress.md`.
+
+## Validation
+
+- `zig build test`
+- `zig build bench`
+- `zig build devnet-e2e`  
+  - passed; live Devnet cases were skipped in this environment because `SOLANA_RPC_URL` was not set
+
+<promise>COMPLETE</promise>
+]9;4;0;
