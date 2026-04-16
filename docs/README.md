@@ -54,3 +54,5 @@
 - `25-batch5-release-readiness.md`：Batch 5 专属发布前清单（不覆盖 Batch 4 final artifact）
 - `26-phase2-batch6-planning.md`：Product Phase 2 第六批规划（SPL Token 交易流 + WS 可恢复性深化 + 发布流水线固化）
 - `27-batch6-release-readiness.md`：Batch 6 专属发布前清单（不覆盖 Batch 5 final artifact）
+- `28-phase2-closeout-readiness.md`：Phase 2 跨批次总收口专属产物（不覆盖 Batch 5/6 batch-level artifacts）
+- `29-phase2-batch7-planning.md`：Product Phase 2 第七批规划（Batch B landing + smoke 收敛 + Phase 2 closeout artifact）

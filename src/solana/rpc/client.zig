@@ -1398,6 +1398,118 @@ test "rpc client simulateTransaction returns InvalidRpcResponse on malformed suc
     try std.testing.expectError(error.InvalidRpcResponse, client.simulateTransaction(tx));
 }
 
+test "rpc client sendTransaction typed parse happy path" {
+    const gpa = std.testing.allocator;
+    const zero_sig_b58 = "1111111111111111111111111111111111111111111111111111111111111111";
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"1111111111111111111111111111111111111111111111111111111111111111\"}",
+        .capture_payload = true,
+    };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    var tx = try makeTestTransaction(gpa);
+    defer tx.deinit();
+
+    const tx_bytes = try tx.serialize(gpa);
+    defer gpa.free(tx_bytes);
+    const tx_base64 = try encodeBase64(gpa, tx_bytes);
+    defer gpa.free(tx_base64);
+
+    const result = try client.sendTransaction(tx);
+    switch (result) {
+        .ok => |send| {
+            const expected = try @import("../core/signature.zig").Signature.fromBase58(zero_sig_b58);
+            try std.testing.expectEqualSlices(u8, &expected.bytes, &send.signature.bytes);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, tx_base64) != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"encoding\":\"base64\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"skipPreflight\":false") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"preflightCommitment\":\"confirmed\"") != null);
+}
+
+test "rpc client sendTransaction supports custom options" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"1111111111111111111111111111111111111111111111111111111111111111\"}",
+        .capture_payload = true,
+    };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    var tx = try makeTestTransaction(gpa);
+    defer tx.deinit();
+
+    const result = try client.sendTransactionWithOptions(tx, .{
+        .skip_preflight = true,
+        .preflight_commitment = .finalized,
+    });
+    switch (result) {
+        .ok => |send| try std.testing.expect(send.signature.isZero()),
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"skipPreflight\":true") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"preflightCommitment\":\"finalized\"") != null);
+}
+
+test "rpc client sendTransaction preserves rpc error with typed parse" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32002,\"message\":\"Transaction simulation failed\",\"data\":{\"err\":\"AccountNotFound\"}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    var tx = try makeTestTransaction(gpa);
+    defer tx.deinit();
+
+    const result = try client.sendTransaction(tx);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32002), rpc_err.code);
+            try std.testing.expectEqualStrings("Transaction simulation failed", rpc_err.message);
+            try std.testing.expect(rpc_err.data_json != null);
+            try std.testing.expect(std.mem.indexOf(u8, rpc_err.data_json.?, "AccountNotFound") != null);
+        },
+    }
+}
+
+test "rpc client sendTransaction returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"signature\":\"oops\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    var tx = try makeTestTransaction(gpa);
+    defer tx.deinit();
+
+    try std.testing.expectError(error.InvalidRpcResponse, client.sendTransaction(tx));
+}
+
 test "rpc client getSlot typed parse happy path" {
     const gpa = std.testing.allocator;
 

@@ -21,6 +21,7 @@ after each iteration and it's included in prompts for context.
 - For scalar JSON-RPC methods that return `result.value`, keep the public API as `RpcResult(u64)` and parse the payload through the shared integer helper so both JSON integers and numeric strings remain accepted while commitment-specific wrappers stay thin.
 - When a JSON-RPC method legitimately returns `result.value = null` for not-found, model the success payload as `RpcResult(?T)` and reserve `error.InvalidRpcResponse` for actual schema mismatches; mock tests should cover both nullable success and typed object success.
 - For execution-style RPCs like `simulateTransaction`, preserve transport / top-level JSON-RPC failures as `.rpc_error`, but keep runtime simulation failures carried in `result.value.err` inside the typed `.ok` payload so callers can inspect logs, units, and structured failure details together.
+- For transaction-submitting RPCs, keep the ergonomic default helper as a thin wrapper over a typed options variant so serialized/base64 request construction stays shared while tests can assert optional flags like `skipPreflight` and preflight commitment overrides.
 
 ---
 
@@ -232,5 +233,21 @@ after each iteration and it's included in prompts for context.
     - `simulateTransaction` follows a useful split for execution-style RPCs: envelope failures stay in `.rpc_error`, while runtime execution failures remain in the typed `.ok` payload so callers can inspect logs and compute usage even when simulation fails.
   - Gotchas encountered
     - This story was already implemented in source, but `tasks/prd.json` still marked `US-014` incomplete, so the work here was verification against acceptance criteria plus progress capture rather than code changes.
+---
+
+## 2026-04-16 - US-015
+- What was implemented
+  - Extended `RpcClient.sendTransaction` with a typed `sendTransactionWithOptions` variant backed by new `rpc.types.SendTransactionOptions`, while keeping `sendTransaction()` as the default confirmed / no-skip wrapper.
+  - Preserved the existing base64-serialized signed-transaction payload and structured `.rpc_error` behavior, but now allow callers to override `skipPreflight` and `preflightCommitment`.
+  - Added focused mock coverage for default send success, custom-option payload emission, structured RPC error preservation, and malformed-success rejection in `src/solana/rpc/client.zig`.
+- Files changed
+  - `src/solana/rpc/client.zig`
+  - `src/solana/rpc/types.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Transaction-submission RPCs fit the same default-wrapper-plus-typed-options shape as commitment-aware getters, which keeps the default payload stable while exposing optional knobs without duplicating serialization logic.
+  - Gotchas encountered
+    - `sendTransaction` success is a top-level base58 signature string instead of a nested `result.value` object, so malformed-success coverage needs to fail on non-string `result` while still letting `Signature.fromBase58` own signature validation.
 ---
 
