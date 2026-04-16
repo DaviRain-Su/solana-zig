@@ -52,3 +52,5 @@
 - `23-release-readiness-checklist.md`：发布前技术清单（provisional/final verdict 单一真源）
 - `24-phase2-batch5-planning.md`：Product Phase 2 第五批规划（SPL Token 指令集深化 + WS 生产可观测性 + 发布自动化）
 - `25-batch5-release-readiness.md`：Batch 5 专属发布前清单（不覆盖 Batch 4 final artifact）
+- `26-phase2-batch6-planning.md`：Product Phase 2 第六批规划（SPL Token 交易流 + WS 可恢复性深化 + 发布流水线固化）
+- `27-batch6-release-readiness.md`：Batch 6 专属发布前清单（不覆盖 Batch 5 final artifact）

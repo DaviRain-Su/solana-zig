@@ -695,6 +695,7 @@ const MockWsServer = struct {
         listen_fd: std.posix.fd_t,
         conn_fd: std.posix.fd_t = -1,
         stopped: bool = false,
+        max_connections: usize = 2,
     };
 
     ctx: *ServerContext,
@@ -703,6 +704,10 @@ const MockWsServer = struct {
     allocator: std.mem.Allocator,
 
     fn start(allocator: std.mem.Allocator) !MockWsServer {
+        return startMulti(allocator, 2);
+    }
+
+    fn startMulti(allocator: std.mem.Allocator, max_connections: usize) !MockWsServer {
         const listen_fd = c.socket(c.AF.INET, c.SOCK.STREAM, 0);
         if (listen_fd < 0) return error.WsProtocolError;
 
@@ -715,7 +720,7 @@ const MockWsServer = struct {
         addr.port = std.mem.nativeToBig(u16, 0);
 
         if (c.bind(listen_fd, @ptrCast(&addr), @sizeOf(c.sockaddr.in)) < 0) return error.WsProtocolError;
-        if (c.listen(listen_fd, 2) < 0) return error.WsProtocolError;
+        if (c.listen(listen_fd, @intCast(max_connections)) < 0) return error.WsProtocolError;
 
         var bound_addr: c.sockaddr.in = std.mem.zeroes(c.sockaddr.in);
         var addr_len: c.socklen_t = @sizeOf(c.sockaddr.in);
@@ -723,7 +728,7 @@ const MockWsServer = struct {
         const port = std.mem.bigToNative(u16, bound_addr.port);
 
         const ctx = try allocator.create(ServerContext);
-        ctx.* = .{ .listen_fd = listen_fd };
+        ctx.* = .{ .listen_fd = listen_fd, .max_connections = max_connections };
 
         const thread = try std.Thread.spawn(.{}, MockWsServer.run, .{ allocator, ctx });
 
@@ -764,7 +769,7 @@ const MockWsServer = struct {
     }
 
     fn run(allocator: std.mem.Allocator, ctx: *ServerContext) void {
-        for (0..2) |_| {
+        for (0..ctx.max_connections) |_| {
             const conn_fd = c.accept(ctx.listen_fd, null, null);
             if (conn_fd < 0) return;
 

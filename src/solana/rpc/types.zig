@@ -17,6 +17,16 @@ pub const LatestBlockhash = struct {
     last_valid_block_height: u64,
 };
 
+pub const Commitment = enum {
+    processed,
+    confirmed,
+    finalized,
+
+    pub fn jsonString(self: Commitment) []const u8 {
+        return @tagName(self);
+    }
+};
+
 pub const AccountInfo = struct {
     lamports: u64,
     owner: pubkey_mod.Pubkey,

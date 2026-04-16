@@ -37,6 +37,7 @@ pub const rpc = struct {
 
     pub const RpcClient = client.RpcClient;
     pub const Transport = transport.Transport;
+    pub const Commitment = types.Commitment;
     pub const OwnedJson = types.OwnedJson;
     pub const WsClient = ws_client.WsClient;
     pub const WsRpcClient = ws_client.WsRpcClient;

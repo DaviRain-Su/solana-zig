@@ -17,6 +17,7 @@ after each iteration and it's included in prompts for context.
 - When required signer pubkeys live in `message.account_keys[0..num_required_signatures]`, transaction signing can stay caller-order-independent by matching each provided `Keypair.pubkey()` back to that prefix before filling signature slots.
 - Oracle compatibility suites should embed the versioned JSON fixture with `@embedFile` and route each vector family through focused helper assertions (`expectPubkeyCase` / `expectMessageCase` / `expectTransactionCase`) so Rust parity coverage stays offline, deterministic, and easy to expand.
 - RPC transport plumbing uses a tiny function-pointer vtable (`Transport.init(ctx, postJson, deinit)`) around `*anyopaque`, which keeps `RpcClient` production-ready with `std.http.Client` while letting tests inject lightweight scripted mocks without changing higher-level RPC parsing.
+- For RPC methods that default to `confirmed`, preserve the ergonomic no-arg helper and add a typed `WithCommitment` variant backed by a small enum so tests can assert exact JSON-RPC config payloads for `processed` / `confirmed` / `finalized`.
 
 ---
 
@@ -168,5 +169,21 @@ after each iteration and it's included in prompts for context.
     - The RPC layer centralizes transport ownership in `RpcClient`, so callers choose between `init` (real HTTP) and `initWithTransport` (mock/scripted transport) without affecting typed response parsing.
   - Gotchas encountered
     - `tasks/prd.json` still marks `US-010` incomplete, but the transport abstraction, HTTP implementation, and injected mock coverage are already present in `src/solana/rpc/{transport,http_transport,client}.zig`, so this iteration was verification plus progress capture rather than new source edits.
+---
+
+## 2026-04-16 - US-011
+- What was implemented
+  - Added typed RPC commitment support for `getLatestBlockhash` via `RpcClient.getLatestBlockhashWithCommitment`, while keeping `getLatestBlockhash()` as the default confirmed wrapper.
+  - Added `rpc.types.Commitment` / `rpc.Commitment` and expanded mock-transport tests to cover success for `processed` / `confirmed` / `finalized`, default confirmed behavior, and structured JSON-RPC error preservation.
+- Files changed
+  - `src/solana/rpc/client.zig`
+  - `src/solana/rpc/types.zig`
+  - `src/solana/mod.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Small RPC config enums can live in `src/solana/rpc/types.zig` and expose `jsonString()` so request builders stay typed without introducing ad-hoc string literals at call sites.
+  - Gotchas encountered
+    - `getLatestBlockhash` was already typed for the response shape and RPC error union, so the missing acceptance-criteria gap was the request-side commitment configurability plus explicit mock assertions on the emitted JSON payload.
 ---
 
