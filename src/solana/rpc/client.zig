@@ -961,11 +961,12 @@ test "rpc client getAccountInfo typed parse happy path" {
 
     switch (result) {
         .ok => |info| {
-            defer info.deinit(gpa);
-            try std.testing.expectEqual(@as(u64, 1000), info.lamports);
-            try std.testing.expect(!info.executable);
-            try std.testing.expectEqual(@as(usize, 3), info.data.len);
-            try std.testing.expect(info.raw_json != null);
+            var info_owned = info;
+            defer info_owned.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 1000), info_owned.lamports);
+            try std.testing.expect(!info_owned.executable);
+            try std.testing.expectEqual(@as(usize, 3), info_owned.data.len);
+            try std.testing.expect(info_owned.raw_json != null);
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
@@ -987,11 +988,12 @@ test "rpc client getAccountInfo typed parse with data array format" {
 
     switch (result) {
         .ok => |info| {
-            defer info.deinit(gpa);
-            try std.testing.expectEqual(@as(u64, 2000), info.lamports);
-            try std.testing.expect(info.executable);
-            try std.testing.expectEqual(@as(u64, 2), info.rent_epoch);
-            try std.testing.expectEqual(@as(usize, 3), info.data.len);
+            var info_owned = info;
+            defer info_owned.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 2000), info_owned.lamports);
+            try std.testing.expect(info_owned.executable);
+            try std.testing.expectEqual(@as(u64, 2), info_owned.rent_epoch);
+            try std.testing.expectEqual(@as(usize, 3), info_owned.data.len);
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
@@ -1052,12 +1054,13 @@ test "rpc client simulateTransaction typed parse happy path" {
     const result = try client.simulateTransaction(tx);
     switch (result) {
         .ok => |sim| {
-            defer sim.deinit(gpa);
-            try std.testing.expect(sim.err_json == null);
-            try std.testing.expectEqual(@as(usize, 2), sim.logs.len);
-            try std.testing.expectEqualStrings("log1", sim.logs[0]);
-            try std.testing.expectEqual(@as(u64, 1234), sim.units_consumed.?);
-            try std.testing.expect(sim.raw_json != null);
+            var sim_owned = sim;
+            defer sim_owned.deinit(gpa);
+            try std.testing.expect(sim_owned.err_json == null);
+            try std.testing.expectEqual(@as(usize, 2), sim_owned.logs.len);
+            try std.testing.expectEqualStrings("log1", sim_owned.logs[0]);
+            try std.testing.expectEqual(@as(u64, 1234), sim_owned.units_consumed.?);
+            try std.testing.expect(sim_owned.raw_json != null);
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
@@ -1080,10 +1083,11 @@ test "rpc client simulateTransaction typed parse with err object" {
     const result = try client.simulateTransaction(tx);
     switch (result) {
         .ok => |sim| {
-            defer sim.deinit(gpa);
-            try std.testing.expect(sim.err_json != null);
-            try std.testing.expectEqual(@as(usize, 1), sim.logs.len);
-            try std.testing.expect(sim.units_consumed == null);
+            var sim_owned = sim;
+            defer sim_owned.deinit(gpa);
+            try std.testing.expect(sim_owned.err_json != null);
+            try std.testing.expectEqual(@as(usize, 1), sim_owned.logs.len);
+            try std.testing.expect(sim_owned.units_consumed == null);
         },
         .rpc_error => return error.UnexpectedRpcError,
     }

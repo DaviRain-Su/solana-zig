@@ -1,6 +1,12 @@
 const std = @import("std");
 const pubkey_mod = @import("../core/pubkey.zig");
 const instruction_mod = @import("../tx/instruction.zig");
+const hash_mod = @import("../core/hash.zig");
+const keypair_mod = @import("../core/keypair.zig");
+const message_mod = @import("../tx/message.zig");
+const transaction_mod = @import("../tx/transaction.zig");
+const rpc_client_mod = @import("../rpc/client.zig");
+const rpc_transport_mod = @import("../rpc/transport.zig");
 
 const TOKEN_PROGRAM_ID_STR = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
@@ -238,10 +244,6 @@ test "closeAccount byte layout and account metas" {
 
 test "token builders compile into signed legacy transaction" {
     const allocator = std.testing.allocator;
-    const keypair_mod = @import("../core/keypair.zig");
-    const hash_mod = @import("../core/hash.zig");
-    const message_mod = @import("../tx/message.zig");
-    const transaction_mod = @import("../tx/transaction.zig");
 
     const owner = try keypair_mod.Keypair.fromSeed([_]u8{0x2A} ** 32);
     const source = pubkey_mod.Pubkey.init([_]u8{0x11} ** 32);
@@ -276,4 +278,149 @@ test "token builders compile into signed legacy transaction" {
     defer tx.deinit();
     try tx.sign(&[_]keypair_mod.Keypair{owner});
     try tx.verifySignatures();
+}
+
+const FlowMockTransport = struct {
+    mode: enum { ok, fail_mismatch } = .ok,
+
+    fn postJson(
+        ctx: *anyopaque,
+        allocator: std.mem.Allocator,
+        url: []const u8,
+        payload: []const u8,
+    ) rpc_transport_mod.PostJsonError![]u8 {
+        _ = url;
+        const self: *FlowMockTransport = @ptrCast(@alignCast(ctx));
+
+        if (std.mem.indexOf(u8, payload, "\"sendTransaction\"") != null) {
+            if (self.mode == .fail_mismatch) {
+                return allocator.dupe(
+                    u8,
+                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32002,\"message\":\"Transaction simulation failed: invalid account metas\"}}",
+                );
+            }
+            // 64 bytes of zero encoded in base58.
+            const sig = "1111111111111111111111111111111111111111111111111111111111111111";
+            return std.fmt.allocPrint(
+                allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"{s}\"}}",
+                .{sig},
+            );
+        }
+
+        if (std.mem.indexOf(u8, payload, "\"getSignatureStatuses\"") != null) {
+            return allocator.dupe(
+                u8,
+                "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":[{\"slot\":1,\"confirmations\":null,\"err\":null,\"confirmationStatus\":\"confirmed\"}]}}",
+            );
+        }
+
+        return error.RpcTransport;
+    }
+};
+
+test "token flow build -> compile/sign -> send/confirm (mock transport)" {
+    const allocator = std.testing.allocator;
+    var mock = FlowMockTransport{ .mode = .ok };
+    const transport = rpc_transport_mod.Transport.init(
+        &mock,
+        FlowMockTransport.postJson,
+        rpc_transport_mod.noopDeinit,
+    );
+    var client = try rpc_client_mod.RpcClient.initWithTransport(allocator, "http://mock.rpc", transport);
+    defer client.deinit();
+
+    const owner = try keypair_mod.Keypair.fromSeed([_]u8{0x2A} ** 32);
+    const source = pubkey_mod.Pubkey.init([_]u8{0x11} ** 32);
+    const mint = pubkey_mod.Pubkey.init([_]u8{0x22} ** 32);
+    const destination = pubkey_mod.Pubkey.init([_]u8{0x33} ** 32);
+    const close_target = pubkey_mod.Pubkey.init([_]u8{0x44} ** 32);
+
+    const transfer_ix = try buildTransferCheckedInstruction(allocator, .{
+        .source = source,
+        .mint = mint,
+        .destination = destination,
+        .owner = owner.pubkey(),
+        .amount = 1_000,
+        .decimals = 6,
+    });
+    defer allocator.free(transfer_ix.data);
+    defer allocator.free(transfer_ix.accounts);
+
+    const close_ix = try buildCloseAccountInstruction(allocator, .{
+        .account = source,
+        .destination = close_target,
+        .owner = owner.pubkey(),
+    });
+    defer allocator.free(close_ix.data);
+    defer allocator.free(close_ix.accounts);
+
+    const ixs = [_]instruction_mod.Instruction{ transfer_ix, close_ix };
+    const recent_blockhash = hash_mod.Hash.init([_]u8{0xAB} ** 32);
+    const msg = try message_mod.Message.compileLegacy(allocator, owner.pubkey(), &ixs, recent_blockhash);
+
+    var tx = try transaction_mod.VersionedTransaction.initUnsigned(allocator, msg);
+    defer tx.deinit();
+    try tx.sign(&[_]keypair_mod.Keypair{owner});
+
+    const send_res = try client.sendTransaction(tx);
+    try std.testing.expect(send_res == .ok);
+
+    const status_res = try client.getSignatureStatuses(&[_]@import("../core/signature.zig").Signature{send_res.ok.signature});
+    try std.testing.expect(status_res == .ok);
+    try std.testing.expect(status_res.ok != null);
+    var status = status_res.ok.?;
+    defer status.deinit(allocator);
+    try std.testing.expect(status.err_json == null);
+    try std.testing.expect(status.confirmation_status != null);
+    try std.testing.expectEqualStrings("confirmed", status.confirmation_status.?);
+}
+
+test "token flow failure-path: account/meta mismatch returns rpc_error" {
+    const allocator = std.testing.allocator;
+    var mock = FlowMockTransport{ .mode = .fail_mismatch };
+    const transport = rpc_transport_mod.Transport.init(
+        &mock,
+        FlowMockTransport.postJson,
+        rpc_transport_mod.noopDeinit,
+    );
+    var client = try rpc_client_mod.RpcClient.initWithTransport(allocator, "http://mock.rpc", transport);
+    defer client.deinit();
+
+    const owner = try keypair_mod.Keypair.fromSeed([_]u8{0x42} ** 32);
+    const source = pubkey_mod.Pubkey.init([_]u8{0x55} ** 32);
+    const mint = pubkey_mod.Pubkey.init([_]u8{0x66} ** 32);
+    const destination = pubkey_mod.Pubkey.init([_]u8{0x77} ** 32);
+    const close_target = pubkey_mod.Pubkey.init([_]u8{0x88} ** 32);
+
+    const transfer_ix = try buildTransferCheckedInstruction(allocator, .{
+        .source = source,
+        .mint = mint,
+        .destination = destination,
+        .owner = owner.pubkey(),
+        .amount = 7,
+        .decimals = 0,
+    });
+    defer allocator.free(transfer_ix.data);
+    defer allocator.free(transfer_ix.accounts);
+
+    const close_ix = try buildCloseAccountInstruction(allocator, .{
+        .account = source,
+        .destination = close_target,
+        .owner = owner.pubkey(),
+    });
+    defer allocator.free(close_ix.data);
+    defer allocator.free(close_ix.accounts);
+
+    const ixs = [_]instruction_mod.Instruction{ transfer_ix, close_ix };
+    const recent_blockhash = hash_mod.Hash.init([_]u8{0xBB} ** 32);
+    const msg = try message_mod.Message.compileLegacy(allocator, owner.pubkey(), &ixs, recent_blockhash);
+
+    var tx = try transaction_mod.VersionedTransaction.initUnsigned(allocator, msg);
+    defer tx.deinit();
+    try tx.sign(&[_]keypair_mod.Keypair{owner});
+
+    const send_res = try client.sendTransaction(tx);
+    try std.testing.expect(send_res == .rpc_error);
+    send_res.rpc_error.deinit(allocator);
 }
