@@ -1,40 +1,56 @@
 # Phase 7 - Review Report
 
-## Review Focus
-- 字节布局与短向量编码一致性
-- 签名流程（消息字节 → Ed25519 签名）一致性
-- RPC error 保真（code/message/data_json）
+## 1. 审查范围
 
-## 验证结果
+- 文档：`docs/01-06` 与最新 PRD 一致性
+- 代码：`core/tx/rpc/compat` 当前实现
+- 测试：当前覆盖与 Phase 5 目标差距
 
-| 检查项 | 状态 | 说明 |
-|--------|------|------|
-| Pubkey 32B base58 roundtrip | ✅ | oracle 向量验证通过 |
-| Signature 64B 签名/验证 | ✅ | Keypair sign + verify roundtrip |
-| shortvec 编解码 | ✅ | oracle 向量 + 边界值测试 |
-| Legacy message 序列化 | ✅ | compile + serialize + deserialize roundtrip |
-| V0 message 0x80 前缀 | ✅ | 序列化/反序列化正确处理版本标识 |
-| Transaction 签名覆盖完整 message bytes | ✅ | sign + verify + serialize roundtrip |
-| RPC error 结构保真 | ✅ | code/message/data_json 完整保留 |
+## 2. 关键发现（按严重度）
 
-## 代码修复记录
+### High
 
-- **Dedupe `RpcResult` / `RpcErrorObject`**：删除 `src/solana/errors.zig` 中的重复定义，统一由 `src/solana/rpc/types.zig` 维护（因其包含 `deinit` 生命周期方法）。
-- **清理未使用错误标签**：从 `errors.zig` 删除 `InvalidCharacter`、`MissingPayer`、`MissingRecentBlockhash`。
-- **修复 `client.zig` 解析逻辑**：`callAndParse` 显式检查 JSON root 是否为 object，非对象时正确释放 `parsed` 内存。
+- H-01: 全量范围（interfaces/signers）尚未进入实现阶段
+- 影响：当前仅能宣称 M1-M3 能力，不可对外宣称“全量实现”
+- 状态：已在 `docs/04` 增加 M4-M5 任务序列
 
-## Gaps
+### Medium
 
-### P1: RPC 返回解析偏动态
-- **现状**：`client.zig` 中 `getAccountInfo` 等方法通过 `std.json` 动态解析 `result` 字段
-- **风险**：类型不匹配时只在运行时才能发现
-- **建议**：后续为高频响应增加编译期 typed schema，至少覆盖 `LatestBlockhash` 和 `AccountInfo`
+- M-01: RPC 解析仍以动态 JSON 为主，typed schema 收敛不足
+- 影响：边界缺陷发现成本高
+- 状态：在 `docs/04` 规划为后续任务
 
-### P2: V0 AddressLookupTable 输入模型
-- **现状**：`LookupEntry` 为 `{ index: u8, pubkey: Pubkey }` 简单对
-- **Rust SDK 对比**：Rust 使用 `AddressLookupTableAccount` 包含完整账户数据
-- **建议**：当前模型满足序列化需求，扩展 RPC 方法（如 `getAddressLookupTable`）时再对齐
+- M-02: Devnet E2E 依赖外部环境稳定性
+- 影响：CI 波动风险
+- 状态：已采用环境变量门控
 
-### P3: 内存安全
-- **现状**：所有动态分配通过 allocator 参数传入，`deinit()` 方法覆盖 Message/Transaction
-- **待验证**：尚未进行系统性 leak 检测（可利用 `std.testing.allocator` 的泄漏检测能力）
+### Low
+
+- L-01: oracle 向量集规模偏小
+- 影响：兼容回归信号有限
+- 状态：纳入后续扩展
+
+## 3. 已解决项
+
+- `RpcClient` 支持 transport 抽象注入，mock 测试路径已建立
+- v0 lookup 冲突语义与规格已统一
+- `RpcResult/RpcErrorObject` 重复定义问题已清理
+
+## 4. 残余风险评级
+
+| 风险 | 等级 | 当前控制 |
+|---|---|---|
+| Rust 版本演进漂移 | 高 | 基线锁定 + 兼容矩阵 |
+| RPC 动态解析误判 | 中 | mock 覆盖 + 后续 typed parse |
+| Devnet 外部不稳定 | 中 | opt-in 集成门控 |
+| oracle 覆盖不足 | 低 | 向量扩展计划 |
+
+## 5. 结论
+
+- 当前阶段可判定为：`M1~M3 路线可执行并在推进中`。
+- 全量目标可行，但必须按 `docs/04` 的 M4-M5 顺序持续推进。
+
+## 6. 下一步审查门槛
+
+- M3 完成后进行一次“接口扩展前审查”（进入 M4 前）。
+- M4 完成后进行一次“签名后端审查”（进入 M5 前）。

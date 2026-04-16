@@ -333,3 +333,17 @@ RPC 业务错误不丢失：
 - 链下 host/client 优先
 - oracle 通过 `testdata/oracle_vectors.json` 固化
 - RPC 首期仅高频方法，不追求全量覆盖
+
+---
+
+## 13. Full Implementation Spec Decomposition（后续）
+
+为对齐新版 PRD 的“全量实现”目标，后续技术规格按子模块继续拆分：
+
+- `03a-interfaces-spec.md`：system/token/token-2022/compute-budget/memo 接口层字节契约与 API 契约
+- `03b-signers-spec.md`：signer 抽象、后端适配、错误语义与生命周期契约
+- `03c-rpc-extended-spec.md`：高频以外 RPC 方法扩展、typed parse 策略与兼容策略
+
+要求：
+- 每个子规格必须包含：数据结构、接口、边界条件、错误模型、测试映射。
+- 子规格不可与本文件冲突；若冲突，以最新 ADR 决策为准并回写本文件。
