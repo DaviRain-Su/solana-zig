@@ -11,6 +11,7 @@ after each iteration and it's included in prompts for context.
 - When a fixed-size crypto wrapper needs an "unsigned" sentinel, expose it as a type-level helper like `zero()` and reuse that helper at call sites instead of repeating inline zero-byte struct literals.
 - When wrapping Zig std crypto key material, expose public length constants and byte-oriented constructors around `std.crypto.sign.Ed25519` so 32-byte deterministic seeds and 64-byte secret-key recovery share one `Keypair` API without leaking stdlib internals to callers.
 - For Solana wire-format varints, keep the public API ergonomic with `usize` inputs/results but enforce the protocol's strict `shortu16` rules at the codec boundary: 1-3 bytes only, `u16` maximum, canonical encodings only, and decode should report consumed bytes for cursor-based parsers.
+- Transaction-facing plain data structs mirror Rust SDK layout by keeping field names and declaration order identical, while using `[]const` slices for borrowed account/data views instead of introducing extra wrappers.
 
 ---
 
@@ -79,5 +80,18 @@ after each iteration and it's included in prompts for context.
     - Solana's `shortvec` compatibility point is specifically Rust `shortu16`, so the repo can keep `usize` at the API edge while enforcing strict canonical `u16` framing inside the codec.
   - Gotchas encountered
     - A generic LEB128 decoder is too permissive for Solana: aliases like `[0x80, 0x00]` for zero and continued third bytes must be rejected even though they decode numerically.
+---
+
+## 2026-04-16 - US-006
+- What was implemented
+  - Verified `src/solana/tx/instruction.zig` already satisfies the story: `Instruction` exposes `program_id`, `accounts`, and `data`, while `AccountMeta` exposes `pubkey`, `is_signer`, and `is_writable`.
+  - Confirmed the declaration order matches the Rust SDK model shape used for transaction instruction construction.
+- Files changed
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Transaction model leaf structs in `src/solana/tx` stay intentionally minimal and Rust-aligned, which lets higher-level builders and message compilation code consume them directly without adapter layers.
+  - Gotchas encountered
+    - This story's implementation was already present, so the work here was focused on source verification against the PRD/spec plus regression validation rather than adding new code.
 ---
 
