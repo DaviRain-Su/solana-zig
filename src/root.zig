@@ -4,6 +4,7 @@ pub const solana = @import("solana/mod.zig");
 pub const core = solana.core;
 pub const tx = solana.tx;
 pub const rpc = solana.rpc;
+pub const interfaces = solana.interfaces;
 pub const compat = solana.compat;
 
 test "core exports" {
@@ -23,4 +24,8 @@ test "public Message.DecodeResult type is usable through package exports" {
 test "websocket client compiles" {
     _ = rpc.WsClient;
     _ = rpc.ws_client.WsRpcClient;
+}
+
+test "compute budget interface compiles" {
+    _ = interfaces.compute_budget;
 }

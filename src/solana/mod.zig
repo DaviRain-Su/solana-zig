@@ -41,6 +41,10 @@ pub const rpc = struct {
     pub const WsRpcClient = ws_client.WsRpcClient;
 };
 
+pub const interfaces = struct {
+    pub const compute_budget = @import("interfaces/compute_budget.zig");
+};
+
 pub const compat = struct {
     pub const oracle_vector = @import("compat/oracle_vector.zig");
     pub const bincode_compat = @import("compat/bincode_compat.zig");
