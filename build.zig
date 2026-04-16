@@ -41,6 +41,7 @@ pub fn build(b: *std.Build) void {
         // Later on we'll use this module as the root module of a test executable
         // which requires us to specify a target.
         .target = target,
+        .link_libc = true,
     });
 
     // Here we define an executable. An executable needs to have a root module
@@ -123,6 +124,7 @@ pub fn build(b: *std.Build) void {
     const mod_tests = b.addTest(.{
         .root_module = mod,
     });
+    mod_tests.linkLibC();
 
     // A run step that will run the test executable.
     const run_mod_tests = b.addRunArtifact(mod_tests);
@@ -133,6 +135,7 @@ pub fn build(b: *std.Build) void {
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
+    exe_tests.linkLibC();
 
     // A run step that will run the second test executable.
     const run_exe_tests = b.addRunArtifact(exe_tests);
