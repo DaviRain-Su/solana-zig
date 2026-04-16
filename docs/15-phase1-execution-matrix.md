@@ -139,11 +139,15 @@
 
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
+| `interfaces.SPL Token builders` | closed | `#44` | ~~等待 `transferChecked/closeAccount` builders、boundary 证据、compile/sign 闭环与 canonical 三件套统一收口~~ → **已完成**：`d6ab74d` 已补齐 `transferChecked` / `closeAccount` builders、boundary 测试与 signed legacy transaction compile/sign 证据，canonical 三件套完成（`91/91 tests passed`），无 Batch 5 exception | `programId returns Tokenkeg...` + `transferChecked byte layout and account metas` + `transferChecked boundary zero/max` + `closeAccount byte layout and account metas` + `token builders compile into signed legacy transaction` + canonical 三件套 | `src/solana/interfaces/token.zig` + `src/solana/mod.zig` + `src/root.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2E-01` canonical 三件套；已满足 `G-P2E-02` SPL Token builders gate；`G-P2E-05` 文档回写完成 |
 | `rpc.Websocket observability` | closed | `#45` | ~~等待冻结 snapshot schema、counter/state 可复现证据与 canonical 三件套统一收口~~ → **已完成**：`e7f8987` 已补齐冻结 `WsStats` schema、reconnect / dedup / subscription / error state instrumentation，canonical 三件套完成（`82/82 tests passed`），无 Batch 5 exception | `ws_observability_snapshot_initial_state` + `ws_observability_counters_after_subscribe` + `ws_observability_reconnect_counter_increments` + `ws_observability_dedup_dropped_counter` + `ws_observability_backoff_error_state` + canonical 三件套 | `src/solana/rpc/ws_client.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2E-01` canonical 三件套；已满足 `G-P2E-03` websocket observability gate；`G-P2E-05` 文档回写完成 |
 | `release.Batch 5 preflight automation` | closed | `#46` | ~~等待 preflight 入口脚本 / 标准报告 / verdict 输入与 canonical 三件套统一收口~~ → **已完成**：`3e34225` 已新增 `scripts/release/preflight_batch5.sh`，对齐 `docs/25` 报告格式并形成可复现 conditional 路径样例，canonical 三件套完成（`82/82 tests passed`） | `scripts/release/preflight_batch5.sh` + `ALLOW_BATCH5_EXCEPTION=true` 样例运行 + 标准报告路径 + canonical 三件套 | `scripts/release/preflight_batch5.sh` + `docs/25-batch5-release-readiness.md` + `docs/06` + 本矩阵 | 已满足 `G-P2E-01` canonical 三件套；已满足 `G-P2E-04` preflight automation gate；`G-P2E-05` 文档回写完成 |
 
 ### Batch 5 Exception Register
 
+- `#44 interfaces.SPL Token builders`
+  - 当前口径：**无例外**
+  - 原因：本轮按 builder + boundary + compile/sign 冻结 gate 收口，不依赖 live/integration 替代模型
 - `#45 rpc.Websocket observability`
   - 当前口径：**无例外**
   - 原因：本轮按 canonical 三件套 + observability 测试证据收口，不涉及 live/integration 替代模型

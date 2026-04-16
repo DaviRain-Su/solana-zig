@@ -996,3 +996,43 @@
   - `G-P2E-01` ✅
   - `G-P2E-04` ✅
   - `G-P2E-05` ✅
+
+## 2026-04-16 第三十六次增量记录（#44 P2-22: SPL Token 指令集深化收口）
+
+### 输入
+- 第五批 `#43` 已通过结构审并放行实现；`#44` 按 `docs/24` §2.1 与 `G-P2E-02` 进入 SPL Token builders 收口。
+- 本轮冻结目标固定为：
+  - `transferChecked` builder
+  - `closeAccount` builder
+  - boundary + compile/sign 证据
+
+### 输出
+- 新增 `src/solana/interfaces/token.zig`，在 `d6ab74d` 完成：
+  - `programId()` → `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`
+  - `buildTransferCheckedInstruction(...)`
+  - `buildCloseAccountInstruction(...)`
+- `src/solana/mod.zig` 已接通 `interfaces.token` 导出。
+- `src/root.zig` 已新增 `token interface compiles` compile surface 引用。
+
+### 风险
+- 本轮 builder 收口仅覆盖单 signer 最小 compile/sign 闭环，不扩多 signer / multisig 变体。
+- 证据以字节布局、账户顺序与 signed legacy transaction compile/sign 为主，不把它误写成链上执行已完成。
+- 本轮**不触发 Batch 5 exception**；`docs/24` 对 `P2-22` 的 exception 规则只在“仅 compile/sign 且缺少稳定链上执行需要降级”为前提，但当前本批对 `G-P2E-02` 的要求就是 builder + boundary + compile/sign，证据已完整满足冻结 gate。
+
+### 验证
+- canonical 三件套（隔离 worktree）：
+  - worktree `/tmp/solana-zig-b5-44-sOZuSU`
+  - commit `d6ab74d`
+  - `git status --short` 为空（clean）
+  - `zig build test --summary all`：`91/91 tests passed`
+- 关键 token builder 测试：
+  - `programId returns Tokenkeg...` — PASS
+  - `transferChecked byte layout and account metas` — PASS
+  - `transferChecked boundary: zero amount zero decimals` — PASS
+  - `transferChecked boundary: max amount max decimals` — PASS
+  - `closeAccount byte layout and account metas` — PASS
+  - `token builders compile into signed legacy transaction` — PASS
+- gate 结论：
+  - `G-P2E-01` ✅
+  - `G-P2E-02` ✅
+  - `G-P2E-05` ✅

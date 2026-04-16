@@ -1,8 +1,8 @@
 # Batch 5 Release Readiness Checklist
 
 **Date**: 2026-04-16  
-**Status**: Provisional（`#46` preflight automation baseline）  
-**Owner**: `#46` / `P2-24`  
+**Status**: Final（`#47` closeout, verdict = `有条件发布`）  
+**Owner**: `#47` / `P2-25`  
 **Batch**: Product Phase 2 Batch 5
 
 > 该文件是 Batch 5 专属 release readiness 产物。  
@@ -22,14 +22,14 @@
 3. 存在未收敛 exception：verdict 只能为 `有条件发布` 或 `不可发布`
 4. 无未收敛 exception：才允许 `可发布`
 
-## 3. 当前状态（按 `#46` baseline 填充）
+## 3. 当前状态（Batch 5 final）
 
-- Build/Test：`PASS`（canonical：`3e34225`，`82/82 tests passed`）
+- Build/Test：`PASS`（latest canonical closeout：`d6ab74d`，`91/91 tests passed`）
 - Smoke(public devnet)：`MISSING`（执行环境未提供 `SOLANA_RPC_URL`）
 - Smoke(local-live)：`MISSING`（执行环境未提供 `SURFPOOL_RPC_URL`）
 - Docs consistency：`PASS`
 - Exception register：**required**
-- Verdict：`provisional: 有条件发布`
+- Verdict：`final: 有条件发布`
 
 ## 4. Preflight Automation（P2-24）
 
@@ -62,3 +62,11 @@
   - `local-live` smoke missing（执行环境未提供 `SURFPOOL_RPC_URL`）
   - 当前按 `ALLOW_BATCH5_EXCEPTION=true` 走 `有条件发布`
   - 收敛计划：在 CI / nightly 环境补齐双侧 smoke 后，将 verdict 升级到 `可发布`
+
+## 7. Batch 5 Final Gate Summary
+
+- `#44` `G-P2E-02`：PASS（SPL Token builders，无 exception）
+- `#45` `G-P2E-03`：PASS（WS observability，无 exception）
+- `#46` `G-P2E-04`：PASS（preflight automation，存在 Batch 5 smoke exception）
+- `#47` `G-P2E-05`：PASS（docs/gate 对账完成）
+- Final verdict：`有条件发布`
