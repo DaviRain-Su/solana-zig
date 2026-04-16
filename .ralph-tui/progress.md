@@ -12,6 +12,7 @@ after each iteration and it's included in prompts for context.
 - When wrapping Zig std crypto key material, expose public length constants and byte-oriented constructors around `std.crypto.sign.Ed25519` so 32-byte deterministic seeds and 64-byte secret-key recovery share one `Keypair` API without leaking stdlib internals to callers.
 - For Solana wire-format varints, keep the public API ergonomic with `usize` inputs/results but enforce the protocol's strict `shortu16` rules at the codec boundary: 1-3 bytes only, `u16` maximum, canonical encodings only, and decode should report consumed bytes for cursor-based parsers.
 - Transaction-facing plain data structs mirror Rust SDK layout by keeping field names and declaration order identical, while using `[]const` slices for borrowed account/data views instead of introducing extra wrappers.
+- Versioned wire models can stay unified behind a `version` tag when the structural delta is small: `Message` shares one compile/serialize/deserialize pipeline for legacy and v0, with version-specific prefixes/lookup sections layered on top of common header/key/instruction handling.
 
 ---
 
@@ -93,5 +94,18 @@ after each iteration and it's included in prompts for context.
     - Transaction model leaf structs in `src/solana/tx` stay intentionally minimal and Rust-aligned, which lets higher-level builders and message compilation code consume them directly without adapter layers.
   - Gotchas encountered
     - This story's implementation was already present, so the work here was focused on source verification against the PRD/spec plus regression validation rather than adding new code.
+---
+
+## 2026-04-16 - US-007
+- What was implemented
+  - Verified `src/solana/tx/message.zig` already satisfies the story: `Message.compileLegacy` builds legacy messages from payer + instructions + blockhash, serialization/deserialization are implemented, and static account ordering follows signer-writable > signer-readonly > non-signer-writable > non-signer-readonly via `orderRoles`.
+  - Confirmed Rust-byte-identical compatibility through the embedded oracle cases `msg_legacy_simple` and `msg_legacy_multi_ix` consumed by `src/solana/compat/oracle_vector.zig`.
+- Files changed
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - `src/solana/tx/message.zig` keeps legacy and v0 in one `Message` type, which avoids duplicated compile/codec logic while still matching version-specific wire rules.
+  - Gotchas encountered
+    - `tasks/prd.json` still marks `US-007` as incomplete, but the source and oracle coverage already satisfy the acceptance criteria, so this iteration was verification plus progress capture rather than new implementation.
 ---
 

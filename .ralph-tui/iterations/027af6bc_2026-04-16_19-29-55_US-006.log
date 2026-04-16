@@ -1,0 +1,25 @@
+# Iteration 6 Log
+
+## Metadata
+
+- **Task ID**: US-006
+- **Task Title**: Instruction and AccountMeta structs
+- **Description**: As a Zig developer, I want Instruction and AccountMeta structs so that I can construct transaction instructions.
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T11:29:55.922Z
+- **Ended At**: 2026-04-16T11:31:44.414Z
+- **Duration**: 1m 48s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-006
+
+Verified that `src/solana/tx/instruction.zig` already satisfies the story: `Instruction` has `program_id`, `accounts`, and `data`, and `AccountMeta` has `pubkey`, `is_signer`, and `is_writable`, with declaration order matching the Rust SDK shape.  
+Appended the required US-006 entry to `.ralph-tui/progress.md` and added a reusable codebase pattern note at the top.  
+Validation passed with `zig build test`.
+
+<promise>COMPLETE</promise>
+]9;4;0;

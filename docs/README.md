@@ -49,3 +49,5 @@
 - `20-phase2-batch2-planning.md`：Product Phase 2 第二批规划（RPC Batch B + Durable Nonce + ComputeBudget）
 - `21-phase2-batch3-planning.md`：Product Phase 2 第三批规划（getTokenAccountsByOwner + WS re-stabilize/re-expose + Nonce/live 深化）
 - `22-phase2-batch4-planning.md`：Product Phase 2 第四批规划（Token Accounts 深化 + WS production hardening + 发布前清单）
+- `23-release-readiness-checklist.md`：发布前技术清单（provisional/final verdict 单一真源）
+- `24-phase2-batch5-planning.md`：Product Phase 2 第五批规划（SPL Token 指令集深化 + WS 生产可观测性 + 发布自动化）
