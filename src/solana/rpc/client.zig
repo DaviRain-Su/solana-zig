@@ -247,6 +247,90 @@ pub const RpcClient = struct {
         return .{ .ok = .{ .items = items } };
     }
 
+    pub fn getTokenAccountBalance(self: *RpcClient, token_account: pubkey_mod.Pubkey) !types.RpcResult(types.TokenAmount) {
+        const account_b58 = try token_account.toBase58Alloc(self.allocator);
+        defer self.allocator.free(account_b58);
+
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getTokenAccountBalance\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+            .{ self.nextRpcId(), account_b58 },
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            response.parsed.deinit();
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        const value = getObjectField(result, "value") orelse return error.InvalidRpcResponse;
+        if (value.* != .object) return error.InvalidRpcResponse;
+
+        const amount_u64 = parseTokenAmountField(value, "amount") orelse return error.InvalidRpcResponse;
+        const decimals_u64 = getU64Field(value, "decimals") orelse return error.InvalidRpcResponse;
+        if (decimals_u64 > std.math.maxInt(u8)) return error.InvalidRpcResponse;
+        const ui_amount_string_raw = getStringField(value, "uiAmountString") orelse return error.InvalidRpcResponse;
+        const ui_amount_string = try self.allocator.dupe(u8, ui_amount_string_raw);
+        errdefer self.allocator.free(ui_amount_string);
+        const raw_json = try stringifyValue(self.allocator, value.*);
+        errdefer self.allocator.free(raw_json);
+
+        response.parsed.deinit();
+        return .{ .ok = .{
+            .amount = amount_u64,
+            .decimals = @intCast(decimals_u64),
+            .ui_amount_string = ui_amount_string,
+            .raw_json = raw_json,
+        } };
+    }
+
+    pub fn getTokenSupply(self: *RpcClient, mint: pubkey_mod.Pubkey) !types.RpcResult(types.TokenAmount) {
+        const mint_b58 = try mint.toBase58Alloc(self.allocator);
+        defer self.allocator.free(mint_b58);
+
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getTokenSupply\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+            .{ self.nextRpcId(), mint_b58 },
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            response.parsed.deinit();
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        const value = getObjectField(result, "value") orelse return error.InvalidRpcResponse;
+        if (value.* != .object) return error.InvalidRpcResponse;
+
+        const amount_u64 = parseTokenAmountField(value, "amount") orelse return error.InvalidRpcResponse;
+        const decimals_u64 = getU64Field(value, "decimals") orelse return error.InvalidRpcResponse;
+        if (decimals_u64 > std.math.maxInt(u8)) return error.InvalidRpcResponse;
+        const ui_amount_string_raw = getStringField(value, "uiAmountString") orelse return error.InvalidRpcResponse;
+        const ui_amount_string = try self.allocator.dupe(u8, ui_amount_string_raw);
+        errdefer self.allocator.free(ui_amount_string);
+        const raw_json = try stringifyValue(self.allocator, value.*);
+        errdefer self.allocator.free(raw_json);
+
+        response.parsed.deinit();
+        return .{ .ok = .{
+            .amount = amount_u64,
+            .decimals = @intCast(decimals_u64),
+            .ui_amount_string = ui_amount_string,
+            .raw_json = raw_json,
+        } };
+    }
+
     pub fn getTransaction(self: *RpcClient, signature: @import("../core/signature.zig").Signature) !types.RpcResult(types.TransactionInfo) {
         const signature_b58 = try signature.toBase58Alloc(self.allocator);
         defer self.allocator.free(signature_b58);
@@ -547,6 +631,16 @@ fn parseIntegerAsU64(value: *const std.json.Value) ?u64 {
     return switch (value.*) {
         .integer => |n| if (n >= 0) @as(u64, @intCast(n)) else null,
         .number_string => |s| std.fmt.parseInt(u64, s, 10) catch null,
+        else => null,
+    };
+}
+
+fn parseTokenAmountField(root: *const std.json.Value, field: []const u8) ?u64 {
+    const value = getObjectField(root, field) orelse return null;
+    return switch (value.*) {
+        .integer => |n| if (n >= 0) @intCast(n) else null,
+        .number_string => |s| std.fmt.parseInt(u64, s, 10) catch null,
+        .string => |s| std.fmt.parseInt(u64, s, 10) catch null,
         else => null,
     };
 }
@@ -1249,4 +1343,118 @@ test "rpc client getTokenAccountsByOwner returns InvalidRpcResponse on malformed
     const owner = pubkey_mod.Pubkey.init([_]u8{44} ** 32);
     const token_program = try pubkey_mod.Pubkey.fromBase58("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
     try std.testing.expectError(error.InvalidRpcResponse, client.getTokenAccountsByOwner(owner, token_program));
+}
+
+test "rpc client getTokenAccountBalance typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":777},\"value\":{\"amount\":\"4200000\",\"decimals\":6,\"uiAmount\":4.2,\"uiAmountString\":\"4.2\"}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const token_account = pubkey_mod.Pubkey.init([_]u8{45} ** 32);
+    const result = try client.getTokenAccountBalance(token_account);
+    switch (result) {
+        .ok => |balance| {
+            var owned = balance;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 4_200_000), owned.amount);
+            try std.testing.expectEqual(@as(u8, 6), owned.decimals);
+            try std.testing.expectEqualStrings("4.2", owned.ui_amount_string);
+            try std.testing.expect(owned.raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getTokenAccountBalance preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"invalid token account\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const token_account = pubkey_mod.Pubkey.init([_]u8{46} ** 32);
+    const result = try client.getTokenAccountBalance(token_account);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getTokenAccountBalance returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"value\":{\"decimals\":6,\"uiAmountString\":\"4.2\"}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const token_account = pubkey_mod.Pubkey.init([_]u8{47} ** 32);
+    try std.testing.expectError(error.InvalidRpcResponse, client.getTokenAccountBalance(token_account));
+}
+
+test "rpc client getTokenSupply typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":778},\"value\":{\"amount\":\"1000000000\",\"decimals\":9,\"uiAmount\":1.0,\"uiAmountString\":\"1\"}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const mint = pubkey_mod.Pubkey.init([_]u8{48} ** 32);
+    const result = try client.getTokenSupply(mint);
+    switch (result) {
+        .ok => |supply| {
+            var owned = supply;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 1_000_000_000), owned.amount);
+            try std.testing.expectEqual(@as(u8, 9), owned.decimals);
+            try std.testing.expectEqualStrings("1", owned.ui_amount_string);
+            try std.testing.expect(owned.raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getTokenSupply preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"invalid mint\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const mint = pubkey_mod.Pubkey.init([_]u8{49} ** 32);
+    const result = try client.getTokenSupply(mint);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getTokenSupply returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"value\":{\"amount\":\"1000\",\"uiAmountString\":\"0.001\"}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const mint = pubkey_mod.Pubkey.init([_]u8{50} ** 32);
+    try std.testing.expectError(error.InvalidRpcResponse, client.getTokenSupply(mint));
 }

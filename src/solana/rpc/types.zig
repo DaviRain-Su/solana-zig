@@ -136,3 +136,15 @@ pub const TokenAccountsByOwnerResult = struct {
         allocator.free(self.items);
     }
 };
+
+pub const TokenAmount = struct {
+    amount: u64,
+    decimals: u8,
+    ui_amount_string: []const u8,
+    raw_json: ?[]const u8 = null,
+
+    pub fn deinit(self: *TokenAmount, allocator: std.mem.Allocator) void {
+        allocator.free(self.ui_amount_string);
+        if (self.raw_json) |raw| allocator.free(raw);
+    }
+};
