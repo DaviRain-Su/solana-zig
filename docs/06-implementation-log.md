@@ -1151,3 +1151,45 @@
   - `G-P2F-01` ✅
   - `G-P2F-02` ✅
   - `G-P2F-05` ✅
+
+## 2026-04-16 第四十次增量记录（#55 P2-32: Batch B RPC landing 初步对账）
+
+### 输入
+- 第七批 `#54` 已通过结构审并放行实现；`#55` 按 `docs/29` §2.1 与 `G-P2G-02` 进入 Batch B RPC landing。
+- 本轮目标是先完成 `0070fa8` 主干化与 canonical 固化，再把方法级 live / integration 缺口交由 `#56` 在环境到位后补跑。
+
+### 输出
+- `src/solana/rpc/client.zig` 与 `src/solana/rpc/types.zig` 已在 `6d5f1be` 完成 Batch B 4 方法主干化：
+  - `getEpochInfo`
+  - `getMinimumBalanceForRentExemption`
+  - `requestAirdrop`
+  - `getAddressLookupTable`
+- 对应 typed 结果已进入主线：
+  - `EpochInfo`
+  - `RequestAirdropResult`
+  - `AddressLookupTableResult`
+- 每方法 `happy / rpc_error / malformed` 三类测试均已落地。
+
+### 风险
+- 本轮只完成 `landing + canonical`，**尚未形成 `G-P2G-02` 的最终收口**。
+- 按 `docs/29` 的机械规则，仍缺：
+  - `getEpochInfo` / `getMinimumBalanceForRentExemption` 的 `public devnet` integration
+  - `requestAirdrop` 至少一侧 live 成功与另一侧缺失时的 exception 处理
+  - `getAddressLookupTable` 的 RPC error evidence / Batch 7 exception
+- 上述缺口当前按 `environment-blocked pending` 进入 `#56` 链路，不得提前误报为 Batch 7 full PASS。
+
+### 验证
+- canonical 三件套（隔离 worktree）：
+  - worktree `/tmp/solana-zig-b7-55-6d5f1be`
+  - commit `6d5f1be`
+  - `git status --short` 为空（clean）
+  - `zig build test --summary all`：`148/148 tests passed`
+- 关键 Batch B typed parse 测试已到位：
+  - `rpc client getEpochInfo typed parse happy path`
+  - `rpc client getMinimumBalanceForRentExemption typed parse happy path`
+  - `rpc client requestAirdrop typed parse happy path`
+  - `rpc client getAddressLookupTable typed parse happy path`
+- 当前 docs/gate 口径：
+  - `G-P2G-01` ✅
+  - `G-P2G-02`：`landing/canonical` 已到位，`integration/exception` 仍 pending
+  - `G-P2G-05`：本轮仅完成 provisional 对账，不做 final PASS
