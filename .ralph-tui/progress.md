@@ -18,6 +18,8 @@ after each iteration and it's included in prompts for context.
 - For token-amount live acceptance, reuse a discovery flow that starts from a stable mint (for example wrapped SOL), derives a current token account via `getTokenLargestAccounts`, and then validates both `getTokenAccountBalance` and `getTokenSupply` against the same mint/account pair; this avoids brittle hardcoded fixtures while keeping decimal assertions stable.
 - Retry-aware RPC tests fit this codebase best when they drive `RpcClient` through a staged mock transport that returns `{ status, body }` responses, sets retry delays to zero, and asserts both call counts and identical payload replay across attempts.
 - Websocket subscription coverage fits this repo best when each wrapper is exercised as `subscribe -> read*Notification -> *Unsubscribe`, asserting Solana’s canonical notification method names (`accountNotification`, `logsNotification`, etc.) and the typed parser fields in the same mock round-trip.
+- Websocket control-path reads (`subscribe` / `unsubscribe` / `resubscribe`) cannot assume Solana will deliver ack frames before notifications; queue any interleaved notification frames and drain them from `readNotification` later so multi-subscription reconnect flows stay lossless.
+- Live websocket recovery acceptance is easiest to keep deterministic with `slotSubscribe`: read one slot notification, send a close frame to trigger the automatic reconnect path, then assert the next slot notification arrives after resubscribe without needing funded Devnet state changes.
 
 ---
 
@@ -184,5 +186,22 @@ after each iteration and it's included in prompts for context.
   - Gotchas encountered
     - `std.json` notification values can borrow from the original websocket frame buffer, so `WsRpcClient.Notification` must keep the raw frame and parsed root alive until `deinit`; otherwise typed readers crash on use-after-free.
     - Mock websocket helpers must branch on payload length before narrowing to an 8-bit frame header field, or larger notification fixtures panic during test sends.
+---
+
+## 2026-04-16 - US-012
+- Implemented websocket reconnect hardening by wiring configurable reconnect policy into automatic notification reads, preserving active subscriptions across reconnects, and keeping subscription dedupe behavior idempotent through reconnect/resubscribe flows.
+- Added a gated Devnet E2E that uses `slotSubscribe`, forces a close handshake, and verifies the client auto-reconnects and resumes receiving slot notifications after resubscribe.
+- Files changed:
+  - `src/solana/rpc/types.zig`
+  - `src/solana/rpc/ws_client.zig`
+  - `src/e2e/devnet_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Live websocket reconnect validation is most reliable with `slotSubscribe`, because slot notifications keep flowing without needing a funded account or a mutable on-chain fixture.
+    - Resubscribe logic needs a small pending-notification queue so subscribe/unsubscribe acknowledgements do not get confused by out-of-band notifications that arrive between control responses.
+  - Gotchas encountered
+    - The current websocket transport only supports `ws://`; when Devnet access is exposed as `https://` / `wss://`, the E2E must skip unless `SOLANA_WS_URL` is provided with a non-TLS websocket endpoint.
+    - Immediate-notify mock subscriptions exposed a real production hazard: without buffering interleaved notifications, `resubscribeAll` can misread a notification as the next subscribe ack and fail reconnect recovery.
 ---
 

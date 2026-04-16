@@ -1,0 +1,44 @@
+# Iteration 17 Log
+
+## Metadata
+
+- **Task ID**: US-011
+- **Task Title**: Websocket 订阅类型扩展
+- **Description**: As a Zig 开发者, I want Websocket 客户端支持完整订阅类型 so that 我可以实时监听链上事件。
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T15:28:13.834Z
+- **Ended At**: 2026-04-16T15:30:12.903Z
+- **Duration**: 1m 59s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-011 Verification Complete
+
+US-011 was **already implemented** in the current workspace and I verified it meets the acceptance criteria in `src/solana/rpc/ws_client.zig`:
+
+- all 7 subscribe/unsubscribe pairs exist:
+  - `account*`
+  - `program*`
+  - `signature*`
+  - `slot*`
+  - `root*`
+  - `logs*`
+  - `block*`
+- each subscription type has its own typed notification struct, callback type, parser, and `read*Notification` helper
+- mock tests cover the full `subscribe -> notification -> unsubscribe` flow for each type
+- `.ralph-tui/progress.md` already contains the required US-011 entry and reusable codebase pattern note
+
+## Validation
+
+Passed:
+
+- `zig build test --summary all` → `181/181 tests passed`
+- `zig build bench`
+- `zig build devnet-e2e --summary all` → `14/14 tests passed`  
+  - live Devnet branches were skipped as designed because `SOLANA_RPC_URL` is not set
+
+<promise>COMPLETE</promise>
+]9;4;0;

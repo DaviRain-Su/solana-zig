@@ -1292,3 +1292,101 @@ test "US-009 live: getTokenAccountBalance and getTokenSupply return typed token 
         },
     }
 }
+
+fn deriveWsEndpointFromRpcUrl(allocator: std.mem.Allocator, rpc_endpoint: []const u8) !?[]u8 {
+    if (std.mem.startsWith(u8, rpc_endpoint, "ws://")) {
+        return try allocator.dupe(u8, rpc_endpoint);
+    }
+    if (std.mem.startsWith(u8, rpc_endpoint, "wss://")) {
+        return null;
+    }
+    if (std.mem.startsWith(u8, rpc_endpoint, "http://")) {
+        return try std.fmt.allocPrint(allocator, "ws://{s}", .{rpc_endpoint["http://".len..]});
+    }
+    if (std.mem.startsWith(u8, rpc_endpoint, "https://")) {
+        return null;
+    }
+    return null;
+}
+
+fn resolveDevnetWsEndpoint(allocator: std.mem.Allocator, label: []const u8) !?[]u8 {
+    const explicit_ws_endpoint = std.process.Environ.getAlloc(std.testing.environ, allocator, "SOLANA_WS_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => null,
+        else => return err,
+    };
+    if (explicit_ws_endpoint) |endpoint| {
+        if (std.mem.startsWith(u8, endpoint, "ws://")) return endpoint;
+        std.debug.print(
+            "[{s}] skip: SOLANA_WS_URL must use ws:// because the current websocket transport does not support TLS\n",
+            .{label},
+        );
+        allocator.free(endpoint);
+        return null;
+    }
+
+    const rpc_endpoint = std.process.Environ.getAlloc(std.testing.environ, allocator, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[{s}] skip: neither SOLANA_WS_URL nor SOLANA_RPC_URL is set\n", .{label});
+            return null;
+        },
+        else => return err,
+    };
+    defer allocator.free(rpc_endpoint);
+
+    const derived = (try deriveWsEndpointFromRpcUrl(allocator, rpc_endpoint)) orelse {
+        std.debug.print(
+            "[{s}] skip: set SOLANA_WS_URL=ws://... because automatic derivation from {s} would require unsupported wss:// transport\n",
+            .{ label, rpc_endpoint },
+        );
+        return null;
+    };
+    return derived;
+}
+
+test "US-012 live devnet: websocket reconnect resumes slot notifications" {
+    const gpa = std.testing.allocator;
+    const io = std.testing.io;
+
+    const ws_endpoint = (try resolveDevnetWsEndpoint(gpa, "US-012 live")) orelse return;
+    defer gpa.free(ws_endpoint);
+
+    std.debug.print("[US-012 live] ws endpoint: {s}\n", .{ws_endpoint});
+
+    var client = try root.rpc.WsRpcClient.connect(gpa, io, ws_endpoint);
+    defer client.deinit();
+    client.setReconnectConfig(.{
+        .max_retries = 3,
+        .base_delay_ms = 100,
+        .max_delay_ms = 1_000,
+    });
+
+    const subscription_id = try client.slotSubscribe();
+    try std.testing.expect(subscription_id > 0);
+
+    var first = try client.readSlotNotification();
+    defer first.deinit(gpa);
+
+    try std.testing.expect(first.slot > 0);
+    std.debug.print(
+        "[US-012 live] first slot notification — subscription={d}, slot={d}, parent={d}, root={d}\n",
+        .{ first.subscription_id, first.slot, first.parent, first.root },
+    );
+
+    try client.ws.sendClose();
+
+    var recovered = try client.readSlotNotification();
+    defer recovered.deinit(gpa);
+
+    try std.testing.expect(recovered.slot > 0);
+    try std.testing.expect(recovered.slot >= first.slot);
+    try std.testing.expectEqual(@as(usize, 1), client.subscriptionCount());
+
+    const stats = client.snapshot();
+    try std.testing.expect(stats.reconnect_attempts_total >= 1);
+    try std.testing.expect(stats.last_reconnect_unix_ms != null);
+
+    std.debug.print(
+        "[US-012 live] recovered slot notification — subscription={d}, slot={d}, reconnects={d}\n",
+        .{ recovered.subscription_id, recovered.slot, stats.reconnect_attempts_total },
+    );
+}
