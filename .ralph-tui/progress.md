@@ -39,3 +39,15 @@ after each iteration and it's included in prompts for context.
     - Clear invalid-input behavior for base58-backed wrappers comes from testing both failure modes separately: malformed alphabet should return `error.InvalidBase58`, while well-formed base58 that decodes to the wrong byte length should return `error.InvalidLength`.
 ---
 
+## 2026-04-16 - US-003
+- What was implemented
+  - Verified the existing `Hash` implementation already satisfies the story: it stores bytes as a fixed `[32]u8`, exposes raw-byte construction via `init` and `fromSlice`, and supports base58 encode/decode through `toBase58Alloc` and `fromBase58`.
+- Files changed
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - `Hash` follows the same fixed-size wrapper contract already established by `Pubkey`: `LENGTH`, fixed-array storage, raw-byte constructors, and shared base58 helpers are sufficient for blockhash-style value objects.
+  - Gotchas encountered
+    - The story PRD entry was still marked incomplete even though `src/solana/core/hash.zig` already matched the acceptance criteria, so this iteration focused on verification plus progress capture rather than new source edits.
+---
+
