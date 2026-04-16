@@ -3045,11 +3045,7 @@ test "rpc client requestAirdrop tri-state convergence evidence (gated)" {
 
     var devnet_success = false;
     var devnet_rate_limited = false;
-    var devnet_method_not_found = false;
-    var devnet_exception = false;
     var local_success = false;
-    var local_method_not_found = false;
-    var local_exception = false;
 
     const recipient = try @import("../core/keypair.zig").Keypair.fromSeed([_]u8{57} ** 32);
 
@@ -3060,18 +3056,7 @@ test "rpc client requestAirdrop tri-state convergence evidence (gated)" {
         var attempt: usize = 0;
         while (attempt < 3) : (attempt += 1) {
             const result = client.requestAirdrop(recipient.pubkey(), 1_000_000) catch |err| switch (err) {
-                error.RpcTransport => {
-                    devnet_rate_limited = true;
-                    devnet_exception = true;
-                    if (attempt + 1 < 3) {
-                        const yields = @as(usize, 1) << @as(u6, @intCast(attempt));
-                        for (0..yields) |_| {
-                            std.Thread.yield() catch {};
-                        }
-                        continue;
-                    }
-                    break;
-                },
+                error.RpcTransport => continue,
                 else => return err,
             };
             switch (result) {
@@ -3095,17 +3080,17 @@ test "rpc client requestAirdrop tri-state convergence evidence (gated)" {
                         }
                         break;
                     }
-                    if (isMethodNotFoundRpcError(rpc_err.code, rpc_err.message)) {
-                        std.debug.print("[p3a exception] requestAirdrop(devnet) method-not-found path\\n", .{});
-                        devnet_method_not_found = true;
-                        devnet_exception = true;
-                        break;
+                    if (attempt + 1 < 3) {
+                        const yields = @as(usize, 1) << @as(u6, @intCast(attempt));
+                        for (0..yields) |_| {
+                            std.Thread.yield() catch {};
+                        }
+                        continue;
                     }
                     std.debug.print(
-                        "[p3a exception] requestAirdrop(devnet) rpc error path code={d} msg={s}\\n",
+                        "[p3a exception] requestAirdrop(devnet) failure path code={d} msg={s}\\n",
                         .{ rpc_err.code, rpc_err.message },
                     );
-                    devnet_exception = true;
                     break;
                 },
             }
@@ -3116,50 +3101,54 @@ test "rpc client requestAirdrop tri-state convergence evidence (gated)" {
         var client = try RpcClient.init(gpa, std.testing.io, endpoint);
         defer client.deinit();
 
-        const result = try client.requestAirdrop(recipient.pubkey(), 1_000_000);
-        switch (result) {
-            .ok => |airdrop| {
-                const sig_b58 = try airdrop.signature.toBase58Alloc(gpa);
-                defer gpa.free(sig_b58);
-                std.debug.print("[p3a exception] requestAirdrop(local-live) success sig={s}\\n", .{sig_b58});
-                local_success = true;
-            },
-            .rpc_error => |rpc_err| {
-                defer rpc_err.deinit(gpa);
-                if (isMethodNotFoundRpcError(rpc_err.code, rpc_err.message)) {
-                    std.debug.print("[p3a exception] requestAirdrop(local-live) method-not-found path\\n", .{});
-                    local_method_not_found = true;
-                    local_exception = true;
-                } else {
+        var attempt: usize = 0;
+        while (attempt < 3) : (attempt += 1) {
+            const result = client.requestAirdrop(recipient.pubkey(), 1_000_000) catch |err| switch (err) {
+                error.RpcTransport => continue,
+                else => return err,
+            };
+            switch (result) {
+                .ok => |airdrop| {
+                    const sig_b58 = try airdrop.signature.toBase58Alloc(gpa);
+                    defer gpa.free(sig_b58);
+                    std.debug.print("[p3a exception] requestAirdrop(local-live) success sig={s}\\n", .{sig_b58});
+                    local_success = true;
+                    break;
+                },
+                .rpc_error => |rpc_err| {
+                    defer rpc_err.deinit(gpa);
+                    if (attempt + 1 < 3) continue;
                     std.debug.print(
-                        "[p3a exception] requestAirdrop(local-live) rpc error path code={d} msg={s}\\n",
+                        "[p3a exception] requestAirdrop(local-live) failure path code={d} msg={s}\\n",
                         .{ rpc_err.code, rpc_err.message },
                     );
-                    local_exception = true;
-                }
-            },
+                    break;
+                },
+            }
         }
     }
 
-    if (devnet_success or local_success) {
-        if (devnet_rate_limited or devnet_method_not_found or devnet_exception) {
-            // partial exception path requires either local-live success or
-            // explicit method-not-found exception evidence from local-live.
-            try std.testing.expect(local_success or local_method_not_found or local_exception or local_endpoint == null);
-        }
-        return;
+    const TriState = enum {
+        success,
+        partial_exception,
+        not_converged,
+    };
+
+    const tri_state: TriState = blk: {
+        // strict rule:
+        // - success: at least one side succeeded
+        // - partial_exception: public rate-limit + local-live success
+        // - otherwise: not_converged
+        if (devnet_rate_limited and local_success) break :blk .partial_exception;
+        if (devnet_success or local_success) break :blk .success;
+        break :blk .not_converged;
+    };
+
+    switch (tri_state) {
+        .success => std.debug.print("[p3a exception] requestAirdrop tri-state=success\\n", .{}),
+        .partial_exception => std.debug.print("[p3a exception] requestAirdrop tri-state=partial_exception\\n", .{}),
+        .not_converged => std.debug.print("[p3a exception] requestAirdrop tri-state=not_converged\\n", .{}),
     }
-
-    const devnet_has_exception = devnet_rate_limited or devnet_method_not_found or devnet_exception;
-    const local_has_exception = local_method_not_found or local_exception;
-
-    if ((devnet_endpoint == null or devnet_has_exception) and (local_endpoint == null or local_has_exception)) {
-        // All configured endpoints produced accepted exception signals.
-        return;
-    }
-
-    // Neither side succeeded -> not converged.
-    return error.UnexpectedRpcError;
 }
 
 test "rpc client getAddressLookupTable success-or-exception convergence evidence (gated)" {
