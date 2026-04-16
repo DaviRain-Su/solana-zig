@@ -14,6 +14,7 @@ after each iteration and it's included in prompts for context.
 - Transaction-facing plain data structs mirror Rust SDK layout by keeping field names and declaration order identical, while using `[]const` slices for borrowed account/data views instead of introducing extra wrappers.
 - Versioned wire models can stay unified behind a `version` tag when the structural delta is small: `Message` shares one compile/serialize/deserialize pipeline for legacy and v0, with version-specific prefixes/lookup sections layered on top of common header/key/instruction handling.
 - For ALT-backed messages, keep compile-time lookup tables (`AddressLookupTable`) separate from owned wire-format lookup records and expose a Rust-aligned public alias when the serialized shape already matches the SDK model.
+- When required signer pubkeys live in `message.account_keys[0..num_required_signatures]`, transaction signing can stay caller-order-independent by matching each provided `Keypair.pubkey()` back to that prefix before filling signature slots.
 
 ---
 
@@ -124,5 +125,20 @@ after each iteration and it's included in prompts for context.
     - The existing `CompiledAddressLookup` wire shape already matches Rust's `MessageAddressTableLookup`, so API-compat closeout can be handled with a public alias instead of duplicating the struct.
   - Gotchas encountered
     - Positive v0 coverage needs to assert dynamic account indexes after compile/deserialization (`payer=0`, `program=1`, lookup accounts appended afterward), otherwise ALT lookup correctness is only indirectly covered by byte-oracle tests.
+---
+
+## 2026-04-16 - US-009
+- What was implemented
+  - Verified `VersionedTransaction` already supports unsigned construction, signing, signature verification, serialization, and deserialization on top of the shared legacy/v0 `Message` model.
+  - Added focused transaction coverage for a legacy multi-signer flow with signer input order different from wire order, plus a successful v0 transaction sign/verify/serialize/deserialize roundtrip that re-checks ALT lookup indexes after parsing.
+  - Revalidated Rust oracle parity for full signed transaction bytes through the existing embedded legacy and v0 transaction vectors.
+- Files changed
+  - `src/solana/tx/transaction.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - `VersionedTransaction.sign` is intentionally order-independent for caller-provided signers because it resolves each signer by pubkey against the required-signer prefix of `message.account_keys`.
+  - Gotchas encountered
+    - `VersionedTransaction.initUnsigned` takes ownership of the compiled `Message`, so follow-up tests and helpers must not `deinit` the message separately after constructing the transaction.
 ---
 

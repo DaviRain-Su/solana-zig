@@ -278,3 +278,110 @@ test "versioned_deserialize_rejects_trailing_bytes" {
 
     try std.testing.expectError(error.InvalidTransaction, VersionedTransaction.deserialize(gpa, malformed));
 }
+
+test "transaction multi-signer legacy flow is order-independent" {
+    const gpa = std.testing.allocator;
+    const instruction_mod = @import("instruction.zig");
+    const pubkey_mod = @import("../core/pubkey.zig");
+    const hash_mod = @import("../core/hash.zig");
+
+    const payer = try keypair_mod.Keypair.fromSeed([_]u8{41} ** 32);
+    const co_signer = try keypair_mod.Keypair.fromSeed([_]u8{42} ** 32);
+    const receiver = pubkey_mod.Pubkey.init([_]u8{43} ** 32);
+    const program = pubkey_mod.Pubkey.init([_]u8{44} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{45} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer.pubkey(), .is_signer = true, .is_writable = true },
+        .{ .pubkey = co_signer.pubkey(), .is_signer = true, .is_writable = false },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const payload = [_]u8{ 0xAA, 0xBB };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program, .accounts = &accounts, .data = &payload },
+    };
+
+    var message = try message_mod.Message.compileLegacy(gpa, payer.pubkey(), &ixs, blockhash);
+    errdefer message.deinit();
+
+    var tx = try VersionedTransaction.initUnsigned(gpa, message);
+    defer tx.deinit();
+
+    try tx.sign(&[_]keypair_mod.Keypair{ co_signer, payer });
+    try tx.verifySignatures();
+    try std.testing.expect(!tx.signatures[0].isZero());
+    try std.testing.expect(!tx.signatures[1].isZero());
+
+    const serialized = try tx.serialize(gpa);
+    defer gpa.free(serialized);
+
+    var parsed = try VersionedTransaction.deserialize(gpa, serialized);
+    defer parsed.deinit();
+    try parsed.verifySignatures();
+
+    const reserialized = try parsed.serialize(gpa);
+    defer gpa.free(reserialized);
+    try std.testing.expectEqualSlices(u8, serialized, reserialized);
+}
+
+test "transaction sign serialize deserialize roundtrip supports v0 messages" {
+    const gpa = std.testing.allocator;
+    const instruction_mod = @import("instruction.zig");
+    const lookup_mod = @import("address_lookup_table.zig");
+    const pubkey_mod = @import("../core/pubkey.zig");
+    const hash_mod = @import("../core/hash.zig");
+
+    const payer = try keypair_mod.Keypair.fromSeed([_]u8{51} ** 32);
+    const writable_lookup_account = pubkey_mod.Pubkey.init([_]u8{52} ** 32);
+    const readonly_lookup_account = pubkey_mod.Pubkey.init([_]u8{53} ** 32);
+    const program = pubkey_mod.Pubkey.init([_]u8{54} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{55} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer.pubkey(), .is_signer = true, .is_writable = true },
+        .{ .pubkey = writable_lookup_account, .is_signer = false, .is_writable = true },
+        .{ .pubkey = readonly_lookup_account, .is_signer = false, .is_writable = false },
+    };
+    const payload = [_]u8{ 0x10, 0x20, 0x30 };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program, .accounts = &accounts, .data = &payload },
+    };
+
+    const writable_entries = [_]lookup_mod.LookupEntry{
+        .{ .index = 5, .pubkey = writable_lookup_account },
+    };
+    const readonly_entries = [_]lookup_mod.LookupEntry{
+        .{ .index = 7, .pubkey = readonly_lookup_account },
+    };
+    const lookup_tables = [_]lookup_mod.AddressLookupTable{
+        .{
+            .account_key = pubkey_mod.Pubkey.init([_]u8{56} ** 32),
+            .writable = &writable_entries,
+            .readonly = &readonly_entries,
+        },
+    };
+
+    var message = try message_mod.Message.compileV0(gpa, payer.pubkey(), &ixs, blockhash, &lookup_tables);
+    errdefer message.deinit();
+
+    var tx = try VersionedTransaction.initUnsigned(gpa, message);
+    defer tx.deinit();
+
+    try tx.sign(&[_]keypair_mod.Keypair{payer});
+    try tx.verifySignatures();
+
+    const serialized = try tx.serialize(gpa);
+    defer gpa.free(serialized);
+
+    var parsed = try VersionedTransaction.deserialize(gpa, serialized);
+    defer parsed.deinit();
+    try parsed.verifySignatures();
+    try std.testing.expectEqual(message_mod.MessageVersion.v0, parsed.message.version);
+    try std.testing.expectEqual(@as(usize, 1), parsed.message.address_table_lookups.len);
+    try std.testing.expectEqualSlices(u8, &[_]u8{5}, parsed.message.address_table_lookups[0].writable_indexes);
+    try std.testing.expectEqualSlices(u8, &[_]u8{7}, parsed.message.address_table_lookups[0].readonly_indexes);
+
+    const reserialized = try parsed.serialize(gpa);
+    defer gpa.free(reserialized);
+    try std.testing.expectEqualSlices(u8, serialized, reserialized);
+}
