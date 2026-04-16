@@ -24,7 +24,7 @@
 
 ## 3. 当前状态（Batch 5 final）
 
-- Build/Test：`PASS`（original closeout：`a6f2f3b`, `91/91 tests passed`；latest revalidation：`21656d3`, `152/152 tests passed`）
+- Build/Test：`PASS`（original closeout：`a6f2f3b`, `91/91 tests passed`；latest revalidation：`be31510`, `152/152 tests passed`）
 - Smoke(public devnet)：`PASS`（original closeout：`6/6`；latest revalidation：`SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all` → `7/7`）
 - Smoke(local-live)：`PASS`（original closeout：`SURFPOOL_RPC_URL=https://api.devnet.solana.com zig build e2e --summary all` → `2/2`；latest revalidation：`SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all` → `2/2`）
 - Docs consistency：`PASS`
@@ -68,5 +68,5 @@
 - `#46` `G-P2E-04`：PASS（preflight automation，Batch 5 smoke exception 已由 `#49` 收敛）
 - `#47` `G-P2E-05`：PASS（docs/gate 对账完成）
 - `#49` smoke upgrade：PASS（public devnet + local-live + preflight verdict）
-- `#56` smoke revalidation：PASS（latest main baseline `21656d3`, public devnet `7/7`, local-live `2/2`）
+- `#56` smoke revalidation：PASS（latest main baseline `be31510`, public devnet `7/7`, local-live `2/2`）
 - Final verdict：`可发布`

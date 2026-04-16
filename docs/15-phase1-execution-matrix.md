@@ -184,7 +184,7 @@
   - 收口证据：
     - `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all` → `7/7 PASS`
     - `SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all` → `2/2 PASS`
-    - `preflight_batch6.sh` verdict = `可发布`（commit `21656d3`）
+    - `preflight_batch6.sh` verdict = `可发布`（commit `be31510`）
   - 证据落点：`docs/14a-devnet-e2e-run-log.md` Run 11 + `docs/27-batch6-release-readiness.md`
 
 ## 12. Phase 2 Batch 7 Extension Tracking

@@ -24,7 +24,7 @@
 
 ## 3. 当前状态（upgraded by `#56` smoke closure）
 
-- Build/Test：`PASS`（smoke upgrade closeout：`21656d3`, `152/152 tests passed`）
+- Build/Test：`PASS`（smoke upgrade closeout：`be31510`, `152/152 tests passed`）
 - Smoke(public devnet)：`PASS`（`SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all` → `7/7`）
 - Smoke(local-live)：`PASS`（`SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all` → `2/2`）
 - Docs consistency：`PASS`
@@ -46,7 +46,7 @@
 - command:
   - `SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 scripts/release/preflight_batch6.sh /tmp/batch7-smoke-b6-v2`
 - report:
-  - `/tmp/batch7-smoke-b6-v2/batch6-preflight-20260416-204023-21656d3.md`
+  - `/tmp/batch7-smoke-b6-v2/batch6-preflight-20260416-204023-be31510.md`
 - result summary:
   - `build/test`: `PASS`
   - `smoke(public devnet)`: `PASS`

@@ -550,7 +550,7 @@ verdict: 可发布
 ### 1. Run Metadata
 
 - Run ID: `2026-04-16/release/batch7-smoke-revalidation`
-- Commit: `21656d3`
+- Commit: `be31510`
 - Date: `2026-04-16`
 - Run Type: `release-smoke-revalidation`
 - Operator: `@CC-Opus (coordinated)` / `@CC (executed)`
@@ -573,7 +573,7 @@ verdict: 可发布
 
 ### 3. Evidence Checklist
 
-- [x] current baseline commit = `21656d3`
+- [x] current baseline commit = `be31510`
 - [x] `zig build test --summary all` 通过（`152/152 tests passed`）
 - [x] public devnet smoke 通过（`7/7`）
 - [x] local-live smoke 通过（`2/2`）
