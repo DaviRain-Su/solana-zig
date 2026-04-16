@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T16:29:01.094Z",
-  "currentIteration": 24,
+  "updatedAt": "2026-04-16T16:35:32.210Z",
+  "currentIteration": 25,
   "maxIterations": 0,
-  "tasksCompleted": 15,
+  "tasksCompleted": 16,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -254,6 +254,16 @@
       "durationMs": 600030,
       "startedAt": "2026-04-16T16:14:43.667Z",
       "endedAt": "2026-04-16T16:24:43.697Z"
+    },
+    {
+      "iteration": 25,
+      "status": "completed",
+      "taskId": "US-016",
+      "taskTitle": "Devnet E2E 扩展验收",
+      "taskCompleted": true,
+      "durationMs": 252374,
+      "startedAt": "2026-04-16T16:24:48.717Z",
+      "endedAt": "2026-04-16T16:29:01.091Z"
     }
   ],
   "skippedTaskIds": [],

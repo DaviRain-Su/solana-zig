@@ -24,6 +24,7 @@ after each iteration and it's included in prompts for context.
 - Websocket observability additions fit this client best when runtime health is exposed through a single `snapshot()` value object and all wire-message accounting flows through tracked send/read helpers; that keeps counters correct across subscribe acks, queued notifications, manual disconnects, and reconnect-driven resubscribe.
 - Benchmark extensions fit this repo best when large RPC fixtures are generated once up front and replayed through a tiny static transport into the real typed `RpcClient` methods; this keeps benchmark coverage aligned with production parsers while avoiding live network variance.
 - Websocket codec benchmarks stay trustworthy when they invoke the exported `serialize*SubscribeRequest` / `parse*NotificationMessage` helpers directly and generate full Solana JSON-RPC notification envelopes, including `params.result` plus `params.subscription`, instead of benchmarking partial inner fragments.
+- RPC usage examples in this repo are clearest when they mirror the SDK’s ownership model directly: each snippet should `switch` on `RpcResult`, deinit owned success payloads inside the `.ok` branch, and treat nullable success values (`?T`) separately from `.rpc_error`.
 
 ---
 
@@ -272,5 +273,17 @@ after each iteration and it's included in prompts for context.
     - The current Devnet acceptance harness is structured as one story-aligned live test per extended RPC capability, which makes it straightforward to verify Phase 2 coverage by inspecting `src/e2e/devnet_e2e.zig` alongside the build step wiring in `build.zig`.
   - Gotchas encountered
     - `zig build devnet-e2e` intentionally passes in environments without live Devnet credentials because the harness treats missing `SOLANA_RPC_URL` / `SOLANA_WS_URL` as logged skips rather than failures; that skip path is part of the acceptance criteria, not a test gap.
+---
+
+## 2026-04-17 - US-017
+- Added `docs/rpc-examples.md` with dedicated usage examples for all 11 Phase 2 extended RPC methods, including explicit request construction, success handling, nullable-result handling where applicable, and `.rpc_error` handling for each snippet.
+- Files changed:
+  - `docs/rpc-examples.md`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - The SDK’s `RpcResult` union plus per-type `deinit` ownership model should be shown directly in docs examples; that makes nullable successes like `getTransaction` / `getAddressLookupTable` much less error-prone for consumers.
+  - Gotchas encountered
+    - Several extended RPC methods return owned payloads even for read-only queries (`TransactionInfo`, `EpochInfo`, `TokenAmount`, token account lists), so example docs need to demonstrate cleanup explicitly instead of only printing fields.
 ---
 
