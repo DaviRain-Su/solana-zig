@@ -648,3 +648,49 @@ SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8
 
 - 本次 run 的目的不是新增接口能力，而是为 `G-P3A-04` 提供方法级机械证据。
 - `getAddressLookupTable` 在 Batch 1 仍允许走 accepted exception path；后续收敛目标保留在 Phase 3 后续批次。
+
+---
+
+## Run 13 — Phase 3 Batch 2 Exception Convergence Revalidation (`#71`)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-17/phase3-batch2/exception-convergence-revalidation`
+- Commit: `efe3070`
+- Date: `2026-04-17`
+- Run Type: `gate-evidence`（strict tri-state / success-or-exception）
+- Operator: `@codex_5_3`
+- Env:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com`
+  - `SURFPOOL_RPC_URL=http://127.0.0.1:8899`
+- Entry:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes:
+  - 全量测试：`193/193 tests passed`
+  - `requestAirdrop` strict tri-state 与 `getAddressLookupTable` success-or-exception 路径均通过复审
+
+### 3. Evidence Checklist
+
+- [x] `requestAirdrop` 分类满足 frozen strict tri-state（不接受“双侧仅 exception signal 直接 PASS”）
+- [x] `partial exception` 路径满足 `public devnet rate-limit + local-live success`
+- [x] `getAddressLookupTable` success-or-exception 路径可复现
+- [x] 双 env 全量基线通过（`193/193`）
+
+### 4. Console / Run Evidence
+
+```
+SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all
+5/5 steps succeeded
+193/193 tests passed
+```
+
+### 5. Notes
+
+- 本次 run 对应 `#71` 的修补复审回合（commit `efe3070`），用于关闭 `G-P3B-04` 的 strict tri-state 规则偏差。
+- 本次 run 证明“规则收敛完成”，不代表 exception 语义已完全归零。

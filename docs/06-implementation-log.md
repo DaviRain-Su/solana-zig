@@ -1259,3 +1259,52 @@
   - `#61 / G-P3A-03`：PASS
   - `#62 / G-P3A-01`：PASS
   - `#62 / G-P3A-04`：PASS
+
+## 2026-04-17 第四十三次增量记录（Phase 3 Batch 2：#69/#70/#71 实现闭环 + #72 docs/gate 收口）
+
+### 输入
+- `#68`（Batch 2 scope freeze / DoD）已在 `dd7176c` 通过结构审并关闭。
+- Batch 2 canonical board 固定为：
+  - `#69` ATA helper（P3-07）
+  - `#70` interface supplement: system assign + memo dual-mode（P3-08）
+  - `#71` exception convergence: requestAirdrop tri-state + getAddressLookupTable success-or-exception（P3-09）
+  - `#72` docs/gate reconciliation
+- carry-in baseline 冻结点：`dfa5a69`（US-001..US-009）。
+
+### 输出
+- `#69` 在 `616c42c` 完成 ATA 最小可用闭环：
+  - `createProgramAddress` / `findProgramAddress`
+  - `findAssociatedTokenAddress(owner, mint, token_program_id)`
+  - `buildCreateAssociatedTokenAccountInstruction`
+  - reviewer 复审：`G-P3B-01 PASS` + `G-P3B-02 PASS`
+- `#70/#71` 在 `efe3070` 完成修补并通过复审：
+  - `#70`：memo 改为显式 dual signer-mode（`.none` / `.single`），补齐 no-signer 与 signer 两侧机械证据
+  - `#71`：`requestAirdrop` tri-state 收紧为 frozen strict model；`getAddressLookupTable` 保持 success-or-exception 路径
+  - reviewer 复审：`#70 G-P3B-01/G-P3B-03 PASS`，`#71 G-P3B-01/G-P3B-04 PASS`
+- 状态汇总：
+  - `#69` ✅ Done
+  - `#70` ✅ Done
+  - `#71` ✅ Done
+  - `#72` 进入最终 docs/gate 对账收口
+
+### 风险
+- Batch 2 exception convergence 并不等于“零例外”：
+  - `requestAirdrop` 仍允许 `public devnet rate-limit + local-live success` 的 partial exception 终态
+  - `getAddressLookupTable` 仍允许 method-not-found/RPC error evidence 的 accepted exception path
+- 因此 Batch 2 verdict 不能提升为无条件 `可发布`；本轮保持 strict verdict 模型下的 conditional 口径。
+- `docs/28`（Phase 2 aggregate artifact）本轮不触发回写：Phase 2 条件发布阻塞项未被 Batch 2 完全关闭。
+
+### 验证
+- `#69` canonical：
+  - commit `616c42c`
+  - `zig build test --summary all`：`193/193 tests passed`
+- `#70/#71` canonical（双 env）：
+  - commit `efe3070`
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all`
+  - `193/193 tests passed`
+- gate 收敛结论：
+  - `G-P3B-01` ✅
+  - `G-P3B-02` ✅
+  - `G-P3B-03` ✅
+  - `G-P3B-04` ✅
+  - `G-P3B-05`（本轮 docs/gate 收口）由 `#72` 执行最终对账

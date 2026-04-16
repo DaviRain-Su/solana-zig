@@ -227,3 +227,29 @@
   - `requestAirdrop`：允许 partial exception（public devnet rate-limit / local-live success）
   - `getAddressLookupTable`：accepted exception path（method-not-found/RPC error evidence）
   - 后续收敛：Phase 3 后续批次继续推动 ALT 成功路径证据
+
+## 14. Phase 3 Batch 2 Tracking (`#69~#72`)
+
+> 按 `docs/32-phase3-batch2-planning.md` 的冻结口径，Batch 2 进入实现与 docs/gate 收口阶段。  
+> 当前 canonical board：`#69`（ATA） / `#70`（assign+memo） / `#71`（exception convergence） / `#72`（docs/gate）。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `ATA helper minimal` | closed | `#69` | — | `616c42c`，`findAssociatedTokenAddress(owner,mint,token_program_id)` + `createATA builder`，`193/193 tests passed` | `src/solana/core/pubkey.zig` + `src/solana/interfaces/ata.zig` + `docs/06` + `docs/33` | `G-P3B-01` + `G-P3B-02` PASS |
+| `System assign + Memo dual-mode` | closed | `#70` | — | `efe3070`，`buildAssignInstruction` + `buildMemoInstruction(.none/.single)`，byte layout/account metas/compile 证据齐 | `src/solana/interfaces/system.zig` + `src/solana/interfaces/memo.zig` + `docs/06` + `docs/33` | `G-P3B-01` + `G-P3B-03` PASS |
+| `Exception convergence` | closed | `#71` | — | `efe3070`，`requestAirdrop` strict tri-state + `getAddressLookupTable` success-or-exception，双 env `193/193 tests passed` | `src/solana/rpc/client.zig` + `docs/14a` Run 13 + `docs/33` | `G-P3B-01` + `G-P3B-04` PASS |
+| `Docs/Gate reconciliation` | in-progress | `#72` | final docs commit/hash 待落盘 | `docs/06+10+14a+15+33` 对账 | 本文档 + `docs/33` | `G-P3B-05` PASS |
+
+### Phase 3 Batch 2 Exception Register
+
+- `requestAirdrop`
+  - 当前状态：`partial exception`（public devnet rate-limit + local-live success）
+  - 收敛阶段：Phase 3 后续批次
+- `getAddressLookupTable`
+  - 当前状态：`accepted exception path`（method-not-found / RPC error evidence）
+  - 收敛阶段：Phase 3 后续批次
+
+### Phase 2 Cross-Batch Artifact Writeback
+
+- `docs/28-phase2-closeout-readiness.md`：本轮**不触发回写**。  
+  原因：Phase 2 aggregate 仍存在 `requestAirdrop` / `getAddressLookupTable` 条件路径，未达到“无未收敛 exception”的升级条件。

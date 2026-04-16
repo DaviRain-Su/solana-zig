@@ -126,3 +126,21 @@
 | `interfaces.System builders` | closed | `#60` | — | `35a731f`，`transfer/createAccount` byte layout + account metas + compile/sign，`162/162 tests passed` | `src/solana/interfaces/system.zig` + `docs/06` + `docs/31` | `G-P3A-01` + `G-P3A-02` PASS |
 | `interfaces.Token builders` | closed | `#61` | — | `b840f75`，`mint/approve/burn` byte layout + account metas + compile/sign，ATA 未触碰 | `src/solana/interfaces/token.zig` + `docs/06` + `docs/31` | `G-P3A-01` + `G-P3A-03` PASS |
 | `rpc.Exception convergence` | closed | `#62` | — | `f54dbe5` + `7aa4aab`，tri-state + success-or-exception 路径，双 env 全量 `163/163 tests passed` | `src/solana/rpc/client.zig` + `docs/14a` + `docs/15` + `docs/31` | `G-P3A-01` + `G-P3A-04` PASS |
+
+## 12. Phase 3 Batch 2 Tracking (canonical board: #69~#72)
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `interfaces.ATA helper minimal` | closed | `#69` | — | `616c42c`，`createProgramAddress/findProgramAddress` + `findAssociatedTokenAddress(owner,mint,token_program_id)` + `createATA builder`，`193/193 tests passed` | `src/solana/core/pubkey.zig` + `src/solana/interfaces/ata.zig` + `docs/06` + `docs/33` | `G-P3B-01` + `G-P3B-02` PASS |
+| `interfaces.assign + memo dual-mode` | closed | `#70` | — | `efe3070`，`buildAssignInstruction` + `buildMemoInstruction(signer_mode)`，no-signer/signer 双路径证据，`193/193 tests passed` | `src/solana/interfaces/system.zig` + `src/solana/interfaces/memo.zig` + `docs/06` + `docs/33` | `G-P3B-01` + `G-P3B-03` PASS |
+| `rpc.Exception convergence` | closed | `#71` | — | `efe3070`，`requestAirdrop` strict tri-state + `getAddressLookupTable` success-or-exception，双 env 全量 `193/193 tests passed` | `src/solana/rpc/client.zig` + `docs/14a` + `docs/15` + `docs/33` | `G-P3B-01` + `G-P3B-04` PASS |
+| `batch2.docs/gate reconciliation` | in-progress | `#72` | 待 final docs commit/hash | `docs/06+10+14a+15+33` 对账 | 本矩阵 + `docs/33` | `G-P3B-05` PASS |
+
+### Phase 3 Batch 2 Exception Register
+
+- `requestAirdrop`
+  - 当前口径：`partial exception` 可接受（public devnet rate-limit + local-live success）
+  - 后续收敛：继续提升 public devnet 成功率
+- `getAddressLookupTable`
+  - 当前口径：`accepted exception path` 可接受（method-not-found / RPC error evidence）
+  - 后续收敛：后续批次补稳定成功路径
