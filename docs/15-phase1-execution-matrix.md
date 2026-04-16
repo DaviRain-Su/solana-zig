@@ -33,8 +33,8 @@
 | `simulateTransaction` | open | `T4-12`, `T4-14` | 仍以 `OwnedJson` 输出，且当前没有真实 Devnet harness 证据 | base64 输入 + 模拟 happy/error + Devnet 证据 | `src/solana/rpc/client.zig` tests + `artifacts/devnet/*` + `docs/06/14` | 能支撑最小 E2E 闭环 |
 | `sendTransaction` | open | `T4-12`, `T4-14`, `T4-15` | 发送路径缺少真实 Devnet harness 验证 | base64 happy/error + Devnet 发送证据 | `src/solana/rpc/client.zig` tests + `artifacts/devnet/*` + `docs/06/14` | 发送链路可复现 |
 | `compat.oracle_vector` | open | `T4-01` + `T4-02~T4-09` | 向量集规模明显不足 | 扩充后的 JSON + Zig 消费测试 | `testdata/oracle_vectors.json` + `scripts/oracle/*` + `src/solana/compat/oracle_vector.zig` tests + `docs/12` | 满足 `docs/12` 最低集合 |
-| benchmark baseline | open | `T4-16` | 尚未形成首版真实记录 | 至少一版基线记录 | `docs/13` + `docs/13a-benchmark-baseline-results.md` + benchmark artifact/result file + `docs/06` | 满足 `docs/13` 要求 |
-| Devnet E2E evidence | open | `T4-14`, `T4-15`, `T4-16` | 当前只有包装脚本与说明，尚无真实 `construct/sign/simulate/send` harness | 验收日志 + 提交哈希 + 结果摘要 + 真实 E2E 证据 | `scripts/devnet/phase1_acceptance.sh` + `artifacts/devnet/*` + `docs/14` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` | 满足 `docs/14` 要求 |
+| benchmark baseline | closeable | `T4-16` | 首版基线已记录（`docs/13a` Run 1），待 closeout review 确认 | 至少一版基线记录 | `docs/13` + `docs/13a-benchmark-baseline-results.md` + `src/benchmark.zig` + `docs/06` | 满足 `docs/13` 要求 |
+| Devnet E2E evidence | in-progress | `T4-14`, `T4-15`, `T4-16` | mock harness 已落地（K3-H1 happy + K3-F1 failure），真实 Devnet 实跑待 `SOLANA_RPC_URL` | 验收日志 + 提交哈希 + 结果摘要 + 真实 E2E 证据 | `src/e2e/devnet_e2e.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` | mock done; devnet 实跑补齐后满足 `docs/14` |
 
 ## 3. Blocker Summary
 
@@ -42,11 +42,11 @@
 - v0 / ALT 语义的正反路径仍未完全收口
 - ALT 权限正确性（writable 账户不能被 readonly lookup 错配）仍需作为独立收口信号固定
 - oracle 向量集无法支撑 Phase 1 最低声明
-- Devnet E2E 仍缺稳定证据链
+- Devnet E2E 真实实跑证据仍缺（mock harness 已就绪，待 `SOLANA_RPC_URL`）
 
 ### Medium-priority blockers
 - `getAccountInfo` / `simulateTransaction` / `sendTransaction` 的 typed parse 或边界说明仍不够收敛
-- benchmark baseline 尚未建立第一版真实记录
+- ~~benchmark baseline 尚未建立第一版真实记录~~ → **已解决**：首版基线已记录于 `docs/13a`
 
 ## 4. Phase 1 Closeout Rule
 

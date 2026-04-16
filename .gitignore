@@ -4,3 +4,5 @@ scripts/oracle/target/
 zig-pkg/
 .factory/
 .tmp-*
+node_modules/
+test_time

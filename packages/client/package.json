@@ -1,0 +1,29 @@
+{
+  "name": "@zignocchio/client",
+  "version": "0.1.0",
+  "description": "Minimal TypeScript helper SDK for solana-zig — mirrors Zig SDK API surface",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "files": ["dist", "README.md"],
+  "keywords": ["solana", "zig", "zignocchio", "sdk"],
+  "license": "MIT",
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
