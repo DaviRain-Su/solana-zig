@@ -13,6 +13,7 @@ after each iteration and it's included in prompts for context.
 - For Solana wire-format varints, keep the public API ergonomic with `usize` inputs/results but enforce the protocol's strict `shortu16` rules at the codec boundary: 1-3 bytes only, `u16` maximum, canonical encodings only, and decode should report consumed bytes for cursor-based parsers.
 - Transaction-facing plain data structs mirror Rust SDK layout by keeping field names and declaration order identical, while using `[]const` slices for borrowed account/data views instead of introducing extra wrappers.
 - Versioned wire models can stay unified behind a `version` tag when the structural delta is small: `Message` shares one compile/serialize/deserialize pipeline for legacy and v0, with version-specific prefixes/lookup sections layered on top of common header/key/instruction handling.
+- For ALT-backed messages, keep compile-time lookup tables (`AddressLookupTable`) separate from owned wire-format lookup records and expose a Rust-aligned public alias when the serialized shape already matches the SDK model.
 
 ---
 
@@ -107,5 +108,21 @@ after each iteration and it's included in prompts for context.
     - `src/solana/tx/message.zig` keeps legacy and v0 in one `Message` type, which avoids duplicated compile/codec logic while still matching version-specific wire rules.
   - Gotchas encountered
     - `tasks/prd.json` still marks `US-007` as incomplete, but the source and oracle coverage already satisfy the acceptance criteria, so this iteration was verification plus progress capture rather than new implementation.
+---
+
+## 2026-04-16 - US-008
+- What was implemented
+  - Verified the existing v0 message pipeline already supports `Message.compileV0`, ALT-aware static/dynamic account partitioning, v0 serialization with lookup sections, deserialization, and Rust oracle parity through `msg_v0_basic_alt` / `msg_v0_multi_lookup`.
+  - Added a public `MessageAddressTableLookup` alias for Rust SDK naming parity and a focused v0 roundtrip test that asserts lookup indexes, dynamic instruction indexes, and deserialize fidelity.
+- Files changed
+  - `src/solana/tx/message.zig`
+  - `src/solana/mod.zig`
+  - `src/root.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - The existing `CompiledAddressLookup` wire shape already matches Rust's `MessageAddressTableLookup`, so API-compat closeout can be handled with a public alias instead of duplicating the struct.
+  - Gotchas encountered
+    - Positive v0 coverage needs to assert dynamic account indexes after compile/deserialization (`payer=0`, `program=1`, lookup accounts appended afterward), otherwise ALT lookup correctness is only indirectly covered by byte-oracle tests.
 ---
 

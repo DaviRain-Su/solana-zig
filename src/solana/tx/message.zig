@@ -35,6 +35,8 @@ pub const CompiledAddressLookup = struct {
     }
 };
 
+pub const MessageAddressTableLookup = CompiledAddressLookup;
+
 pub const Message = struct {
     const Self = @This();
 
@@ -715,6 +717,79 @@ test "compile v0 rejects duplicate dynamic lookup keys across tables" {
         error.DuplicateLookupKey,
         Message.compileV0(gpa, payer, &ixs, blockhash, &lookups),
     );
+}
+
+test "compile v0 serializes and deserializes address table lookups" {
+    const gpa = std.testing.allocator;
+    const payer = pubkey_mod.Pubkey.init([_]u8{31} ** 32);
+    const writable_lookup_account = pubkey_mod.Pubkey.init([_]u8{32} ** 32);
+    const readonly_lookup_account = pubkey_mod.Pubkey.init([_]u8{33} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{34} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{35} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer, .is_signer = true, .is_writable = true },
+        .{ .pubkey = writable_lookup_account, .is_signer = false, .is_writable = true },
+        .{ .pubkey = readonly_lookup_account, .is_signer = false, .is_writable = false },
+    };
+    const payload = [_]u8{ 0x10, 0x20, 0x30 };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = &accounts, .data = &payload },
+    };
+
+    const writable_entries = [_]lookup_mod.LookupEntry{
+        .{ .index = 5, .pubkey = writable_lookup_account },
+    };
+    const readonly_entries = [_]lookup_mod.LookupEntry{
+        .{ .index = 7, .pubkey = readonly_lookup_account },
+    };
+    const lookups = [_]lookup_mod.AddressLookupTable{
+        .{
+            .account_key = pubkey_mod.Pubkey.init([_]u8{36} ** 32),
+            .writable = &writable_entries,
+            .readonly = &readonly_entries,
+        },
+    };
+
+    var message = try Message.compileV0(gpa, payer, &ixs, blockhash, &lookups);
+    defer message.deinit();
+
+    try std.testing.expectEqual(MessageVersion.v0, message.version);
+    try std.testing.expectEqual(@as(usize, 2), message.account_keys.len);
+    try std.testing.expectEqual(@as(usize, 1), message.address_table_lookups.len);
+    try std.testing.expect(message.account_keys[0].eql(payer));
+    try std.testing.expect(message.account_keys[1].eql(program_id));
+    try std.testing.expect(message.address_table_lookups[0].account_key.eql(lookups[0].account_key));
+    try std.testing.expectEqualSlices(u8, &[_]u8{5}, message.address_table_lookups[0].writable_indexes);
+    try std.testing.expectEqualSlices(u8, &[_]u8{7}, message.address_table_lookups[0].readonly_indexes);
+    try std.testing.expectEqual(@as(u8, 1), message.instructions[0].program_id_index);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0, 2, 3 }, message.instructions[0].account_indexes);
+
+    const encoded = try message.serialize(gpa);
+    defer gpa.free(encoded);
+
+    const decoded = try Message.deserialize(gpa, encoded);
+    defer {
+        var decoded_message = decoded.message;
+        decoded_message.deinit();
+    }
+
+    try std.testing.expectEqual(encoded.len, decoded.consumed);
+    try std.testing.expectEqual(MessageVersion.v0, decoded.message.version);
+    try std.testing.expectEqual(message.header.num_required_signatures, decoded.message.header.num_required_signatures);
+    try std.testing.expectEqual(message.header.num_readonly_signed_accounts, decoded.message.header.num_readonly_signed_accounts);
+    try std.testing.expectEqual(message.header.num_readonly_unsigned_accounts, decoded.message.header.num_readonly_unsigned_accounts);
+    try std.testing.expectEqual(@as(usize, 2), decoded.message.account_keys.len);
+    try std.testing.expect(decoded.message.account_keys[0].eql(payer));
+    try std.testing.expect(decoded.message.account_keys[1].eql(program_id));
+    try std.testing.expectEqual(@as(usize, 1), decoded.message.instructions.len);
+    try std.testing.expectEqual(@as(usize, 1), decoded.message.address_table_lookups.len);
+    try std.testing.expect(decoded.message.address_table_lookups[0].account_key.eql(lookups[0].account_key));
+    try std.testing.expectEqualSlices(u8, &[_]u8{5}, decoded.message.address_table_lookups[0].writable_indexes);
+    try std.testing.expectEqualSlices(u8, &[_]u8{7}, decoded.message.address_table_lookups[0].readonly_indexes);
+    try std.testing.expectEqual(@as(u8, 1), decoded.message.instructions[0].program_id_index);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0, 2, 3 }, decoded.message.instructions[0].account_indexes);
+    try std.testing.expectEqualSlices(u8, &payload, decoded.message.instructions[0].data);
 }
 
 test "compile v0 keeps writable account static when only readonly lookup entry exists" {

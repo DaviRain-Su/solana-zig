@@ -21,6 +21,11 @@ test "public Message.DecodeResult type is usable through package exports" {
     _ = DecodeResult;
 }
 
+test "public MessageAddressTableLookup type is usable through package exports" {
+    const MessageAddressTableLookup = tx.MessageAddressTableLookup;
+    _ = MessageAddressTableLookup;
+}
+
 test "compute budget interface compiles" {
     _ = interfaces.compute_budget;
 }

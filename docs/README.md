@@ -51,3 +51,4 @@
 - `22-phase2-batch4-planning.md`：Product Phase 2 第四批规划（Token Accounts 深化 + WS production hardening + 发布前清单）
 - `23-release-readiness-checklist.md`：发布前技术清单（provisional/final verdict 单一真源）
 - `24-phase2-batch5-planning.md`：Product Phase 2 第五批规划（SPL Token 指令集深化 + WS 生产可观测性 + 发布自动化）
+- `25-batch5-release-readiness.md`：Batch 5 专属发布前清单（不覆盖 Batch 4 final artifact）

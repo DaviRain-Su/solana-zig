@@ -24,6 +24,7 @@ pub const tx = struct {
     pub const Instruction = instruction.Instruction;
     pub const AddressLookupTable = address_lookup_table.AddressLookupTable;
     pub const Message = message.Message;
+    pub const MessageAddressTableLookup = message.MessageAddressTableLookup;
     pub const VersionedTransaction = transaction.VersionedTransaction;
 };
 

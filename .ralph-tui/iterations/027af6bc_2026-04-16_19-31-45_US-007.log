@@ -1,0 +1,42 @@
+# Iteration 7 Log
+
+## Metadata
+
+- **Task ID**: US-007
+- **Task Title**: Legacy Message compilation and serialization
+- **Description**: As a Zig developer, I want to build and serialize legacy Message so that I can construct traditional format transactions.
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T11:31:45.524Z
+- **Ended At**: 2026-04-16T11:35:57.721Z
+- **Duration**: 4m 12s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-007
+
+Verified `US-007` was already implemented.
+
+## What I verified
+- `Message.compileLegacy(...)` compiles legacy messages from `payer + instructions + recent_blockhash`
+- Legacy message serialization/deserialization already exists in `src/solana/tx/message.zig`
+- Account ordering matches the required Rust SDK ordering:
+  - signer-writable
+  - signer-readonly
+  - non-signer-writable
+  - non-signer-readonly
+- Rust-parity oracle coverage already exists for:
+  - `msg_legacy_simple`
+  - `msg_legacy_multi_ix`
+
+## Changes made
+- Appended the required `US-007` entry to `.ralph-tui/progress.md`
+- Added a reusable `Message` codebase pattern to the top of `.ralph-tui/progress.md`
+
+## Validation
+- Ran `zig build test` successfully
+
+<promise>COMPLETE</promise>
+]9;4;0;

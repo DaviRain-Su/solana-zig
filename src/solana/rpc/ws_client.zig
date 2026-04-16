@@ -355,6 +355,16 @@ pub const WsRpcClient = struct {
     pub const MAX_BACKOFF_MS: u64 = 30_000;
     pub const DEDUP_CACHE_SIZE: usize = 16;
 
+    // -- Observability snapshot schema (P2-23, frozen in docs/24) --
+    pub const WsStats = struct {
+        reconnect_attempts_total: u32,
+        active_subscriptions: u32,
+        dedup_dropped_total: u32,
+        last_error_code: ?u16,
+        last_error_message: ?[]const u8,
+        last_reconnect_unix_ms: ?u64,
+    };
+
     ws: WsClient,
     url: []const u8,
     next_id: u64 = 1,
@@ -363,6 +373,15 @@ pub const WsRpcClient = struct {
     dedup_ring_len: usize = 0,
     dedup_ring_pos: usize = 0,
     last_reconnect_attempts: u8 = 0,
+
+    // -- Observability counters/state (P2-23) --
+    reconnect_attempts_total: u32 = 0,
+    dedup_dropped_total: u32 = 0,
+    messages_received_total: u64 = 0,
+    last_error_code: ?u16 = null,
+    last_error_message_buf: [128]u8 = [_]u8{0} ** 128,
+    last_error_message_len: u8 = 0,
+    last_reconnect_unix_ms: ?u64 = null,
 
     pub const SubscribeError = WsClient.SendError || WsClient.ReadError || error{InvalidSubscriptionResponse};
     pub const ReconnectError = WsClient.ConnectError || SubscribeError;
@@ -418,7 +437,9 @@ pub const WsRpcClient = struct {
 
     pub fn reconnect(self: *WsRpcClient) WsClient.ConnectError!void {
         self.ws.deinit();
+        self.reconnect_attempts_total += 1;
         self.ws = try WsClient.connect(self.ws.allocator, self.ws.io, self.url);
+        self.recordReconnectTimestamp();
     }
 
     pub fn reconnectWithBackoff(self: *WsRpcClient, retries: u8, base_delay_ms: u64) ReconnectError!void {
@@ -427,7 +448,12 @@ pub const WsRpcClient = struct {
         self.last_reconnect_attempts = 0;
         while (attempt < capped_retries) : (attempt += 1) {
             self.last_reconnect_attempts = attempt + 1;
-            if (self.reconnectAndResubscribe()) |_| return else |err| {
+            self.reconnect_attempts_total += 1;
+            if (self.reconnectAndResubscribe()) |_| {
+                self.recordReconnectTimestamp();
+                return;
+            } else |err| {
+                self.recordError(1, "reconnect_failed");
                 if (attempt + 1 == capped_retries) return err;
                 const raw_delay = base_delay_ms << @intCast(attempt);
                 const delay_ms = @min(raw_delay, MAX_BACKOFF_MS);
@@ -446,6 +472,34 @@ pub const WsRpcClient = struct {
 
     pub fn subscriptionCount(self: *const WsRpcClient) usize {
         return self.subscriptions.items.len;
+    }
+
+    pub fn snapshot(self: *const WsRpcClient) WsStats {
+        return .{
+            .reconnect_attempts_total = self.reconnect_attempts_total,
+            .active_subscriptions = @intCast(self.subscriptions.items.len),
+            .dedup_dropped_total = self.dedup_dropped_total,
+            .last_error_code = self.last_error_code,
+            .last_error_message = if (self.last_error_message_len > 0)
+                self.last_error_message_buf[0..self.last_error_message_len]
+            else
+                null,
+            .last_reconnect_unix_ms = self.last_reconnect_unix_ms,
+        };
+    }
+
+    fn recordError(self: *WsRpcClient, code: u16, msg: []const u8) void {
+        self.last_error_code = code;
+        const len = @min(msg.len, self.last_error_message_buf.len);
+        @memcpy(self.last_error_message_buf[0..len], msg[0..len]);
+        self.last_error_message_len = @intCast(len);
+    }
+
+    fn recordReconnectTimestamp(self: *WsRpcClient) void {
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts) == 0) {
+            self.last_reconnect_unix_ms = @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
+        }
     }
 
     pub fn accountSubscribe(self: *WsRpcClient, pubkey_base58: []const u8) SubscribeError!u64 {
@@ -480,8 +534,13 @@ pub const WsRpcClient = struct {
                 return error.WsProtocolError;
             }
 
+            self.messages_received_total += 1;
+
             const h = std.hash.Wyhash.hash(0, msg.data);
-            if (self.isDuplicateNotification(h)) continue;
+            if (self.isDuplicateNotification(h)) {
+                self.dedup_dropped_total += 1;
+                continue;
+            }
             self.recordNotificationHash(h);
 
             var parsed = std.json.parseFromSlice(std.json.Value, self.ws.allocator, msg.data, .{}) catch return error.InvalidSubscriptionResponse;
