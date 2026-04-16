@@ -43,3 +43,4 @@
 ## 6. User / Consumer Notes
 
 - `16-consumer-profiles-and-security-notes.md`：目标用户、FFI / signer / 安全约束说明
+- `17-quickstart-and-api-examples.md`：面向消费者的 Quickstart 与 API 最小示例

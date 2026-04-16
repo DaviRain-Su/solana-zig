@@ -21,6 +21,82 @@ Current implementation is in **Product Phase 1 closeout**: the project is still 
 zig build test
 ```
 
+## Quickstart (Phase 1)
+
+This repo currently targets **Product Phase 1 closeout** (off-chain SDK foundations).
+
+### 1) Use as a Zig dependency
+
+`build.zig.zon`:
+
+```zig
+.dependencies = .{
+    .solana_zig = .{
+        .url = "https://github.com/<your-org>/solana-zig/archive/<commit-or-tag>.tar.gz",
+        .hash = "<fill-after-fetch>",
+    },
+},
+```
+
+`build.zig`:
+
+```zig
+const solana_dep = b.dependency("solana_zig", .{
+    .target = target,
+    .optimize = optimize,
+});
+exe.root_module.addImport("solana_zig", solana_dep.module("solana_zig"));
+```
+
+### 2) Run local verification
+
+```bash
+zig build test
+```
+
+### 3) Optional Devnet acceptance wrapper
+
+```bash
+SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
+```
+
+For now this wrapper records env metadata and runs `zig build test`; it is not yet an in-tree full Devnet harness.
+
+## API Usage Examples
+
+For complete snippets, see `docs/17-quickstart-and-api-examples.md`.
+
+Minimal examples:
+
+```zig
+const std = @import("std");
+const sol = @import("solana_zig");
+
+// Core: deterministic keypair and signature verify
+var seed: [32]u8 = [_]u8{1} ** 32;
+const kp = try sol.core.Keypair.fromSeed(seed);
+const sig = try kp.sign("hello");
+try sig.verify("hello", kp.pubkey());
+```
+
+```zig
+const std = @import("std");
+const sol = @import("solana_zig");
+
+// RPC: get latest blockhash
+var client = try sol.rpc.RpcClient.init(std.heap.page_allocator, .default, "https://api.devnet.solana.com");
+defer client.deinit();
+
+const latest = try client.getLatestBlockhash();
+switch (latest) {
+    .ok => |v| std.debug.print("last_valid_block_height={d}\n", .{v.last_valid_block_height}),
+    .rpc_error => |e| {
+        defer e.deinit(std.heap.page_allocator);
+        std.debug.print("rpc error: {d} {s}\n", .{ e.code, e.message });
+    },
+}
+```
+
 ## Optional Devnet Usage
 Set `SOLANA_RPC_URL` and call the RPC client from your own integration harness.
 
@@ -58,6 +134,7 @@ This keeps the current client path stable while making later expansion stages ex
 - Devnet E2E Run Log Template: `docs/14a-devnet-e2e-run-log.md`
 - Phase 1 Execution Matrix: `docs/15-phase1-execution-matrix.md`
 - Consumer / Security Notes: `docs/16-consumer-profiles-and-security-notes.md`
+- Quickstart + API Examples: `docs/17-quickstart-and-api-examples.md`
 - Future Specs:
   - Interfaces: `docs/03a-interfaces-spec.md`
   - Signers: `docs/03b-signers-spec.md`
