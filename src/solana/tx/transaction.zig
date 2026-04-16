@@ -217,3 +217,64 @@ test "verify signatures rejects malformed message header before indexing account
 
     try std.testing.expectError(error.InvalidMessage, tx.verifySignatures());
 }
+
+test "versioned_deserialize_rejects_truncated_signature_bytes" {
+    const gpa = std.testing.allocator;
+
+    const bytes = [_]u8{
+        1, // signatures len
+        0xAA, 0xBB, 0xCC, // truncated signature bytes
+    };
+
+    try std.testing.expectError(error.InvalidTransaction, VersionedTransaction.deserialize(gpa, &bytes));
+}
+
+test "versioned_deserialize_rejects_unsupported_message_version" {
+    const gpa = std.testing.allocator;
+
+    const sig = [_]u8{0} ** signature_mod.Signature.LENGTH;
+    const bytes = [_]u8{
+        1, // signature vector len
+    } ++ sig ++ [_]u8{
+        0x81, // v1 message version (unsupported)
+        0, 0, 0, // minimal header
+        0, // empty account keys vec
+    };
+
+    try std.testing.expectError(error.UnsupportedMessageVersion, VersionedTransaction.deserialize(gpa, &bytes));
+}
+
+test "versioned_deserialize_rejects_trailing_bytes" {
+    const gpa = std.testing.allocator;
+
+    const payer = try keypair_mod.Keypair.fromSeed([_]u8{31} ** 32);
+    const receiver = @import("../core/pubkey.zig").Pubkey.init([_]u8{32} ** 32);
+    const program = @import("../core/pubkey.zig").Pubkey.init([_]u8{33} ** 32);
+    const blockhash = @import("../core/hash.zig").Hash.init([_]u8{34} ** 32);
+
+    const accounts = [_]@import("instruction.zig").AccountMeta{
+        .{ .pubkey = payer.pubkey(), .is_signer = true, .is_writable = true },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const payload = [_]u8{7};
+    const ixs = [_]@import("instruction.zig").Instruction{
+        .{ .program_id = program, .accounts = &accounts, .data = &payload },
+    };
+
+    var message = try message_mod.Message.compileLegacy(gpa, payer.pubkey(), &ixs, blockhash);
+    errdefer message.deinit();
+
+    var tx = try VersionedTransaction.initUnsigned(gpa, message);
+    defer tx.deinit();
+    try tx.sign(&[_]keypair_mod.Keypair{payer});
+
+    const encoded = try tx.serialize(gpa);
+    defer gpa.free(encoded);
+
+    var malformed = try gpa.alloc(u8, encoded.len + 1);
+    defer gpa.free(malformed);
+    @memcpy(malformed[0..encoded.len], encoded);
+    malformed[encoded.len] = 0x42;
+
+    try std.testing.expectError(error.InvalidTransaction, VersionedTransaction.deserialize(gpa, malformed));
+}

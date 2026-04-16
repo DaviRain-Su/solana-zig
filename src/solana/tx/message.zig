@@ -870,3 +870,101 @@ test "deserialize rejects compiled instruction indexes outside account space" {
 
     try std.testing.expectError(error.InvalidMessage, Message.deserialize(gpa, malformed));
 }
+
+test "v0_alt_deserialize_rejects_unsupported_version_byte" {
+    const gpa = std.testing.allocator;
+
+    var bytes = [_]u8{
+        0x81, // v1 (unsupported)
+        1, 0, 0, // header
+        0, // account key len
+        // no recent blockhash/instructions needed because version is rejected first
+    };
+
+    try std.testing.expectError(error.UnsupportedMessageVersion, Message.deserialize(gpa, &bytes));
+}
+
+test "v0_alt_deserialize_rejects_lookup_truncation" {
+    const gpa = std.testing.allocator;
+
+    const payer = pubkey_mod.Pubkey.init([_]u8{21} ** 32);
+    const lookup_account = pubkey_mod.Pubkey.init([_]u8{22} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{23} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{24} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer, .is_signer = true, .is_writable = true },
+        .{ .pubkey = lookup_account, .is_signer = false, .is_writable = false },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = &accounts, .data = &.{} },
+    };
+
+    const readonly_entries = [_]lookup_mod.LookupEntry{
+        .{ .index = 0, .pubkey = lookup_account },
+    };
+    const lookups = [_]lookup_mod.AddressLookupTable{
+        .{
+            .account_key = pubkey_mod.Pubkey.init([_]u8{25} ** 32),
+            .writable = &.{},
+            .readonly = &readonly_entries,
+        },
+    };
+
+    var message = try Message.compileV0(gpa, payer, &ixs, blockhash, &lookups);
+    defer message.deinit();
+    try std.testing.expect(message.address_table_lookups.len > 0);
+
+    const encoded = try message.serialize(gpa);
+    defer gpa.free(encoded);
+
+    try std.testing.expectError(
+        error.InvalidMessage,
+        Message.deserialize(gpa, encoded[0 .. encoded.len - 1]),
+    );
+}
+
+test "v0_alt_deserialize_rejects_compiled_index_outside_lookup_space" {
+    const gpa = std.testing.allocator;
+
+    const payer = pubkey_mod.Pubkey.init([_]u8{26} ** 32);
+    const lookup_account = pubkey_mod.Pubkey.init([_]u8{27} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{28} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{29} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer, .is_signer = true, .is_writable = true },
+        .{ .pubkey = lookup_account, .is_signer = false, .is_writable = false },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = &accounts, .data = &.{} },
+    };
+
+    const readonly_entries = [_]lookup_mod.LookupEntry{
+        .{ .index = 0, .pubkey = lookup_account },
+    };
+    const lookups = [_]lookup_mod.AddressLookupTable{
+        .{
+            .account_key = pubkey_mod.Pubkey.init([_]u8{30} ** 32),
+            .writable = &.{},
+            .readonly = &readonly_entries,
+        },
+    };
+
+    var message = try Message.compileV0(gpa, payer, &ixs, blockhash, &lookups);
+    defer message.deinit();
+
+    const encoded = try message.serialize(gpa);
+    defer gpa.free(encoded);
+
+    var malformed = try gpa.dupe(u8, encoded);
+    defer gpa.free(malformed);
+
+    // v0 layout:
+    // [version][header:3][account_len][keys][blockhash][ix_len][ix...][lookup_len][lookup...]
+    const key_len_offset = 1 + 3;
+    const instruction_offset = key_len_offset + 1 + (message.account_keys.len * pubkey_mod.Pubkey.LENGTH) + hash_mod.Hash.LENGTH + 1;
+    malformed[instruction_offset] = 250;
+
+    try std.testing.expectError(error.InvalidMessage, Message.deserialize(gpa, malformed));
+}

@@ -258,6 +258,28 @@
 ### 输出
 - `docs/02-architecture.md` 将 L4 从“Devnet 集成测试”改为“Devnet acceptance harness / 外部集成验证”，并明确当前不是 in-tree E2E 测试层。
 - `docs/03-technical-spec.md` 重写 Test Mapping：纳入现有的 mock transport 测试、parser hardening、`Message.DecodeResult` 导出可用性，以及当前 oracle `v2 core` 子集覆盖。
+
+## 2026-04-16 第十五次增量记录（C2: v0/ALT 与 VersionedTransaction 失败路径补强）
+
+### 输入
+- `#8 C2` 要求补齐 `v0/ALT` 与 `VersionedTransaction` 的失败路径证据，且测试命名需可被 closeout gate 检索。
+
+### 输出
+- `src/solana/tx/message.zig` 新增 3 个失败路径测试（统一前缀 `v0_alt_*`）：
+  - `v0_alt_deserialize_rejects_unsupported_version_byte`
+  - `v0_alt_deserialize_rejects_lookup_truncation`
+  - `v0_alt_deserialize_rejects_compiled_index_outside_lookup_space`
+- `src/solana/tx/transaction.zig` 新增 3 个失败路径测试（统一前缀 `versioned_deserialize_*`）：
+  - `versioned_deserialize_rejects_truncated_signature_bytes`
+  - `versioned_deserialize_rejects_unsupported_message_version`
+  - `versioned_deserialize_rejects_trailing_bytes`
+
+### 风险
+- 当前仓库存在与本任务无关的 RPC 编译中断（`src/solana/rpc/client.zig` 中未声明符号），导致 `zig build test` 全量验证暂不可得。
+
+### 验证
+- 已执行：`zig build test`（被 RPC 非相关错误阻塞，见风险项）。
+- 该批改动未引入新的运行时依赖，目标是补齐 closeout gate 的失败路径证据。
 - `docs/15-phase1-execution-matrix.md` 明确补入 ALT 权限正确性要求：writable 账户不能被 readonly lookup 错配，并将其提升为显式 high-priority blocker。
 
 ### 风险
