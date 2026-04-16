@@ -12,7 +12,7 @@
 
 1. **兼容性**：核心离线能力与锁定 Rust 基线的字节/行为兼容证据完整
 2. **测试性**：离线门禁稳定，全量关键 public API 有 Happy + Error 覆盖
-3. **可展示性**：Devnet acceptance path 可复现，且流程证据可留档；当前仓库已提供 in-tree live harness（`zig build devnet-e2e`）用于 `construct -> sign -> simulate`，若要宣称完整闭环，则仍需额外说明 `sendTransaction` 是否已被 live 证据覆盖
+3. **可展示性**：Devnet acceptance path 可复现，且流程证据可留档；当前仓库已提供 in-tree live harness（`zig build devnet-e2e`）用于 `construct -> sign -> simulate`，并已补齐 `sendTransaction` live 证据；若要宣称 Phase 1 closeout，仍需满足 execution-matrix 的整体收口规则
 4. **可追踪性**：coverage / execution / implementation log / review 文档已同步收口
 
 ## 2. Required Evidence Packs
@@ -36,9 +36,9 @@
   - 构造
   - 签名
   - 模拟
-- 若要把 G-CLOSE-05 直接判为完全收口，还需额外补齐：
   - 发送
-- 若 `sendTransaction` 仍未被 live 证据覆盖，则必须在 `docs/07` / `docs/08` / `docs/15` 作为明确例外项处理，不能写成“完整闭环已完成”
+- 若要把 G-CLOSE-05 作为 closeout evidence pack 的完整 E2E 依据，还应能引用相应的确认留档（见 `docs/14a`）
+- 即使 `sendTransaction` live 证据已补齐，若 `docs/15` 仍存在未最终处置项，也不能直接写成“Phase 1 closeout 已完成”
 
 ### 2.4 Execution Evidence
 - 见：`docs/15-phase1-execution-matrix.md`
@@ -70,11 +70,11 @@
 - versioned transaction 的签名、验签、序列化、反序列化闭环稳定
 
 ### G-CLOSE-05: Devnet Gate
-- 在配置 `SOLANA_RPC_URL` 时，当前 in-tree live harness（`zig build devnet-e2e`）可执行，并留下 `construct -> sign -> simulate` 的真实留档
+- 在配置 `SOLANA_RPC_URL` 时，当前 in-tree live harness（`zig build devnet-e2e`）可执行，并已留下 `construct -> sign -> simulate` 与 `sendTransaction` 的真实留档
 - 文档必须明确区分：
   - 当前 live harness 已覆盖到哪里
-  - `sendTransaction` 是否已有 live 证据
-- 若缺 `sendTransaction` live 证据，不得把结果写成完整“构造->签名->模拟->发送”已收口
+  - 这些 live 证据是否已进入完整 closeout evidence pack
+- 即使 `sendTransaction` live 证据已补齐，也不得跳过 `docs/15` 的整体收口规则直接宣称 Phase 1 closeout
 - 产出留档日志、提交哈希、执行时间和结果摘要
 
 ### G-CLOSE-06: Documentation Gate
@@ -85,7 +85,7 @@
 
 - oracle 向量规模不足
 - benchmark baseline 首版记录已建立，但 closeout review 尚未最终固化
-- 真实 in-tree Devnet harness 已落地，但当前 live 证据只覆盖到 `simulateTransaction`；`sendTransaction` 仍缺真实发送留档
+- Devnet live 证据包虽已补齐到 `simulate/send/confirm`，但 execution matrix 中仍有多个 `open / in-progress / closeable` 条目未完成最终处置
 - execution matrix 中多个 `open / in-progress` 项仍未推进到 `closeable / closed`
 
 ## 5. Recommended Closeout Order

@@ -258,7 +258,7 @@ Product Phase 1 最小可检查语义包括：
 - `getLatestBlockhash`: `commitment=confirmed`
 - `getAccountInfo`: `encoding=base64`
 - `simulateTransaction`: `encoding=base64`, `sigVerify=true`
-- `sendTransaction`: `encoding=base64`, `skipPreflight=false`
+- `sendTransaction`: `encoding=base64`, `skipPreflight=false`, `preflightCommitment=confirmed`
 
 ### 6.2 Transport
 

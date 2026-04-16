@@ -26,9 +26,9 @@ SOLANA_RPC_URL=https://api.devnet.solana.com scripts/devnet/phase1_acceptance.sh
 ```
 
 Notes:
-- `zig build devnet-e2e` 是当前真实 in-tree live harness，覆盖 `construct -> sign -> simulate`。
+- `zig build devnet-e2e` 是当前真实 in-tree live harness，已覆盖 `construct -> sign -> simulate`，并补齐 `sendTransaction` live 路径。
 - `scripts/devnet/phase1_acceptance.sh` 仍是包装式留档路径，只记录环境元数据并运行离线门禁。
-- 完整 `construct -> sign -> simulate -> send` 仍未由当前 harness 全部覆盖，`sendTransaction` live 证据继续在 closeout 项中跟踪。
+- 是否能宣称 `Product Phase 1 closeout`，仍取决于 `docs/11` 与 `docs/15` 的整体收口，而不是单看 E2E 单项证据。
 
 ---
 

@@ -61,9 +61,9 @@ SOLANA_RPC_URL=<your-devnet-endpoint> zig build devnet-e2e
 SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
 ```
 
-- `zig build devnet-e2e` 是当前仓库内的 live harness：在设置 `SOLANA_RPC_URL` 时执行 `construct -> sign -> simulate`。
+- `zig build devnet-e2e` 是当前仓库内的 live harness：在设置 `SOLANA_RPC_URL` 时已覆盖 `construct -> sign -> simulate`，并补齐 `sendTransaction` live 证据。
 - `scripts/devnet/phase1_acceptance.sh` 仍是包装脚本：记录环境元数据并运行离线门禁，本身不等同于真实 harness。
-- `sendTransaction` 的 live 发送证据仍单独跟踪，尚未纳入当前 in-tree harness。
+- 是否可以宣称 `Product Phase 1 closeout`，仍取决于 `docs/11` 与 `docs/15` 的整体收口状态，而不是单看 send 证据是否存在。
 
 ## API Usage Examples
 
@@ -129,9 +129,9 @@ SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
 ```
 
 说明：
-- `zig build devnet-e2e` 是当前真实 in-tree harness，覆盖 `getLatestBlockhash -> compileLegacy -> sign -> verify -> simulate`。
+- `zig build devnet-e2e` 是当前真实 in-tree harness，已覆盖 `getLatestBlockhash -> compileLegacy -> sign -> verify -> simulate`，并补齐 `sendTransaction` live 路径。
 - `scripts/devnet/phase1_acceptance.sh` 只是包装式验收路径，用于留档环境与离线门禁。
-- 若要宣称完整 `construct -> sign -> simulate -> send` 已完成，仍需额外的 `sendTransaction` live 证据。
+- 若要宣称 `Product Phase 1` 已 closeout，仍需满足 `docs/11` 与 `docs/15` 的整体规则，而不是只看 E2E 单项证据。
 
 ## Scope Strategy: Product Roadmap Phases
 Yes, target is to cover both off-chain and, eventually, on-chain capabilities, but under one unified product roadmap:

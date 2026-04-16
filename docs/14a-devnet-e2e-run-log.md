@@ -1,13 +1,13 @@
 # Devnet E2E Run Log
 
 **Template Date**: 2026-04-16
-**Purpose**: 记录 Product Phase 1 的 Devnet 验收实际执行结果，区分"包装式验收"、当前真实 in-tree harness，以及尚未补齐的 `sendTransaction` live 路径。
+**Purpose**: 记录 Product Phase 1 的 Devnet 验收实际执行结果，区分"包装式验收"、当前真实 in-tree harness，以及最终 closeout evidence pack 所需的 live 证据。
 
 > 本文是 `docs/14-devnet-e2e-acceptance.md` 的结果模板。
 >
 > 重要：
 > - `Run Type = real-harness` 且覆盖 `construct -> sign -> simulate`，可作为“当前 in-tree live harness 已存在”的依据。
-> - 只有额外留下 `sendTransaction` 的 live 证据时，才可作为“完整 `construct -> sign -> simulate -> send` 已完成”的依据。
+> - `sendTransaction` 与后续 confirm 的 live 证据已在后续 run 中补齐；是否可据此宣称 Phase 1 closeout，仍需回到 `docs/11` / `docs/15` 做整体判定。
 
 ---
 

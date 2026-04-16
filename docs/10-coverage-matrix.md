@@ -87,10 +87,10 @@
 
 ## 8. 当前最值得补齐的缺口
 
-1. `sendTransaction` 的真实发送链路证据仍需持续留档（当前 `docs/15` 维持跟踪）。
-2. `core.base58` / `core.shortvec` / `core.Hash` 的边界样本仍可继续扩充（不阻塞当前 closeout 评审）。
-3. v0/ALT 语义虽已补关键失败路径，仍建议继续累积高复杂度场景样本。
-4. Devnet E2E 与 benchmark 首版证据已形成，后续重点是持续回归与文档同步。
+1. `core.base58` / `core.shortvec` / `core.Hash` 的边界样本仍可继续扩充（不阻塞当前 closeout 评审）。
+2. v0/ALT 语义虽已补关键失败路径，仍建议继续累积高复杂度场景样本。
+3. benchmark baseline 与 execution-matrix 的最终 closeout 处置仍需继续收口。
+4. Devnet E2E 的 simulate/send/confirm 首版 live 证据已形成，后续重点是持续回归与文档同步。
 
 ## 9. 配套文档
 

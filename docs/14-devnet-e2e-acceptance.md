@@ -2,16 +2,19 @@
 
 **Date**: 2026-04-16
 
-> 本文定义 Product Phase 1 的 Devnet 验收目标、执行说明和证据留档方式，并明确区分：包装脚本、当前 in-tree live harness，以及尚未补齐的 `sendTransaction` live 路径。
+> 本文定义 Product Phase 1 的 Devnet 验收目标、执行说明和证据留档方式，并明确区分：包装脚本、当前 in-tree live harness，以及最终 closeout 判定所需的证据包边界。
 
 ## 1. Goal
 
 当前仓库状态下，Devnet 验收应拆成两层理解：
 
-- **已落地的真实 in-tree live harness**：在配置 `SOLANA_RPC_URL` 时，通过 `zig build devnet-e2e` 可复现 `construct -> sign -> simulate`。
-- **仍待补齐的完整 closeout 目标**：若要宣称完整最小闭环已收口，仍需补 `sendTransaction` 的 live 证据，形成 `construct -> sign -> simulate -> send`。
+- **已落地的真实 in-tree live harness**：在配置 `SOLANA_RPC_URL` 时，通过 `zig build devnet-e2e` 已可留下两类 live 证据：
+  - `construct -> sign -> simulate`
+  - `construct -> sign -> sendTransaction`
+- **已补齐的 closeout 相关 live 证据**：`docs/14a` 已记录 send 后的确认留档，可把 `simulate/send/confirm` 串成完整 E2E evidence pack。
+- **最终 closeout 目标**：将这些 live 证据与 mock / 离线门禁 / 执行矩阵一起组成可审计的 closeout evidence pack。
 
-换言之：仓库里已经有真实 harness，但它当前覆盖到 `simulateTransaction` 为止，还不能单独支撑“完整 send 路径已完成”的表述。
+换言之：`sendTransaction` live 证据已经纳入当前 harness；当前是否能宣称 Phase 1 closeout，取决于 `docs/15` 的整体收口状态，而不再是“send 证据缺失”。
 
 ## 2. Acceptance Scope
 
@@ -22,14 +25,16 @@ Phase 1 当前需要把以下三类能力区分清楚：
   - 不直接执行真实 RPC live flow
 - **真实 in-tree live harness**：`zig build devnet-e2e`
   - mock 路径始终可跑
-  - 在设置 `SOLANA_RPC_URL` 时执行真实 `getLatestBlockhash -> compileLegacy -> sign -> verify -> simulate`
-- **仍未收口的 live send 路径**：
-  - `sendTransaction` 的真实 Devnet 发送证据尚未纳入当前 harness
-  - 因此不能把当前状态写成完整 `construct -> sign -> simulate -> send` 已完成
+  - 在设置 `SOLANA_RPC_URL` 时执行真实 live case
+  - 当前已覆盖 `simulateTransaction` 与 `sendTransaction` 两条链路的 live 证据
+  - send 后的确认留档见 `docs/14a` 对应 run 记录
+- **最终 closeout 判定**：
+  - 不能只看某一次 live run 就宣布 Phase 1 全部完成
+  - 仍需结合 `docs/15-phase1-execution-matrix.md` 的整体状态统一判定
 
 **重要**：
 - 包装脚本通过 `!=` 真实 Devnet harness 完成。
-- 真实 harness 跑通到 `simulate` `!=` 完整 `send` 闭环已完成。
+- 已有 `simulate/send/confirm` live 证据 `!=` Product Phase 1 已自动 closeout。
 
 ## 3. Environment
 
@@ -55,8 +60,11 @@ SOLANA_RPC_URL=<your-devnet-endpoint> zig build devnet-e2e
 说明：
 - 当前这是主证据入口
 - 会运行 mock + live 两类 case
-- live case 当前覆盖 `construct / sign / verify / simulate`
-- 尚不覆盖 `sendTransaction` live 发送
+- live case 当前覆盖：
+  - `construct / sign / verify / simulate`
+  - `requestAirdrop / getBalance / construct / sign / sendTransaction`
+- send 后的确认留档可通过 `docs/14a` 对应 run 继续补全 closeout evidence pack
+- public devnet 若遇到 airdrop rate limit，可保留 skip / fallback 日志；local surfnet 仍可作为可控 live 证据
 
 ### 4.2 包装式验收脚本
 
@@ -87,10 +95,11 @@ SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
 - 失败阶段（env / getLatestBlockhash / construct / sign / verify / simulate）
 - 控制台摘要或 artifact 路径
 
-若后续引入 `sendTransaction` live 路径，则额外记录：
+若执行 `sendTransaction` live case，则额外记录：
 - send 阶段是否执行
 - 返回 signature / rpc_error / transport error
 - 发送后的结果摘要
+- 若依赖 airdrop / 余额预热，需记录 funding 方式与是否成功
 
 ## 6. Suggested Acceptance Steps
 
@@ -112,7 +121,7 @@ SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
 - 但若相同失败可稳定复现，必须按产品缺陷处理
 - 若依赖外部环境波动，需在日志中明确标记为 `env-flaky`
 - 若当前只有包装脚本通过，不得把结果表述为“真实 Devnet harness 已完成”
-- 若当前只有 `construct -> sign -> simulate` live 证据，不得把结果表述为“完整 `construct -> sign -> simulate -> send` 已完成”
+- 若只有单条 live 证据，也不得跳过 `docs/15` 的整体收口判定直接宣称 Phase 1 closeout
 
 ## 8. Task Mapping
 
@@ -128,5 +137,6 @@ SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
 - 至少产出一份 `zig build devnet-e2e` 真实 harness 日志
 - 日志中可追踪 commit 与执行时间
 - 文档说明与 harness 行为一致
-- 若宣称“当前 in-tree Devnet live harness 已存在”，`construct -> sign -> simulate` 证据即可支撑
-- 若宣称“完整 Devnet E2E (`construct -> sign -> simulate -> send`) 已完成”，必须另有 `sendTransaction` live 证据
+- 若宣称“当前 in-tree Devnet live harness 已存在”，应至少有 `simulate` 或 `sendTransaction` 的 live 证据
+- 若宣称“当前 closeout evidence pack 已包含完整 `construct -> sign -> simulate -> send -> confirm` 路径证据”，应引用 `docs/14a` 中的 simulate + send + confirm run
+- 若宣称“Product Phase 1 已 closeout”，仍必须满足 `docs/11` 与 `docs/15` 的整体规则

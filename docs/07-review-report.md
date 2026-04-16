@@ -77,12 +77,10 @@
 | G-CLOSE-02 Oracle Gate | pass | `#9` (`6fa3029`): `core + keypair + message + transaction` 向量 + Zig 消费断言 |
 | G-CLOSE-03 RPC Gate | pass | `#7` (`892cfd8`): `getAccountInfo`/`simulateTransaction` typed 收敛 + happy/rpc_error/malformed 覆盖 |
 | G-CLOSE-04 v0/Tx Gate | pass | `#8` (`d905ca2` + `f546b03`): v0/ALT 与 versioned tx 失败路径补齐，泄漏修复 |
-| G-CLOSE-05 Devnet Gate | in-progress | `#10` (`609f173`): 已有 `construct -> sign -> simulate` 的 devnet/surfnet live 证据；`sendTransaction` live 发送证据仍缺 |
-| G-CLOSE-06 Documentation Gate | in-progress | 主文档已同步到当前 harness / typed RPC 语义，但 `docs/15` 仍有 `open / in-progress / closeable` 条目未完成最终 closeout 处置 |
+| G-CLOSE-05 Devnet Gate | pass | `#10/#17`: 已有 `construct -> sign -> simulate` 与 `sendTransaction/confirm` 的 live 证据（见 `docs/14a` Run 2~5） |
+| G-CLOSE-06 Documentation Gate | in-progress | 主文档需继续与最新 send/confirm 证据状态完全对齐；同时 `docs/15` 仍有若干条目未完成最终 closeout 处置 |
 
 ### 7.2 当前结论
 
-- Product Phase 1 的关键实现证据已明显收敛，但 Devnet send 路径与若干 execution-matrix 条目仍未完成最终处置。
-- 结论：**当前不应宣称 Product Phase 1 已完成 closeout**；可以宣称的是：
-  - in-tree live harness 已存在并已留下 `construct -> sign -> simulate` 证据
-  - typed RPC public API 已进入 Phase 1 最小收敛状态
+- Product Phase 1 的关键实现证据已明显收敛，Devnet live 路径也已补到 simulate/send/confirm。
+- 结论：**当前仍不应宣称 Product Phase 1 已完成 closeout**；原因不再是 send 证据缺失，而是 `docs/15` 中仍有若干条目未完成最终 `closed / documented exception` 处置。
