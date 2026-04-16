@@ -32,6 +32,11 @@ pub const SendTransactionOptions = struct {
     preflight_commitment: Commitment = .confirmed,
 };
 
+pub const GetTransactionOptions = struct {
+    commitment: Commitment = .confirmed,
+    max_supported_transaction_version: ?u8 = 0,
+};
+
 pub const AccountInfo = struct {
     lamports: u64,
     owner: pubkey_mod.Pubkey,
@@ -121,10 +126,28 @@ pub const SignatureStatus = struct {
 pub const TransactionInfo = struct {
     slot: u64,
     block_time: ?i64 = null,
+    meta: ?TransactionMeta = null,
     raw_json: []const u8,
 
     pub fn deinit(self: *TransactionInfo, allocator: std.mem.Allocator) void {
+        if (self.meta) |*meta| meta.deinit(allocator);
         allocator.free(self.raw_json);
+    }
+};
+
+pub const TransactionMeta = struct {
+    fee: ?u64 = null,
+    err_json: ?[]const u8 = null,
+    log_messages: ?[][]const u8 = null,
+    raw_json: ?[]const u8 = null,
+
+    pub fn deinit(self: *TransactionMeta, allocator: std.mem.Allocator) void {
+        if (self.err_json) |err| allocator.free(err);
+        if (self.log_messages) |logs| {
+            for (logs) |log| allocator.free(log);
+            allocator.free(logs);
+        }
+        if (self.raw_json) |raw| allocator.free(raw);
     }
 };
 

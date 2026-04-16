@@ -1,0 +1,29 @@
+# Iteration 19 Log
+
+## Metadata
+
+- **Task ID**: US-018
+- **Task Title**: Benchmark baseline establishment
+- **Description**: As a maintainer, I want serialization/deserialization benchmark baselines so that future optimizations have data for comparison.
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T12:38:14.262Z
+- **Ended At**: 2026-04-16T12:45:36.658Z
+- **Duration**: 7m 22s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-018 Complete
+
+Implemented `src/benchmark.zig` so `zig build bench` now benchmarks the requested baseline surfaces directly: `Pubkey` base58 encode/decode, `Message` serialize/deserialize (legacy + v0), and `VersionedTransaction` serialize/deserialize.  
+The benchmark output is now structured and recordable via `BENCH|...` lines with `profile`, `iters`, `total_us`, `ns_op`, and `ops_sec`, and `.ralph-tui/progress.md` was updated with the required US-018 entry plus a reusable benchmark pattern.
+
+## Verification
+
+- `zig build test`
+- `zig build bench`
+
+<promise>COMPLETE</promise>
+]9;4;0;

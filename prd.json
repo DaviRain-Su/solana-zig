@@ -1,0 +1,295 @@
+{
+  "name": "Phase 2 — Solana Zig SDK 扩展 RPC、Websocket 订阅与生产级硬化",
+  "description": "在 Phase 1 已完成的 core/tx/rpc 5 个高频方法基础上，Phase 2 聚焦扩展 RPC 方法全量收口、Websocket 订阅生命周期生产级硬化、统一重试策略与 benchmark 基线扩展。目标是实现对链下数据查询和实时订阅的完整覆盖，并确保所有新增功能在 Devnet 上可验证、在 benchmark 上可度量。",
+  "branchName": "feature/phase-2-solana-zig-sdk-rpcwebsocket",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "getTransaction RPC 方法",
+      "description": "As a Zig 开发者, I want 调用 getTransaction so that 我可以查询已确认交易的详情与元数据。",
+      "acceptanceCriteria": [
+        "支持按签名查询交易详情",
+        "返回 slot、blockTime、meta（fee、logMessages、err 等）",
+        "支持 commitment 与 maxSupportedTransactionVersion 参数",
+        "Mock 测试覆盖成功、交易不存在、错误路径",
+        "Devnet E2E 验证：发送交易后查询并解析结果"
+      ],
+      "priority": 1,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "getSignaturesForAddress RPC 方法",
+      "description": "As a Zig 开发者, I want 调用 getSignaturesForAddress so that 我可以获取某地址的历史交易签名列表。",
+      "acceptanceCriteria": [
+        "返回签名列表（含 slot、blockTime、err、memo）",
+        "支持 before/until/limit 分页参数",
+        "Mock 测试覆盖成功、空列表、错误路径",
+        "Devnet E2E 验证：查询已知活跃地址的签名历史"
+      ],
+      "priority": 2,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-003",
+      "title": "getSignatureStatuses RPC 方法",
+      "description": "As a Zig 开发者, I want 调用 getSignatureStatuses so that 我可以批量查询交易确认状态。",
+      "acceptanceCriteria": [
+        "支持批量签名输入",
+        "返回每个签名的 slot、confirmations、err、confirmationStatus",
+        "支持 searchTransactionHistory 参数",
+        "Mock 测试覆盖成功、部分不存在、错误路径",
+        "Devnet E2E 验证：发送交易后轮询状态"
+      ],
+      "priority": 3,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-004",
+      "title": "getSlot / getEpochInfo RPC 方法",
+      "description": "As a Zig 开发者, I want 调用 getSlot 和 getEpochInfo so that 我可以获取网络时隙与纪元信息。",
+      "acceptanceCriteria": [
+        "getSlot 返回当前 slot（u64）",
+        "getEpochInfo 返回 epoch、slotIndex、slotsInEpoch、absoluteSlot、blockHeight、transactionCount",
+        "支持 commitment 参数",
+        "Mock 测试覆盖成功和错误路径",
+        "Devnet E2E 验证：返回值大于 0 且结构完整"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-005",
+      "title": "getMinimumBalanceForRentExemption RPC 方法",
+      "description": "As a Zig 开发者, I want 调用 getMinimumBalanceForRentExemption so that 我可以计算创建账户所需最低租金豁免余额。",
+      "acceptanceCriteria": [
+        "按数据长度（usize）返回 lamports（u64）",
+        "Mock 测试覆盖成功和错误路径",
+        "Devnet E2E 验证：常见数据长度返回值与预期一致"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-006",
+      "title": "requestAirdrop RPC 方法",
+      "description": "As a Zig 开发者, I want 调用 requestAirdrop so that 我可以在 Devnet 上为测试账户获取 SOL。",
+      "acceptanceCriteria": [
+        "接受目标 Pubkey 和 lamports 数量",
+        "返回 airdrop 交易签名",
+        "Mock 测试覆盖成功和错误路径",
+        "Devnet E2E 验证：成功请求并确认余额增加"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-007",
+      "title": "getAddressLookupTable RPC 方法",
+      "description": "As a Zig 开发者, I want 调用 getAddressLookupTable so that 我可以读取链上地址查找表内容用于 v0 交易。",
+      "acceptanceCriteria": [
+        "返回 AddressLookupTableAccount（key、state 含 addresses）",
+        "账户不存在时返回 null",
+        "Mock 测试覆盖成功、不存在、错误路径",
+        "Devnet E2E 验证：查询已知 ALT 账户并解析地址列表"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-008",
+      "title": "getTokenAccountsByOwner RPC 方法",
+      "description": "As a Zig 开发者, I want 调用 getTokenAccountsByOwner so that 我可以查询某地址持有的所有 Token 账户。",
+      "acceptanceCriteria": [
+        "返回 Token 账户列表（pubkey、accountInfo）",
+        "支持 programId 和 mint 两种过滤条件",
+        "支持 encoding 参数（base64）",
+        "Mock 测试覆盖成功、空列表、错误路径",
+        "Devnet E2E 验证：查询已知持有 Token 的地址"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-009",
+      "title": "getTokenAccountBalance / getTokenSupply RPC 方法",
+      "description": "As a Zig 开发者, I want 调用 getTokenAccountBalance 和 getTokenSupply so that 我可以查询 Token 余额与总供应量。",
+      "acceptanceCriteria": [
+        "getTokenAccountBalance 返回 amount、decimals、uiAmountString",
+        "getTokenSupply 返回相同结构",
+        "Mock 测试覆盖成功、账户不存在、错误路径",
+        "Devnet E2E 验证：查询已知 Token mint 和账户"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-010",
+      "title": "RPC 统一重试策略",
+      "description": "As a Zig 开发者, I want RPC 客户端具备统一重试策略 so that 网络抖动或 rate limit 时可自动恢复。",
+      "acceptanceCriteria": [
+        "实现 exponential backoff 重试机制",
+        "支持配置 maxRetries、baseDelayMs、maxDelayMs",
+        "对 HTTP 429（rate limit）和 transient 网络错误触发重试",
+        "对不可恢复错误（如 400 Bad Request）直接失败",
+        "Mock 测试覆盖重试成功、重试耗尽、非重试错误路径"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-011",
+      "title": "Websocket 订阅类型扩展",
+      "description": "As a Zig 开发者, I want Websocket 客户端支持完整订阅类型 so that 我可以实时监听链上事件。",
+      "acceptanceCriteria": [
+        "支持 accountSubscribe / accountUnsubscribe",
+        "支持 programSubscribe / programUnsubscribe",
+        "支持 signatureSubscribe / signatureUnsubscribe",
+        "支持 slotSubscribe / slotUnsubscribe",
+        "支持 rootSubscribe / rootUnsubscribe",
+        "支持 logsSubscribe / logsUnsubscribe",
+        "支持 blockSubscribe / blockUnsubscribe",
+        "每种订阅类型有独立的回调类型与反序列化逻辑",
+        "Mock 测试覆盖订阅、通知、取消订阅流程"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-012",
+      "title": "Websocket 重连与 Resubscribe 生产级硬化",
+      "description": "As a Zig 开发者, I want Websocket 客户端在断线后自动重连并恢复订阅 so that 生产环境可用。",
+      "acceptanceCriteria": [
+        "断线后自动重连，支持指数退避",
+        "重连后自动恢复之前所有活跃订阅",
+        "订阅去重：同一订阅参数不重复发送",
+        "支持配置重连间隔、最大重试次数",
+        "Mock 测试覆盖断线、重连、resubscribe 完整流程",
+        "Devnet E2E 验证：断开网络后恢复并继续接收通知"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-013",
+      "title": "Websocket 可观测性与指标",
+      "description": "As a 维护者, I want Websocket 客户端暴露运行时指标 so that 我可以监控连接健康状态。",
+      "acceptanceCriteria": [
+        "暴露连接状态（connected / disconnected / reconnecting）",
+        "暴露活跃订阅数量",
+        "暴露已发送/已接收消息计数",
+        "暴露重连次数计数",
+        "提供查询接口或回调供外部集成"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-014",
+      "title": "RPC 响应解析 benchmark",
+      "description": "As a 维护者, I want 扩展 RPC 响应解析 benchmark so that 大规模数据解析性能可度量。",
+      "acceptanceCriteria": [
+        "新增 getAccountInfo 大 data 字段解析 benchmark",
+        "新增 getTransaction 复杂 meta 解析 benchmark",
+        "新增批量 getSignatureStatuses 解析 benchmark",
+        "输出 ns/op 或 ops/sec 指标",
+        "`zig build bench` 包含新增项且运行成功"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-015",
+      "title": "Websocket 消息编解码 benchmark",
+      "description": "As a 维护者, I want Websocket 消息编解码 benchmark so that 订阅通知吞吐可度量。",
+      "acceptanceCriteria": [
+        "新增订阅请求序列化 benchmark",
+        "新增通知消息反序列化 benchmark（account / program / logs）",
+        "输出 ns/op 或 ops/sec 指标",
+        "`zig build bench` 包含新增项且运行成功"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-016",
+      "title": "Devnet E2E 扩展验收",
+      "description": "As a 维护者, I want Devnet 端到端覆盖扩展 RPC 与 Websocket so that 真实网络可用性可验证。",
+      "acceptanceCriteria": [
+        "`zig build devnet-e2e` 覆盖所有扩展 RPC 方法至少一个场景",
+        "`zig build devnet-e2e` 覆盖 Websocket accountSubscribe 与 signatureSubscribe",
+        "通过环境变量 SOLANA_RPC_URL 和 SOLANA_WS_URL 门控，未设置时跳过",
+        "测试结果可留档（log 输出关键信息）"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-017",
+      "title": "RPC 方法用法示例文档",
+      "description": "As a Zig 开发者, I want 每个扩展 RPC 方法有用法示例 so that 我可以快速上手。",
+      "acceptanceCriteria": [
+        "为每个扩展 RPC 方法编写独立代码示例",
+        "示例包含构造请求、处理响应、处理错误",
+        "文档存放于 docs/rpc-examples.md 或类似位置"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    },
+    {
+      "id": "US-018",
+      "title": "Websocket 使用指南",
+      "description": "As a Zig 开发者, I want Websocket 使用指南 so that 我可以正确集成订阅功能。",
+      "acceptanceCriteria": [
+        "文档包含连接、订阅、处理通知、取消订阅、错误处理完整流程",
+        "文档包含重连行为说明与配置项说明",
+        "文档存放于 docs/websocket-guide.md 或类似位置"
+      ],
+      "priority": 4,
+      "passes": false,
+      "labels": [],
+      "dependsOn": []
+    }
+  ],
+  "metadata": {
+    "createdAt": "2026-04-16T13:19:37.279Z",
+    "version": "1.0.0",
+    "sourcePrd": "tasks/prd-phase-2-solana-zig-sdk-rpcwebsocket.md",
+    "updatedAt": "2026-04-16T13:33:49.749Z"
+  }
+}

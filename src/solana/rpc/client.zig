@@ -496,15 +496,30 @@ pub const RpcClient = struct {
         } };
     }
 
-    pub fn getTransaction(self: *RpcClient, signature: @import("../core/signature.zig").Signature) !types.RpcResult(types.TransactionInfo) {
+    pub fn getTransaction(self: *RpcClient, signature: @import("../core/signature.zig").Signature) !types.RpcResult(?types.TransactionInfo) {
+        return self.getTransactionWithOptions(signature, .{});
+    }
+
+    pub fn getTransactionWithOptions(
+        self: *RpcClient,
+        signature: @import("../core/signature.zig").Signature,
+        options: types.GetTransactionOptions,
+    ) !types.RpcResult(?types.TransactionInfo) {
         const signature_b58 = try signature.toBase58Alloc(self.allocator);
         defer self.allocator.free(signature_b58);
 
-        const payload = try std.fmt.allocPrint(
-            self.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"json\",\"commitment\":\"confirmed\",\"maxSupportedTransactionVersion\":0}}]}}",
-            .{ self.nextRpcId(), signature_b58 },
-        );
+        const payload = if (options.max_supported_transaction_version) |max_supported_transaction_version|
+            try std.fmt.allocPrint(
+                self.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"json\",\"commitment\":\"{s}\",\"maxSupportedTransactionVersion\":{d}}}]}}",
+                .{ self.nextRpcId(), signature_b58, options.commitment.jsonString(), max_supported_transaction_version },
+            )
+        else
+            try std.fmt.allocPrint(
+                self.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"json\",\"commitment\":\"{s}\"}}]}}",
+                .{ self.nextRpcId(), signature_b58, options.commitment.jsonString() },
+            );
         defer self.allocator.free(payload);
 
         var response = try self.callAndParse(payload);
@@ -517,16 +532,24 @@ pub const RpcClient = struct {
 
         const root = &response.parsed.value;
         const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        if (result.* == .null) {
+            response.parsed.deinit();
+            return .{ .ok = null };
+        }
         if (result.* != .object) return error.InvalidRpcResponse;
 
         const slot = getU64Field(result, "slot") orelse return error.InvalidRpcResponse;
         const block_time = getOptionalI64Field(result, "blockTime");
+        var meta = try parseTransactionMeta(self.allocator, result);
+        errdefer if (meta) |*owned_meta| owned_meta.deinit(self.allocator);
         const raw_json = try stringifyValue(self.allocator, result.*);
+        errdefer self.allocator.free(raw_json);
 
         response.parsed.deinit();
         return .{ .ok = .{
             .slot = slot,
             .block_time = block_time,
+            .meta = meta,
             .raw_json = raw_json,
         } };
     }
@@ -853,6 +876,39 @@ fn extractOptionalString(allocator: std.mem.Allocator, root: *const std.json.Val
     if (value.* == .null) return null;
     if (value.* != .string) return error.InvalidRpcResponse;
     return try allocator.dupe(u8, value.string);
+}
+
+fn parseTransactionMeta(allocator: std.mem.Allocator, result: *const std.json.Value) !?types.TransactionMeta {
+    const meta_value = getObjectField(result, "meta") orelse return null;
+    if (meta_value.* == .null) return null;
+    if (meta_value.* != .object) return error.InvalidRpcResponse;
+
+    const fee = getU64Field(meta_value, "fee");
+    const err_json = try extractOptionalFieldJson(allocator, meta_value, "err");
+    errdefer if (err_json) |err| allocator.free(err);
+
+    const log_messages = if (getObjectField(meta_value, "logMessages")) |log_messages_value|
+        blk: {
+            if (log_messages_value.* == .null) break :blk null;
+            if (log_messages_value.* != .array) return error.InvalidRpcResponse;
+            break :blk try parseStringArray(allocator, meta_value, "logMessages");
+        }
+    else
+        null;
+    errdefer if (log_messages) |logs| {
+        for (logs) |log| allocator.free(log);
+        allocator.free(logs);
+    };
+
+    const raw_json = try stringifyValue(allocator, meta_value.*);
+    errdefer allocator.free(raw_json);
+
+    return .{
+        .fee = fee,
+        .err_json = err_json,
+        .log_messages = log_messages,
+        .raw_json = raw_json,
+    };
 }
 
 fn stringifyValue(allocator: std.mem.Allocator, value: std.json.Value) ![]u8 {
@@ -1621,8 +1677,10 @@ test "rpc client getSignaturesForAddress returns InvalidRpcResponse on malformed
 test "rpc client getTransaction typed parse happy path" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
-        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"slot\":99,\"blockTime\":555,\"meta\":{\"status\":{\"Ok\":null}},\"transaction\":{\"message\":{\"accountKeys\":[]}}}}",
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"slot\":99,\"blockTime\":555,\"meta\":{\"fee\":5000,\"err\":null,\"logMessages\":[\"Program 11111111111111111111111111111111 invoke [1]\",\"Program 11111111111111111111111111111111 success\"],\"status\":{\"Ok\":null}},\"transaction\":{\"message\":{\"accountKeys\":[]}}}}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
@@ -1634,13 +1692,103 @@ test "rpc client getTransaction typed parse happy path" {
 
     const result = try client.getTransaction(sig);
     switch (result) {
-        .ok => |tx_info| {
-            var owned = tx_info;
+        .ok => |maybe_tx_info| {
+            try std.testing.expect(maybe_tx_info != null);
+            var owned = maybe_tx_info.?;
             defer owned.deinit(gpa);
             try std.testing.expectEqual(@as(u64, 99), owned.slot);
             try std.testing.expectEqual(@as(i64, 555), owned.block_time.?);
+            try std.testing.expect(owned.meta != null);
+            try std.testing.expectEqual(@as(u64, 5000), owned.meta.?.fee.?);
+            try std.testing.expect(owned.meta.?.err_json == null);
+            try std.testing.expectEqual(@as(usize, 2), owned.meta.?.log_messages.?.len);
+            try std.testing.expectEqualStrings("Program 11111111111111111111111111111111 invoke [1]", owned.meta.?.log_messages.?[0]);
             try std.testing.expect(owned.raw_json.len > 0);
         },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"commitment\":\"confirmed\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"maxSupportedTransactionVersion\":0") != null);
+}
+
+test "rpc client getTransaction supports commitment and optional max version parameters" {
+    const gpa = std.testing.allocator;
+    const cases = [_]struct {
+        commitment: types.Commitment,
+        max_supported_transaction_version: ?u8,
+        expected_commitment_json: []const u8,
+        expect_max_supported_transaction_version: bool,
+    }{
+        .{
+            .commitment = .processed,
+            .max_supported_transaction_version = null,
+            .expected_commitment_json = "\"commitment\":\"processed\"",
+            .expect_max_supported_transaction_version = false,
+        },
+        .{
+            .commitment = .confirmed,
+            .max_supported_transaction_version = 0,
+            .expected_commitment_json = "\"commitment\":\"confirmed\"",
+            .expect_max_supported_transaction_version = true,
+        },
+        .{
+            .commitment = .finalized,
+            .max_supported_transaction_version = 7,
+            .expected_commitment_json = "\"commitment\":\"finalized\"",
+            .expect_max_supported_transaction_version = true,
+        },
+    };
+
+    for (cases) |case| {
+        var mock: MockTransport = .{
+            .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}",
+            .capture_payload = true,
+        };
+        defer if (mock.captured_payload) |payload| gpa.free(payload);
+        const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+        var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+        defer client.deinit();
+
+        const seed = [_]u8{12} ** 32;
+        const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
+        const sig = try kp.sign("tx-for-options");
+
+        const result = try client.getTransactionWithOptions(sig, .{
+            .commitment = case.commitment,
+            .max_supported_transaction_version = case.max_supported_transaction_version,
+        });
+        switch (result) {
+            .ok => |maybe_tx_info| try std.testing.expect(maybe_tx_info == null),
+            .rpc_error => return error.UnexpectedRpcError,
+        }
+
+        const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+        try std.testing.expect(std.mem.indexOf(u8, payload, case.expected_commitment_json) != null);
+        try std.testing.expectEqual(
+            case.expect_max_supported_transaction_version,
+            std.mem.indexOf(u8, payload, "\"maxSupportedTransactionVersion\"") != null,
+        );
+    }
+}
+
+test "rpc client getTransaction returns null when transaction does not exist" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":null}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const seed = [_]u8{10} ** 32;
+    const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
+    const sig = try kp.sign("tx-not-found");
+
+    const result = try client.getTransaction(sig);
+    switch (result) {
+        .ok => |maybe_tx_info| try std.testing.expect(maybe_tx_info == null),
         .rpc_error => return error.UnexpectedRpcError,
     }
 }

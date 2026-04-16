@@ -38,6 +38,7 @@ const LIVE_SEND_LAMPORTS: u64 = 1000;
 const LIVE_AIRDROP_LAMPORTS: u64 = 100_000_000;
 const MAX_BALANCE_POLLS: u32 = 30;
 const MAX_CONFIRM_POLLS: u32 = 30;
+const MAX_GET_TRANSACTION_POLLS: u32 = 30;
 
 // --- Mock Transport (scripted sequence) ---
 
@@ -358,6 +359,38 @@ fn waitForConfirmedSignature(
     return false;
 }
 
+fn waitForTransactionDetails(
+    client: *RpcClient,
+    allocator: std.mem.Allocator,
+    signature: @import("solana_zig").core.Signature,
+    log_prefix: []const u8,
+) !?root.rpc.types.TransactionInfo {
+    var attempts: u32 = 0;
+
+    while (attempts < MAX_GET_TRANSACTION_POLLS) : (attempts += 1) {
+        const tx_result = try client.getTransactionWithOptions(signature, .{
+            .commitment = .confirmed,
+            .max_supported_transaction_version = 0,
+        });
+
+        switch (tx_result) {
+            .ok => |maybe_tx| {
+                if (maybe_tx) |tx_val| {
+                    std.debug.print("[{s}] getTransaction poll {d}: slot={d}\n", .{ log_prefix, attempts, tx_val.slot });
+                    return tx_val;
+                }
+                std.debug.print("[{s}] getTransaction poll {d}: transaction not available yet\n", .{ log_prefix, attempts });
+            },
+            .rpc_error => |rpc_err| {
+                defer rpc_err.deinit(allocator);
+                std.debug.print("[{s}] getTransaction poll {d}: rpc_error: {s}\n", .{ log_prefix, attempts, rpc_err.message });
+            },
+        }
+    }
+
+    return null;
+}
+
 test "US-017 mock: construct -> sign -> simulate -> send -> confirm (happy)" {
     const gpa = std.testing.allocator;
     const payer = try Keypair.fromSeed(PAYER_SEED);
@@ -597,6 +630,23 @@ test "US-017 live: airdrop -> construct -> sign -> simulate -> send -> confirm" 
                     const confirmed = try waitForConfirmedSignature(&client, gpa, result.signature, "US-017 live");
                     try std.testing.expect(confirmed);
                     std.debug.print("[US-017 live] CONFIRMED — sig: {s}\n", .{sig_b58});
+
+                    // Step 9: Query getTransaction and validate parsed slot/blockTime/meta.
+                    const maybe_tx = try waitForTransactionDetails(&client, gpa, result.signature, "US-017 live");
+                    try std.testing.expect(maybe_tx != null);
+                    var tx_info = maybe_tx.?;
+                    defer tx_info.deinit(gpa);
+                    try std.testing.expect(tx_info.slot > 0);
+                    try std.testing.expect(tx_info.block_time != null);
+                    try std.testing.expect(tx_info.meta != null);
+                    try std.testing.expect(tx_info.meta.?.fee != null);
+                    try std.testing.expect(tx_info.meta.?.fee.? > 0);
+                    try std.testing.expect(tx_info.meta.?.err_json == null);
+                    try std.testing.expect(tx_info.meta.?.log_messages != null);
+                    std.debug.print(
+                        "[US-017 live] getTransaction .ok — fee={d}, logs={d}\n",
+                        .{ tx_info.meta.?.fee.?, tx_info.meta.?.log_messages.?.len },
+                    );
                 },
                 .rpc_error => |rpc_err| {
                     defer rpc_err.deinit(gpa);
