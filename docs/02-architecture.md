@@ -1,9 +1,11 @@
 # Phase 2 - Architecture
 
+> 注：本文标题中的“Phase 2”是文档生命周期序号（架构文档），不是产品路线图中的 Product Phase 2。
+
 ## 1. 架构目标
 
-- 在不破坏当前 Phase 1 可用性的前提下，支持后续“全量实现”持续扩展。
-- 保持模块解耦：`core -> tx -> rpc -> interfaces/signers`，禁止反向依赖。
+- 在不破坏当前 Product Phase 1 可用性的前提下，支持后续产品阶段持续扩展。
+- 保持模块解耦：`core` 为基础层，`tx` 仅依赖 `core`，`rpc/interfaces` 依赖 `core/tx`，`signers` 依赖 `core` 并通过适配层接入上层流程。
 - 以行为兼容与可测试性为中心，确保每层都有独立验证路径。
 
 ## 2. 分层与职责
@@ -39,16 +41,18 @@
 - 依赖 `core/tx`
 - 不依赖 `interfaces/signers`
 
-### 2.4 interfaces（Phase 2+）
+### 2.4 interfaces（主要位于 Product Phase 3；compute-budget 等最小交易辅助可在 Product Phase 2 提前落地）
 
 职责：
 - 对应 Rust 生态 interface crates 的 Zig 封装（system/token/token-2022/compute-budget/memo 等）
+- 聚焦指令构造、数据布局、常量与错误语义，不承担网络访问职责
 
 约束：
-- 依赖 `core/tx`，必要时依赖 `rpc`
+- 依赖 `core/tx`
+- 若未来需要更高层的联网 helper，应拆到独立 `program_clients/*` 或等价模块，而不是让 `interfaces` 直接承担 RPC 客户端职责
 - 不反向影响 `core/tx`
 
-### 2.5 signers（Phase 3+）
+### 2.5 signers（Product Phase 3）
 
 职责：
 - 可插拔签名后端抽象（内存、KMS、HSM 等）
@@ -107,8 +111,17 @@
 
 ## 5. 依赖方向（强制）
 
-- 允许：`core -> tx -> rpc -> interfaces/signers`
-- 禁止：`tx -> rpc` 反向、`core` 依赖上层模块
+- 允许：
+  - `tx -> core`
+  - `rpc -> core/tx`
+  - `interfaces -> core/tx`
+  - `signers -> core`
+  - 未来若引入 `program_clients`，则允许其依赖 `rpc/interfaces/signers`
+- 禁止：
+  - `core` 依赖任何上层模块
+  - `tx -> rpc`
+  - `interfaces -> rpc`（除非明确拆出独立高层 client 模块）
+  - `rpc` 反向依赖 `interfaces/signers`
 - `compat` 可读取各层数据但不反向成为核心依赖
 
 ## 6. 测试架构
@@ -137,4 +150,4 @@
 - 架构文档覆盖当前模块与未来扩展模块职责。
 - 依赖方向规则明确且可审查。
 - 关键扩展点（transport/signers/interfaces）在设计上已预留。
-- 与 PRD 的 M1~M5 路线一致。
+- 与 `docs/00-roadmap.md` 的 Product Phase 1~4 路线以及 `docs/01-prd.md` 的 Phase 1 Milestones（M1~M3）一致。

@@ -8,7 +8,13 @@
 - 行为兼容优先于 API 命名兼容
 - Zero external dependencies（仅依赖 Zig std）
 - 显式内存管理（allocator 参数模式）
-- 每 Phase 独立可交付、独立可测试
+- 每个 Product Phase 独立可交付、独立可测试
+
+## 命名约定
+
+- **Product Phase**：指本路线图中的产品阶段，统一使用 `Phase 1 ~ Phase 4`。
+- **Milestone（M）**：仅用于当前 `Phase 1` 的执行节点，统一使用 `M1 ~ M3`。
+- **文档序号 `docs/01-08`**：表示文档生命周期顺序（PRD / Architecture / Spec / Task / Test / Log / Review / Evolution），**不等于** Product Phase 编号。
 
 ---
 
@@ -54,17 +60,19 @@
 
 ---
 
-## Phase 3 — 上层抽象 + C ABI
+## Phase 3 — Interfaces + Signers + C ABI
 
-**目标**：提供 Token 程序等高频上层抽象，暴露 C ABI 供其他语言调用。
+**目标**：提供 Token 等高频接口层抽象、可插拔 signer 后端，并暴露 C ABI 供其他语言调用。
 
 **交付物**：
-- SPL Token Program 交互：
-  - `createMint` / `mintTo` / `transfer` / `approve` / `burn`
+- Interfaces：
+  - `system` / `token` / `token-2022` / `memo` / `stake` 等高频接口能力
   - Associated Token Account (ATA) 自动创建
-  - Token-2022 扩展支持
-- Stake Program 基础操作：
-  - `createStakeAccount` / `delegate` / `deactivate` / `withdraw`
+  - 接口能力覆盖矩阵
+- Signers：
+  - in-memory signer
+  - 外部 signer adapter（mock/KMS/HSM stub）
+  - 统一 signer 错误语义与生命周期约定
 - C ABI 导出层：
   - 核心类型 + 交易构建 + RPC 的 C 函数接口
   - 头文件生成（`solana_zig.h`）

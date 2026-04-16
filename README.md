@@ -2,8 +2,8 @@
 
 Zig implementation roadmap for Solana capabilities, aligned to Rust SDK semantics.
 
-## Current Status (M1)
-Current implementation is **off-chain first** (host/client path), not full on-chain parity yet; core structures are implemented, and remaining tests and benchmarks are in progress.
+## Current Status (Product Phase 1 / Milestone M2-M3)
+Current implementation is in **Product Phase 1 closeout**: the project is still off-chain first (host/client path), not full on-chain parity yet; core structures are implemented, and the remaining work is mainly test expansion, Devnet E2E, oracle enrichment, and benchmark baselining.
 
 - Core: `Pubkey`, `Signature`, `Keypair`, `Hash`, `base58`, `shortvec`
 - Tx: `Instruction`, `Message` (legacy + v0), `VersionedTransaction`
@@ -24,15 +24,15 @@ zig build test
 ## Optional Devnet Usage
 Set `SOLANA_RPC_URL` and call the RPC client from your own integration harness.
 
-## Scope Strategy: Off-chain + On-chain
-Yes, target is to cover both, but in staged tracks:
+## Scope Strategy: Product Roadmap Phases
+Yes, target is to cover both off-chain and, eventually, on-chain capabilities, but under one unified product roadmap:
 
-- Track A (current): off-chain SDK foundations (`core/tx/rpc`)
-- Track B (next): interface modules (`system/token/token-2022/...`)
-- Track C: signer backends (pluggable key management)
-- Track D: on-chain semantics as a **separate subproject/lifecycle** to avoid coupling with client SDK stability
+- Phase 1 (current): off-chain SDK foundations (`core/tx/rpc`) + compatibility/test closeout
+- Phase 2: extended RPC, websocket subscriptions, nonce workflow, and compute-budget helpers
+- Phase 3: interface modules (`system/token/token-2022/...`), signer backends, and C ABI
+- Phase 4: on-chain semantics as a **separate subproject/lifecycle** to avoid coupling with client SDK stability
 
-This keeps current client path stable while enabling eventual full-scope implementation.
+This keeps the current client path stable while making later expansion stages explicit and traceable.
 
 ## Roadmap Documents
 - PRD: `docs/01-prd.md`

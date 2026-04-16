@@ -1,5 +1,7 @@
 # Phase 3 - Technical Spec
 
+> 注：本文标题中的“Phase 3”是文档生命周期序号（技术规格文档），不是产品路线图中的 Product Phase 3。
+
 ## 1. Scope
 
 本规格覆盖当前 `Phase 1` 的 Zig 实现边界：
@@ -342,9 +344,9 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 
 为对齐新版 PRD 的“全量实现”目标，后续技术规格按子模块继续拆分：
 
-- `03a-interfaces-spec.md`：system/token/token-2022/compute-budget/memo 接口层字节契约与 API 契约
-- `03b-signers-spec.md`：signer 抽象、后端适配、错误语义与生命周期契约
-- `03c-rpc-extended-spec.md`：高频以外 RPC 方法扩展、typed parse 策略与兼容策略
+- `03a-interfaces-spec.md`：system/token/token-2022/compute-budget/memo 接口层字节契约与 API 契约（主要对应 Product Phase 2-3，其中 compute-budget 可在 Phase 2 提前落地）
+- `03b-signers-spec.md`：signer 抽象、后端适配、错误语义与生命周期契约（对应 Product Phase 3）
+- `03c-rpc-extended-spec.md`：高频以外 RPC 方法扩展、typed parse 策略与兼容策略（对应 Product Phase 2）
 
 要求：
 - 每个子规格必须包含：数据结构、接口、边界条件、错误模型、测试映射。

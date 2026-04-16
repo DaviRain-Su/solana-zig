@@ -1,6 +1,8 @@
 # Phase 1 PRD — 链下客户端核心
 
-> 本文档是 [solana-zig 顶层路线图](./00-roadmap.md) 的 Phase 1 子 PRD。
+> 本文档是 [solana-zig 顶层路线图](./00-roadmap.md) 的 Product Phase 1 子 PRD。
+>
+> **命名说明**：本文标题中的“Phase 1”表示文档生命周期中的 PRD 阶段，同时本文内容对应产品路线图中的 `Product Phase 1`；后续出现的 `M1~M3` 仅表示当前 Product Phase 1 的执行里程碑。
 
 ## 1. 背景与目标
 
@@ -83,7 +85,7 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
   - oracle 向量对照
   - Devnet E2E（环境变量门控）
 
-### 3.2 下一阶段扩展范围（Phase 2+）
+### 3.2 后续 Product Phase 扩展范围
 对照官方页面 crate 家族逐步扩展：
 - 客户端 crates：`solana-client` 相关更多 RPC 能力。
 - 组件 crates：`solana-message/solana-transaction/solana-signature/solana-short-vec/...` 对应能力补齐。
@@ -156,13 +158,20 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
 
 ---
 
-## 7. 里程碑规划
+## 7. 路线与里程碑规划
 
-- M1（当前）：核心链下闭环可用（core + tx + 高频 rpc）。
-- M2：扩展 RPC 覆盖 + transport/mock 完整测试矩阵。
-- M3：接口 crates 对应能力（system/token/token-2022 等）。
-- M4：签名后端扩展与生产化治理（可插拔 key management）。
-- M5：评估并推进链上语义子项目（独立生命周期，不与链下核心混做）。
+### 7.1 Product Phase 对齐
+
+- Phase 1（当前，本文范围）：链下客户端核心（`core + tx + 高频 rpc`）及其测试/兼容收尾。
+- Phase 2（见 `docs/00-roadmap.md`）：扩展 RPC、Websocket 订阅、Nonce 工作流、Compute Budget / Priority Fees。
+- Phase 3（见 `docs/00-roadmap.md`）：interfaces、signers 与 C ABI。
+- Phase 4（见 `docs/00-roadmap.md`）：链上程序支持评估，并作为独立子项目推进。
+
+### 7.2 当前 Product Phase 1 执行 Milestones
+
+- M1：核心离线兼容（core + tx 基础能力稳定）。
+- M2：RPC/mock 可用（高频方法、transport 抽象、错误路径覆盖）。
+- M3：Phase 1 收口（Devnet E2E、文档收口、oracle 扩充、benchmark 基线）。
 
 ---
 

@@ -51,8 +51,31 @@
 
 ### 输出
 - `docs/02` 升级为可扩展架构文档（新增 interfaces/signers 分层）。
-- `docs/04` 增补 M4/M5 任务分解（全量实现后续任务）。
-- `docs/05` 增补 L6 与 interfaces/signers 测试规划。
+- `docs/04` 增补后续任务分解（全量实现后续任务）。
+- `docs/05` 增补扩展阶段测试规划。
 - `docs/07` 升级为结构化审查报告（含 severity 与残余风险）。
 - `docs/08` 升级为演进治理文档（路线图 + ADR 规则 + 退出条件）。
 - `docs/03` 增加全量实现的子规格拆分规则。
+
+## 2026-04-16 第四次增量记录（命名与路线对齐）
+
+### 输入
+- 审查发现 `Phase / Stage / Track / Milestone` 在 README、路线图、PRD、任务与测试文档中混用，存在产品阶段与文档序号混淆。
+- 后续 backlog 与顶层路线图在 phase 映射上存在不一致（尤其是 interfaces/signers/C ABI 与扩展 RPC/Websocket 的归属）。
+
+### 输出
+- 统一命名：`Product Phase` 仅用于 `docs/00-roadmap.md` 的产品路线图；`M1~M3` 仅用于当前 Product Phase 1 执行里程碑；`docs/01-08` 标题中的 `Phase` 明确为文档生命周期序号。
+- `README.md` 改为与 Product Phase 1~4 一致的外部表述。
+- `docs/01` 重写里程碑映射：当前 PRD 只承诺 Product Phase 1，后续能力改为引用顶层路线图。
+- `docs/02` 收紧 `interfaces` 与 `rpc` 的边界，禁止默认耦合。
+- `docs/04` 将当前承诺任务限制在 Product Phase 1 / M1-M3，并把后续内容改为 Product Phase 2/3 backlog。
+- `docs/05` 将扩展测试拆成 Product Phase 2（RPC/Websocket/Nonce）与 Product Phase 3（interfaces/signers/C ABI）。
+- `docs/07/08` 同步改为以 Product Phase 1~4 为主线表达审查与演进。
+- 新增 `docs/09-doc-consistency-checklist.md`，沉淀本次审查发现与维护规则。
+
+### 风险
+- 当前变更主要是治理与命名统一，不直接提升实现覆盖率。
+- 如果后续 roadmap 再调整，仍需同步回写 `docs/01/04/05/08`。
+
+### 验证
+- 文档链路已按统一命名复核：`00 -> 01 -> 04 -> 05 -> 08 -> README`。

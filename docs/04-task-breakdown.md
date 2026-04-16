@@ -1,5 +1,9 @@
 # Phase 4 - Task Breakdown
 
+> 注：本文标题中的“Phase 4”是文档生命周期序号（任务拆解文档），不是产品路线图阶段编号。
+>
+> 本文统一采用以下命名：`Product Phase` 表示产品路线图阶段，`M1~M3` 仅表示当前 Product Phase 1 的执行里程碑。
+
 ## 1. 执行约束
 
 - 所有任务默认 `Commit`（生产代码）。
@@ -7,15 +11,13 @@
 - 每个任务必须有可审计产物（代码/测试/文档）。
 - 每完成 3 个任务执行一次熵检查（禁止 silent fallback / 重复分叉）。
 
-## 2. 里程碑与阶段
+## 2. 当前 Product Phase 1 的 Milestones
 
 - M1：核心稳定（core + tx 离线兼容）
 - M2：RPC 可用（高频方法 + mock 覆盖）
-- M3：可展示（Devnet E2E + 文档收口）
-- M4：接口扩展（system/token/token-2022/...）
-- M5：签名后端扩展（可插拔 key management）
+- M3：Phase 1 收口（Devnet E2E + 文档收口 + oracle/benchmark 补齐）
 
-## 3. 当前迭代任务（M1-M3）
+## 3. 当前承诺任务（Product Phase 1 / M1-M3）
 
 | ID | 预估 | 依赖 | 验收标准 |
 |---|---:|---|---|
@@ -41,34 +43,34 @@
 - 若语义对照耗时超预期，允许拆分为两个独立 commit（正向路径 / 失败路径），但必须保持同一任务验收闭环。
 - 若 Rust oracle 对照发现语义偏差，允许将 `T4-06` 拆分为 `T4-06a/T4-06b` 子任务后执行。
 
-## 4. 后续全量任务（M4-M5）
+## 4. 后续 Product Phase Backlog（非当前承诺）
 
-### 4.1 接口能力（M4）
-
-| ID | 预估 | 依赖 | 验收标准 |
-|---|---:|---|---|
-| T4-17 | 4h | M3 | 新建 `interfaces/system` 模块 |
-| T4-18 | 4h | T4-17 | system transfer/create 指令构造与测试 |
-| T4-19 | 4h | M3 | 新建 `interfaces/token` 模块 |
-| T4-20 | 4h | T4-19 | token mint/transfer/ATA 基础路径 |
-| T4-21 | 4h | T4-20 | token-2022 基础扩展路径 |
-| T4-22 | 3h | T4-17,T4-21 | 接口能力兼容矩阵初版 |
-
-### 4.2 签名后端（M5）
+### 4.1 Product Phase 2 候选任务（扩展 RPC + 实时/交易增强）
 
 | ID | 预估 | 依赖 | 验收标准 |
 |---|---:|---|---|
-| T4-23 | 4h | M4 | `signers` 抽象接口定义 |
-| T4-24 | 3h | T4-23 | in-memory signer 实现 |
-| T4-25 | 4h | T4-23 | 外部 signer adapter（mock/KMS stub） |
-| T4-26 | 3h | T4-24,T4-25 | tx 流程接入 signer 抽象 |
-| T4-27 | 3h | T4-26 | signer 集成测试与错误语义测试 |
+| T4-17 | 4h | M3 | `getAddressLookupTable` + mock/test |
+| T4-18 | 4h | T4-17 | `getTransaction` / `getSignaturesForAddress` / `getTokenAccountsByOwner` 首批覆盖 |
+| T4-19 | 4h | T4-17 | `getSlot` / `getEpochInfo` / `getMinimumBalanceForRentExemption` / `requestAirdrop` 覆盖 |
+| T4-20 | 4h | T4-18,T4-19 | Websocket 订阅骨架（connect / reconnect / unsubscribe） |
+| T4-21 | 4h | T4-17 | Durable Nonce 查询 + Nonce Advance 指令构造 |
+| T4-22 | 3h | T4-21 | Priority Fees / Compute Budget 指令构造与测试 |
+
+### 4.2 Product Phase 3 候选任务（interfaces + signers + C ABI）
+
+| ID | 预估 | 依赖 | 验收标准 |
+|---|---:|---|---|
+| T4-23 | 4h | T4-22 | 新建 `interfaces/system` 与基础测试 |
+| T4-24 | 4h | T4-23 | `interfaces/token` + ATA 基础路径 |
+| T4-25 | 4h | T4-24 | token-2022 / memo / stake 首批接口能力与覆盖矩阵初版 |
+| T4-26 | 4h | T4-23 | `signers` 抽象接口 + in-memory / external adapter |
+| T4-27 | 4h | T4-25,T4-26 | C ABI 导出层、头文件与所有权文档 |
 
 ## 5. 执行顺序
 
-1. `T4-01 -> T4-16`（M1-M3）
-2. `T4-17 -> T4-22`（M4）
-3. `T4-23 -> T4-27`（M5）
+1. `T4-01 -> T4-16`（当前承诺：Product Phase 1 / M1-M3）
+2. `T4-17 -> T4-22`（后续：Product Phase 2 backlog）
+3. `T4-23 -> T4-27`（后续：Product Phase 3 backlog）
 
 ## 6. DoD（每任务）
 
@@ -82,4 +84,4 @@
 
 - v0 与 Rust 语义偏差：以增量提交隔离并快速回滚。
 - RPC 解析不稳定：先收紧 typed parse 子集再扩展。
-- Devnet 波动：E2E 仅 opt-in，不阻塞离线门禁。
+- Websocket / Devnet 外部波动：在线能力全部 opt-in，不阻塞离线门禁。
