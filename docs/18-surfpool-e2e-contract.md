@@ -9,27 +9,28 @@
 
 | 项 | 内容 |
 |---|---|
-| **本地 RPC 端点** | 默认 `http://127.0.0.1:8899`，可通过 `SURFPOOL_RPC_URL` 覆盖。 |
-| **测试门控** | 未设置 `SURFPOOL_RPC_URL` 时，E2E 测试自动 `return`（skip），不报错、不阻塞 CI。 |
+| **本地 RPC 端点** | 通过 `SURFPOOL_RPC_URL` 显式提供；推荐本地端点为 `http://127.0.0.1:8899`。 |
+| **测试门控** | 未设置 `SURFPOOL_RPC_URL` 时，E2E 测试自动 `return`（skip），不报错、不阻塞 CI；**不存在隐式默认端点回退执行**。 |
 | **Allocator** | 全程使用 `std.testing.allocator`，零泄漏为强制断言。 |
 | **固定 Seed** | 所有 keypair 使用 `fromSeed([_]u8{1} ** 32)`，确保输入绝对固定。 |
 | **时间约束** | 单次 case 执行 ≤ 5 秒；超时视为环境异常。 |
 
 ---
 
-## 2. Case K3-H1 — Happy Path
+## 2. Case K3-H1 — Signed Local Flow（Protocol-Level Happy Path）
 
 ### 2.1 Preconditions
 
 1. 本地 RPC 进程已启动且可响应（`getHealth` 或等效心跳通过）。
 2. `SURFPOOL_RPC_URL` 已设置为该本地端点。
 3. 不依赖任何预存账户余额、airdrop 或 program 部署状态。
+4. 因不假设 program 已部署，S6 的“happy”定义是 **RPC / client 路径成功返回可检查的 simulation 结果**，而不是链上程序执行结果必然 `err == null`。
 
 ### 2.2 Fixed Inputs
 
 | 名称 | 类型 | 值 |
 |---|---|---|
-| `endpoint` | `[]const u8` | `std.process.getEnvVarOwned(allocator, "SURFPOOL_RPC_URL")` 或默认 `http://127.0.0.1:8899` |
+| `endpoint` | `[]const u8` | `try std.process.getEnvVarOwned(allocator, "SURFPOOL_RPC_URL")` |
 | `payer_seed` | `[32]u8` | `[_]u8{1} ** 32` |
 | `program_id` | `Pubkey` | `Pubkey.init([_]u8{0x06} ** 32)` |
 | `receiver` | `Pubkey` | `Pubkey.init([_]u8{0x07} ** 32)` |
@@ -57,7 +58,7 @@
 | S5 | 验签通过 | `A-H3b: try tx.verifySignatures();`（已在步骤中执行，断言为不抛错） |
 | S2 | blockhash 非空（可 base58 编码） | `A-H3c: blockhash.toBase58Alloc 成功且结果长度 > 0` |
 | S6 | `.ok` variant | `A-H4: try std.testing.expect(sim == .ok);` |
-| S6 | simulation JSON 中 `err == null` | `A-H5: 解析 sim.ok.value，确认 `value.err` 为 null 或不出现` |
+| S6 | simulation 结果可解析并保留 `value.err` 语义 | `A-H5: 解析 sim.ok.value；若 `value.err` 存在，可为 `null` 或非空错误对象，但不得因 JSON 结构不稳而无法检查` |
 
 ---
 
@@ -100,7 +101,7 @@
 
 | 规则 | 说明 |
 |---|---|
-| **D-01 端点隔离** | 仅访问 `127.0.0.1`（或 `SURFPOOL_RPC_URL` 显式指定的本地地址），不触及外部网络。 |
+| **D-01 端点隔离** | 仅访问 `SURFPOOL_RPC_URL` 显式指定的本地地址（推荐 `127.0.0.1`），不触及外部网络。 |
 | **D-02 种子固定** | `Keypair.fromSeed([_]u8{1} ** 32)` 为唯一合法 payer seed；禁止随机生成。 |
 | **D-03 无状态依赖** | 不读取链上账户余额、不依赖 program 部署、不要求 airdrop。 |
 | **D-04 可跳过** | 当 `SURFPOOL_RPC_URL` 未设置时，测试立即 `return;`，行为等同于 `zig build test` 不执行本 case。 |
@@ -141,11 +142,11 @@
 
 | 本 contract 断言/步骤 | 对应 `docs/11` Gate | 说明 |
 |---|---|---|
-| K3-H1 S2-S6 完整跑通 | **G-CLOSE-03** RPC Gate | 补齐 `simulateTransaction` 的 happy + rpc_error 真实覆盖 |
-| K3-H1 S3-S5 构造/签名/验签 | **G-CLOSE-04** v0 / Tx Gate | 验证 versioned transaction 签名、验签、序列化闭环在真实 RPC 场景下可用 |
+| K3-H1 S2-S6 + K3-F1 S6 | **G-CLOSE-03** RPC Gate（局部支撑） | 补齐 `simulateTransaction` 的本地 happy/rpc_error/err 语义检查；不替代完整 closeout 证据 |
+| K3-H1 S3-S5 构造/签名/验签 | **G-CLOSE-04** Tx 侧证据（局部支撑） | 仅覆盖 transaction 构造/签名/验签路径；**不能替代** `docs/11` 中对 v0 compile 证据的要求 |
 | K3-H1 + K3-F1 使用 `std.testing.allocator` | **G-CLOSE-01** Test Gate | 强制零泄漏检测 |
-| 本地 E2E 可复现（构造→签名→模拟） | **G-CLOSE-05** Devnet Gate | 本 contract 是 Devnet E2E 的本地同构模板；`#10` 将端点替换为 Devnet 后直接复用 |
-| 固定 seed 的 keypair 签名 | **G-CLOSE-02** Oracle Gate | `fromSeed` + `sign` + `verify` 与 oracle 向量中的确定性签名要求一致 |
+| 本地构造→签名→模拟模板 | **不直接满足 G-CLOSE-05** | 本 contract 只是 Devnet E2E 的本地同构模板；真正的 Devnet Gate 仍以 `SOLANA_RPC_URL` 条件下的 Devnet evidence 为准 |
+| 固定 seed 的 keypair 签名 | **G-CLOSE-02** Oracle Gate（局部支撑） | `fromSeed` + `sign` + `verify` 与 oracle 向量中的确定性签名要求一致，但不能替代完整 oracle 集 |
 
 ---
 
