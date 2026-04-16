@@ -112,9 +112,10 @@ test "K3-H1 mock: construct -> sign -> simulate (happy)" {
             // S6: simulateTransaction
             const sim_result = try client.simulateTransaction(tx);
             switch (sim_result) {
-                .ok => |sim_json| {
+                .ok => |sim_val| {
                     // A-H4: ok variant
-                    defer sim_json.parsed.deinit();
+                    var sim = sim_val;
+                    defer sim.deinit(gpa);
                 },
                 .rpc_error => |rpc_err| {
                     defer rpc_err.deinit(gpa);
@@ -163,9 +164,10 @@ test "K3-F1 mock: unsigned tx simulate fails (failure)" {
             // S6: simulateTransaction (unsigned, should fail sig verify)
             const sim_result = try client.simulateTransaction(tx);
             switch (sim_result) {
-                .ok => |sim_json| {
+                .ok => |sim_val| {
                     // A-F1 fallback: if server returns ok, err should not be null
-                    defer sim_json.parsed.deinit();
+                    var sim = sim_val;
+                    defer sim.deinit(gpa);
                     return error.ExpectedFailure;
                 },
                 .rpc_error => |rpc_err| {
@@ -230,8 +232,9 @@ test "K3-H1 devnet: construct -> sign -> simulate (live)" {
             // S6: simulate
             const sim_result = try client.simulateTransaction(tx);
             switch (sim_result) {
-                .ok => |sim_json| {
-                    defer sim_json.parsed.deinit();
+                .ok => |sim_val| {
+                    var sim = sim_val;
+                    defer sim.deinit(gpa);
                     std.debug.print("[devnet E2E] simulate returned .ok\n", .{});
                 },
                 .rpc_error => |rpc_err| {

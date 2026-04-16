@@ -94,6 +94,92 @@ To move "Devnet E2E evidence" from `in-progress` to `closeable`:
 
 ---
 
-## Run 2 — Devnet Live (Pending)
+## Run 2 — Devnet Live (Public Devnet)
 
-*(To be filled when `SOLANA_RPC_URL` is available)*
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/892cfd8/devnet-live`
+- Commit: `892cfd8` (+ local fix: `sim_json.parsed.deinit()` → `sim.deinit(gpa)` to match #7 typed parse refactor)
+- Date: `2026-04-16`
+- Run Type: `real-harness` (live RPC round-trip to public devnet)
+- Operator: `@CC (automated)`
+- RPC Endpoint: `https://api.devnet.solana.com`
+- Command / Entry: `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e`
+- Log Path: stdout (inline below)
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes: All 3 tests pass (2 mock + 1 devnet live). Devnet live test successfully completed the full `getLatestBlockhash → compileLegacy → sign → verify → simulate` flow against the public devnet endpoint.
+
+### 3. Evidence Checklist
+
+#### 3.1 Mock Harness Run (still passes alongside live)
+- [x] K3-H1 mock: construct → sign → simulate (happy) — pass
+- [x] K3-F1 mock: unsigned tx simulate fails (failure) — pass
+- [x] `std.testing.allocator` zero-leak
+
+#### 3.2 Real Harness Run (Devnet)
+- [x] `SOLANA_RPC_URL` set to `https://api.devnet.solana.com`
+- [x] `getLatestBlockhash` returned live blockhash from devnet
+- [x] transaction constructed (`Message.compileLegacy`)
+- [x] transaction signed (`tx.sign` + `verifySignatures`)
+- [x] simulation executed — `simulate returned .ok`
+- [x] zero memory leaks (gpa enforced)
+
+#### 3.3 Console Output (captured)
+```
+[devnet E2E] endpoint: https://api.devnet.solana.com
+[devnet E2E] simulate returned .ok
+```
+
+### 4. Detailed Notes
+
+- The E2E harness required a one-line fix: `sim_json.parsed.deinit()` → `var sim = sim_val; sim.deinit(gpa)` (3 occurrences). This is because #7 (commit `892cfd8`) refactored `SimulateTransactionResult` to have a direct `deinit(allocator)` method instead of the previous `.parsed` wrapper.
+- The devnet accepted the simulate request and returned `.ok`. This is expected — the dummy transaction uses a valid signature but references accounts that won't have state on devnet, so the validator may accept simulation without error.
+- Contract compliance: the live test exercises the same S2→S3→S4→S5→S6 flow as the K3-H1 mock, but against a real RPC endpoint.
+
+### 5. Artifacts
+
+- Harness source: `src/e2e/devnet_e2e.zig`
+- Build step: `zig build devnet-e2e`
+- Contract reference: `docs/18-surfpool-e2e-contract.md`
+
+### 6. Conclusion
+
+Devnet E2E evidence is now complete. Both mock and live runs pass. The `docs/15` execution matrix "Devnet E2E evidence" row can be moved from `in-progress` → `closeable`.
+
+---
+
+## Run 3 — Local Surfnet Live (Fallback Confirmation)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/892cfd8/surfnet-live`
+- Commit: `892cfd8` (same E2E fix as Run 2)
+- Date: `2026-04-16`
+- Run Type: `real-harness` (live RPC round-trip to local surfnet)
+- Operator: `@CC (automated)`
+- RPC Endpoint: `http://127.0.0.1:8899` (surfnet, datasource: `api.mainnet-beta.solana.com`)
+- Command / Entry: `SOLANA_RPC_URL=http://127.0.0.1:8899 zig build devnet-e2e`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes: All 3 tests pass. Local surfnet live test also completed the full `getLatestBlockhash → compileLegacy → sign → verify → simulate` flow.
+
+### 3. Console Output (captured)
+```
+[devnet E2E] endpoint: http://127.0.0.1:8899
+[devnet E2E] simulate returned .ok
+```
+
+### 4. Notes
+
+- This run confirms the E2E harness works against both public devnet and local surfnet.
+- Surfnet was started by @davirain with mainnet-beta as datasource (not devnet), but the RPC interface is identical for the methods exercised (getLatestBlockhash, simulateTransaction).
+- Run 2 (public devnet) remains the primary evidence; this run is supplementary confirmation.
