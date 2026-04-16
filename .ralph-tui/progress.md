@@ -16,6 +16,7 @@ after each iteration and it's included in prompts for context.
 - For ALT-backed messages, keep compile-time lookup tables (`AddressLookupTable`) separate from owned wire-format lookup records and expose a Rust-aligned public alias when the serialized shape already matches the SDK model.
 - When required signer pubkeys live in `message.account_keys[0..num_required_signatures]`, transaction signing can stay caller-order-independent by matching each provided `Keypair.pubkey()` back to that prefix before filling signature slots.
 - Oracle compatibility suites should embed the versioned JSON fixture with `@embedFile` and route each vector family through focused helper assertions (`expectPubkeyCase` / `expectMessageCase` / `expectTransactionCase`) so Rust parity coverage stays offline, deterministic, and easy to expand.
+- RPC transport plumbing uses a tiny function-pointer vtable (`Transport.init(ctx, postJson, deinit)`) around `*anyopaque`, which keeps `RpcClient` production-ready with `std.http.Client` while letting tests inject lightweight scripted mocks without changing higher-level RPC parsing.
 
 ---
 
@@ -154,5 +155,18 @@ after each iteration and it's included in prompts for context.
     - The oracle suite groups fixture assertions by capability (`core`, `keypair`, `message`, `transaction`) and reuses shared compile helpers, which makes future vector expansion additive without changing test structure.
   - Gotchas encountered
     - `compileMessageCase` returns an owned `Message`, so transaction oracle assertions must transfer that ownership into `VersionedTransaction.initUnsigned` and avoid separately deinitializing the message on the success path.
+---
+
+## 2026-04-16 - US-010
+- What was implemented
+  - Verified the existing RPC transport layer already satisfies the story: `src/solana/rpc/transport.zig` defines a pluggable `Transport` interface for posting JSON-RPC payloads, `src/solana/rpc/http_transport.zig` provides the default `std.http.Client` implementation, and `RpcClient.initWithTransport` supports mock injection for tests.
+  - Confirmed current request/response handling uses JSON-RPC 2.0 envelopes (`jsonrpc`, `id`, `method`, `params` / `result` / `error`) across the RPC client methods and injected-transport test coverage.
+- Files changed
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - The RPC layer centralizes transport ownership in `RpcClient`, so callers choose between `init` (real HTTP) and `initWithTransport` (mock/scripted transport) without affecting typed response parsing.
+  - Gotchas encountered
+    - `tasks/prd.json` still marks `US-010` incomplete, but the transport abstraction, HTTP implementation, and injected mock coverage are already present in `src/solana/rpc/{transport,http_transport,client}.zig`, so this iteration was verification plus progress capture rather than new source edits.
 ---
 
