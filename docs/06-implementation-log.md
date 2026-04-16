@@ -901,3 +901,51 @@
   - `G-P2D-01` ✅
   - `G-P2D-04` ✅
   - `G-P2D-05` ✅
+
+## 2026-04-16 第三十四次增量记录（#45 P2-23: Websocket 生产可观测性收口）
+
+### 输入
+- 第五批 `#43` 已通过结构审并放行实现；`#45` 按 `docs/24` §2.2 与 `G-P2E-03` 进入 websocket 生产可观测性收口。
+- 本轮冻结目标固定为：
+  - 冻结 `snapshot()` schema
+  - 证明 reconnect / dedup / subscription state 的可观测计数
+  - 保持 deterministic backoff 模型不变
+
+### 输出
+- `src/solana/rpc/ws_client.zig` 已在 `e7f8987` 完成 websocket observability：
+  - 新增 `WsStats` 冻结 schema：
+    - `reconnect_attempts_total`
+    - `active_subscriptions`
+    - `dedup_dropped_total`
+    - `last_error_code`
+    - `last_error_message`
+    - `last_reconnect_unix_ms`
+  - 新增 `snapshot()` 方法返回 `WsStats`
+  - 在 `reconnect` / `reconnectWithBackoff` / `readNotification` 路径补齐 observability instrumentation
+- 可观测性五类证据已全部到位：
+  - `ws_observability_snapshot_initial_state`
+  - `ws_observability_counters_after_subscribe`
+  - `ws_observability_reconnect_counter_increments`
+  - `ws_observability_dedup_dropped_counter`
+  - `ws_observability_backoff_error_state`
+
+### 风险
+- 当前 observability 仅覆盖冻结字段，不把它误写成完整生产 metrics/export subsystem。
+- `last_error_message` 仍采用最近一次错误的截断字符串缓冲；本轮只冻结“存在与可诊断”，不冻结跨版本稳定错误文本。
+- 本轮**不触发 Batch 5 exception**；证据完全由代码侧 canonical 与可复现测试收口。
+
+### 验证
+- canonical 三件套：
+  - commit `e7f8987`
+  - websocket 写集已提交
+  - `zig build test --summary all`：`82/82 tests passed`
+- 关键 observability 测试：
+  - `ws_observability_snapshot_initial_state` — PASS
+  - `ws_observability_counters_after_subscribe` — PASS
+  - `ws_observability_reconnect_counter_increments` — PASS
+  - `ws_observability_dedup_dropped_counter` — PASS
+  - `ws_observability_backoff_error_state` — PASS
+- gate 结论：
+  - `G-P2E-01` ✅
+  - `G-P2E-03` ✅
+  - `G-P2E-05` ✅

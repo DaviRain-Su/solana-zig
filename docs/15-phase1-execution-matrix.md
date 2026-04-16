@@ -132,3 +132,17 @@
 - `#38 rpc.Websocket production hardening`
   - 当前口径：**无例外**
   - 原因：本轮按 canonical 三件套 + websocket production hardening 测试证据收口，不涉及 live/integration 替代模型
+
+## 10. Phase 2 Batch 5 Extension Tracking
+
+> 按 `docs/24-phase2-batch5-planning.md` 的冻结口径，第五批实现 / 例外 / gate 统一继续落在本矩阵中留痕。以下状态不影响 Phase 1 closeout，仅用于跟踪 Phase 2 Batch 5 的实现收口与 `Batch 5 exception`。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `rpc.Websocket observability` | closed | `#45` | ~~等待冻结 snapshot schema、counter/state 可复现证据与 canonical 三件套统一收口~~ → **已完成**：`e7f8987` 已补齐冻结 `WsStats` schema、reconnect / dedup / subscription / error state instrumentation，canonical 三件套完成（`82/82 tests passed`），无 Batch 5 exception | `ws_observability_snapshot_initial_state` + `ws_observability_counters_after_subscribe` + `ws_observability_reconnect_counter_increments` + `ws_observability_dedup_dropped_counter` + `ws_observability_backoff_error_state` + canonical 三件套 | `src/solana/rpc/ws_client.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2E-01` canonical 三件套；已满足 `G-P2E-03` websocket observability gate；`G-P2E-05` 文档回写完成 |
+
+### Batch 5 Exception Register
+
+- `#45 rpc.Websocket observability`
+  - 当前口径：**无例外**
+  - 原因：本轮按 canonical 三件套 + observability 测试证据收口，不涉及 live/integration 替代模型
