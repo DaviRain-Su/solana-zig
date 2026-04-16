@@ -1,0 +1,71 @@
+maxIterations = 0
+iterationDelay = 1000
+agent = "droid"
+tracker = "json"
+configVersion = "2.1"
+autoCommit = true
+defaultAgent = "droid"
+
+[[agents]]
+name = "claude-4.6"
+plugin = "claude"
+default = true
+command = "claude-code"
+timeout = 300000
+
+[agents.options]
+model = "claude-opus-4-6"
+
+[[agents]]
+name = "droid-gpt-5.4(high)"
+plugin = "droid"
+command = "droid"
+timeout = 600000
+
+[agents.options]
+model = "gpt-5.4(high)"
+
+[[agents]]
+name = "droid-k2.6"
+plugin = "droid"
+command = "droid"
+timeout = 600000
+
+[agents.options]
+model = "K2.6-code-preview"
+
+[[agents]]
+name = "opencode-glm-5.1"
+plugin = "opencode"
+command = "opencode"
+
+[agents.options]
+model = "glm-5.1"
+
+[[agents]]
+name = "pi"
+plugin = "pi"
+command = "pi"
+
+[agents.options]
+model = "gpt-5.4"
+
+[[agents]]
+name = "codex"
+plugin = "codex"
+command = "codex"
+
+[agents.options]
+model = "gpt-5.3-codex"
+fallbackAgents = [ "claude", "droid", "opencode", "pi", "codex" ]
+
+[errorHandling]
+strategy = "retry"
+maxRetries = 3
+
+[parallel]
+mode = "always"
+maxWorkers = 4
+
+[agentOptions]
+[trackerOptions]

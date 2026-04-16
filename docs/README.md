@@ -48,3 +48,4 @@
 - `19-phase2-planning.md`：Product Phase 2 第一批冻结记录（范围/DoD/依赖/放行条件）
 - `20-phase2-batch2-planning.md`：Product Phase 2 第二批规划（RPC Batch B + Durable Nonce + ComputeBudget）
 - `21-phase2-batch3-planning.md`：Product Phase 2 第三批规划（getTokenAccountsByOwner + WS re-stabilize/re-expose + Nonce/live 深化）
+- `22-phase2-batch4-planning.md`：Product Phase 2 第四批规划（Token Accounts 深化 + WS production hardening + 发布前清单）

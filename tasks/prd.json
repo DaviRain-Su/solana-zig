@@ -1,0 +1,382 @@
+{
+  "name": "Phase 1 — Solana Zig SDK Off-chain Client Core",
+  "branchName": "feature/phase-1-solana-zig-sdk",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Pubkey type with base58 encoding/decoding",
+      "description": "As a Zig developer, I want Pubkey type with 32-byte fixed layout and base58 encode/decode so that I can correctly represent and transmit Solana addresses.",
+      "acceptanceCriteria": [
+        "Pubkey is a 32-byte fixed array type",
+        "Supports decoding from base58 string to Pubkey",
+        "Supports encoding from Pubkey to base58 string",
+        "Handles leading-zero scenarios correctly",
+        "Invalid base58 input returns clear error",
+        "Oracle vector: non-zero pubkey encode/decode matches Rust SDK output"
+      ],
+      "priority": 1,
+      "labels": [
+        "core",
+        "base58"
+      ],
+      "passes": true,
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Signature type with base58 encoding/decoding",
+      "description": "As a Zig developer, I want Signature type with 64-byte fixed layout and base58 encode/decode so that I can correctly represent and verify transaction signatures.",
+      "acceptanceCriteria": [
+        "Signature is a 64-byte fixed array type",
+        "Supports base58 encode/decode",
+        "Supports default value (all zeros) for unsigned",
+        "Invalid input returns clear error"
+      ],
+      "priority": 1,
+      "labels": [
+        "core",
+        "base58"
+      ],
+      "passes": false,
+      "dependsOn": []
+    },
+    {
+      "id": "US-003",
+      "title": "Hash type with base58 encoding/decoding",
+      "description": "As a Zig developer, I want Hash type with 32-byte fixed layout and base58 encode/decode so that I can correctly represent blockhash and other hash values.",
+      "acceptanceCriteria": [
+        "Hash is a 32-byte fixed array type",
+        "Supports base58 encode/decode",
+        "Supports construction from raw byte array"
+      ],
+      "priority": 1,
+      "labels": [
+        "core",
+        "base58"
+      ],
+      "passes": false,
+      "dependsOn": []
+    },
+    {
+      "id": "US-004",
+      "title": "Keypair generation and Ed25519 signing",
+      "description": "As a Zig developer, I want Keypair with generation, seed recovery, and signing so that I can sign transactions in Zig.",
+      "acceptanceCriteria": [
+        "Supports random Keypair generation",
+        "Supports recovery from 64-byte seed",
+        "Supports Ed25519 signing",
+        "Supports signature verification",
+        "Oracle vector: deterministic seed signature matches Rust SDK output"
+      ],
+      "priority": 1,
+      "labels": [
+        "core",
+        "crypto"
+      ],
+      "passes": false,
+      "dependsOn": []
+    },
+    {
+      "id": "US-005",
+      "title": "shortvec encode/decode",
+      "description": "As a Zig developer, I want shortvec encode/decode so that variable-length fields in Message serialization are correctly encoded.",
+      "acceptanceCriteria": [
+        "Implements shortvec encode/decode",
+        "Behavior matches solana-short-vec 3.2.0",
+        "Covers boundary value tests (0, 127, 128, 16383, 16384, etc.)"
+      ],
+      "priority": 1,
+      "labels": [
+        "core",
+        "serialization"
+      ],
+      "passes": false,
+      "dependsOn": []
+    },
+    {
+      "id": "US-006",
+      "title": "Instruction and AccountMeta structs",
+      "description": "As a Zig developer, I want Instruction and AccountMeta structs so that I can construct transaction instructions.",
+      "acceptanceCriteria": [
+        "Instruction contains program_id, accounts, data fields",
+        "AccountMeta contains pubkey, is_signer, is_writable fields",
+        "Field layout aligns with Rust SDK"
+      ],
+      "priority": 2,
+      "labels": [
+        "tx"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-001"
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "Legacy Message compilation and serialization",
+      "description": "As a Zig developer, I want to build and serialize legacy Message so that I can construct traditional format transactions.",
+      "acceptanceCriteria": [
+        "Supports compiling legacy Message from Instructions + payer + blockhash",
+        "Serialization output is byte-identical to Rust SDK",
+        "Supports deserialization",
+        "Correctly orders account keys (signer-writable > signer-readonly > non-signer-writable > non-signer-readonly)",
+        "Oracle vector: multi-instruction legacy message serialization matches Rust output"
+      ],
+      "priority": 2,
+      "labels": [
+        "tx",
+        "serialization"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-001",
+        "US-003",
+        "US-005",
+        "US-006"
+      ]
+    },
+    {
+      "id": "US-008",
+      "title": "V0 Message compilation and serialization",
+      "description": "As a Zig developer, I want to build and serialize v0 Message with Address Lookup Table support so that I can use the new transaction format.",
+      "acceptanceCriteria": [
+        "Supports v0 Message compilation with ALT references",
+        "Serialization output is byte-identical to Rust SDK",
+        "Supports deserialization",
+        "MessageAddressTableLookup struct is correct",
+        "Oracle vector: v0 message with ALT serialization matches Rust output"
+      ],
+      "priority": 2,
+      "labels": [
+        "tx",
+        "serialization"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-001",
+        "US-003",
+        "US-005",
+        "US-006"
+      ]
+    },
+    {
+      "id": "US-009",
+      "title": "VersionedTransaction sign, verify, serialize, deserialize",
+      "description": "As a Zig developer, I want VersionedTransaction with sign/verify/serialize/deserialize so that I can complete the full transaction workflow.",
+      "acceptanceCriteria": [
+        "Supports building VersionedTransaction for both legacy and v0 Message",
+        "Supports single-signer and multi-signer",
+        "sign then verify passes",
+        "Serialize/deserialize roundtrip is consistent",
+        "Oracle vector: full Transaction serialize (signatures + message) matches Rust output"
+      ],
+      "priority": 2,
+      "labels": [
+        "tx",
+        "crypto",
+        "serialization"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-004",
+        "US-007",
+        "US-008"
+      ]
+    },
+    {
+      "id": "US-010",
+      "title": "RPC Transport abstraction and HTTP client",
+      "description": "As a Zig developer, I want pluggable RPC transport so that I can mock in tests and use HTTP in production.",
+      "acceptanceCriteria": [
+        "Defines transport interface (send JSON-RPC request, return response)",
+        "Implements default HTTP transport based on std.http.Client",
+        "Supports mock transport injection for testing",
+        "Request/response follows JSON-RPC 2.0 spec"
+      ],
+      "priority": 3,
+      "labels": [
+        "rpc",
+        "transport"
+      ],
+      "passes": false,
+      "dependsOn": []
+    },
+    {
+      "id": "US-011",
+      "title": "getLatestBlockhash RPC method",
+      "description": "As a Zig developer, I want to call getLatestBlockhash so that I can get the latest blockhash for transaction construction.",
+      "acceptanceCriteria": [
+        "Returns blockhash (Hash type) and lastValidBlockHeight",
+        "Supports commitment parameter (processed/confirmed/finalized)",
+        "RPC errors return structured error info",
+        "Mock tests cover success and error paths"
+      ],
+      "priority": 3,
+      "labels": [
+        "rpc"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-003",
+        "US-010"
+      ]
+    },
+    {
+      "id": "US-012",
+      "title": "getAccountInfo RPC method",
+      "description": "As a Zig developer, I want to call getAccountInfo so that I can read on-chain account data.",
+      "acceptanceCriteria": [
+        "Returns AccountInfo (lamports, owner, data, executable, rentEpoch)",
+        "Returns null when account does not exist",
+        "Supports encoding parameter (base64)",
+        "Mock tests cover success, not-found, and error paths"
+      ],
+      "priority": 3,
+      "labels": [
+        "rpc"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-001",
+        "US-010"
+      ]
+    },
+    {
+      "id": "US-013",
+      "title": "getBalance RPC method",
+      "description": "As a Zig developer, I want to call getBalance so that I can query account balance.",
+      "acceptanceCriteria": [
+        "Returns lamports balance (u64)",
+        "Supports commitment parameter",
+        "Mock tests cover success and error paths"
+      ],
+      "priority": 3,
+      "labels": [
+        "rpc"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-001",
+        "US-010"
+      ]
+    },
+    {
+      "id": "US-014",
+      "title": "simulateTransaction RPC method",
+      "description": "As a Zig developer, I want to call simulateTransaction so that I can pre-validate transactions before sending.",
+      "acceptanceCriteria": [
+        "Accepts base64-encoded serialized transaction",
+        "Returns simulation result (err, logs, unitsConsumed)",
+        "Returns specific error info on simulation failure",
+        "Mock tests cover success and failure paths"
+      ],
+      "priority": 3,
+      "labels": [
+        "rpc"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-009",
+        "US-010"
+      ]
+    },
+    {
+      "id": "US-015",
+      "title": "sendTransaction RPC method",
+      "description": "As a Zig developer, I want to call sendTransaction so that I can submit signed transactions to the network.",
+      "acceptanceCriteria": [
+        "Accepts base64-encoded serialized transaction",
+        "Returns transaction signature (Signature type)",
+        "Supports optional parameters like skipPreflight",
+        "RPC errors return structured error info",
+        "Mock tests cover success and error paths"
+      ],
+      "priority": 3,
+      "labels": [
+        "rpc"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-002",
+        "US-009",
+        "US-010"
+      ]
+    },
+    {
+      "id": "US-016",
+      "title": "Oracle vector cross-reference test suite",
+      "description": "As a maintainer, I want oracle vector cross-reference tests covering critical paths so that Zig implementation byte-compatibility with Rust SDK can be regression-tested.",
+      "acceptanceCriteria": [
+        "Non-zero pubkey (including leading-zero scenarios) vectors pass",
+        "Keypair sign -> Signature (deterministic seed) vectors pass",
+        "Legacy message serialize (multi-instruction) vectors pass",
+        "V0 message serialize (with ALT) vectors pass",
+        "Full Transaction serialize (signatures + message) vectors pass",
+        "Vector data embedded as static files or comptime, no external service dependency"
+      ],
+      "priority": 2,
+      "labels": [
+        "testing",
+        "oracle"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-001",
+        "US-004",
+        "US-007",
+        "US-008",
+        "US-009"
+      ]
+    },
+    {
+      "id": "US-017",
+      "title": "Devnet E2E acceptance test path",
+      "description": "As a maintainer, I want Devnet end-to-end tests so that I can verify the complete transaction flow on a real network.",
+      "acceptanceCriteria": [
+        "zig build devnet-e2e runs the end-to-end flow",
+        "Covers construct -> sign -> simulate -> send -> confirm flow",
+        "Gated by SOLANA_RPC_URL environment variable, skips when not set",
+        "Test output includes key info like transaction signatures for documentation"
+      ],
+      "priority": 4,
+      "labels": [
+        "testing",
+        "e2e",
+        "devnet"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-009",
+        "US-011",
+        "US-014",
+        "US-015"
+      ]
+    },
+    {
+      "id": "US-018",
+      "title": "Benchmark baseline establishment",
+      "description": "As a maintainer, I want serialization/deserialization benchmark baselines so that future optimizations have data for comparison.",
+      "acceptanceCriteria": [
+        "zig build bench runs benchmarks",
+        "Covers Pubkey base58 encode/decode, Message serialization, Transaction serialize/deserialize",
+        "Output includes quantitative metrics (ops/sec or ns/op)",
+        "Results can be recorded for comparison (no requirement to beat Rust, just establish baseline)"
+      ],
+      "priority": 4,
+      "labels": [
+        "testing",
+        "benchmark"
+      ],
+      "passes": false,
+      "dependsOn": [
+        "US-001",
+        "US-007",
+        "US-009"
+      ]
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-04-16T11:12:51.949Z"
+  }
+}
