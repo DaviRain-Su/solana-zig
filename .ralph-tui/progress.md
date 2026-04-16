@@ -15,6 +15,7 @@ after each iteration and it's included in prompts for context.
 - Versioned wire models can stay unified behind a `version` tag when the structural delta is small: `Message` shares one compile/serialize/deserialize pipeline for legacy and v0, with version-specific prefixes/lookup sections layered on top of common header/key/instruction handling.
 - For ALT-backed messages, keep compile-time lookup tables (`AddressLookupTable`) separate from owned wire-format lookup records and expose a Rust-aligned public alias when the serialized shape already matches the SDK model.
 - When required signer pubkeys live in `message.account_keys[0..num_required_signatures]`, transaction signing can stay caller-order-independent by matching each provided `Keypair.pubkey()` back to that prefix before filling signature slots.
+- Oracle compatibility suites should embed the versioned JSON fixture with `@embedFile` and route each vector family through focused helper assertions (`expectPubkeyCase` / `expectMessageCase` / `expectTransactionCase`) so Rust parity coverage stays offline, deterministic, and easy to expand.
 
 ---
 
@@ -140,5 +141,18 @@ after each iteration and it's included in prompts for context.
     - `VersionedTransaction.sign` is intentionally order-independent for caller-provided signers because it resolves each signer by pubkey against the required-signer prefix of `message.account_keys`.
   - Gotchas encountered
     - `VersionedTransaction.initUnsigned` takes ownership of the compiled `Message`, so follow-up tests and helpers must not `deinit` the message separately after constructing the transaction.
+---
+
+## 2026-04-16 - US-016
+- What was implemented
+  - Verified the oracle vector cross-reference suite was already complete for the story gate: embedded `testdata/oracle_vectors.json` fixtures cover non-zero pubkeys including leading-zero bytes, deterministic keypair signature vectors, legacy multi-instruction message serialization, v0 ALT-backed message serialization, and full signed transaction serialization.
+  - Confirmed the Zig oracle tests in `src/solana/compat/oracle_vector.zig` exercise each vector family through compile/sign/serialize assertions against the embedded Rust SDK outputs, with no external service dependency.
+- Files changed
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - The oracle suite groups fixture assertions by capability (`core`, `keypair`, `message`, `transaction`) and reuses shared compile helpers, which makes future vector expansion additive without changing test structure.
+  - Gotchas encountered
+    - `compileMessageCase` returns an owned `Message`, so transaction oracle assertions must transfer that ownership into `VersionedTransaction.initUnsigned` and avoid separately deinitializing the message on the success path.
 ---
 
