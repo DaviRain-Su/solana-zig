@@ -9,6 +9,7 @@ after each iteration and it's included in prompts for context.
 
 - Core fixed-size value types follow a shared wrapper pattern: expose `pub const LENGTH`, store bytes in a fixed array field, provide `init`/`fromSlice` plus `fromBase58`/`toBase58Alloc` helpers, and keep inline tests beside the type; shared base58 helpers surface `error.InvalidLength` and `error.InvalidBase58` consistently.
 - When a fixed-size crypto wrapper needs an "unsigned" sentinel, expose it as a type-level helper like `zero()` and reuse that helper at call sites instead of repeating inline zero-byte struct literals.
+- When wrapping Zig std crypto key material, expose public length constants and byte-oriented constructors around `std.crypto.sign.Ed25519` so 32-byte deterministic seeds and 64-byte secret-key recovery share one `Keypair` API without leaking stdlib internals to callers.
 
 ---
 
@@ -49,5 +50,19 @@ after each iteration and it's included in prompts for context.
     - `Hash` follows the same fixed-size wrapper contract already established by `Pubkey`: `LENGTH`, fixed-array storage, raw-byte constructors, and shared base58 helpers are sufficient for blockhash-style value objects.
   - Gotchas encountered
     - The story PRD entry was still marked incomplete even though `src/solana/core/hash.zig` already matched the acceptance criteria, so this iteration focused on verification plus progress capture rather than new source edits.
+---
+
+## 2026-04-16 - US-004
+- What was implemented
+  - Extended `Keypair` with random generation via `std.crypto.sign.Ed25519.KeyPair.generate` and 64-byte secret-key recovery via `Ed25519.SecretKey.fromBytes` + `KeyPair.fromSecretKey`.
+  - Added inline coverage for random sign/verify, 64-byte recovery roundtrip, and mismatched secret-key rejection; existing oracle vector coverage continues to assert deterministic seed signatures match the Rust SDK output.
+- Files changed
+  - `src/solana/core/keypair.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - `Keypair` can stay ergonomic by exposing raw-length constants while delegating cryptographic validation to Zig stdlib helpers, which preserves compatibility with downstream transaction-signing APIs.
+  - Gotchas encountered
+    - Zig stdlib Ed25519 secret keys are 64-byte values composed of the 32-byte seed plus a cached 32-byte public key, so recovery should use `KeyPair.fromSecretKey` in order to reject mismatched embedded public keys instead of trusting raw bytes blindly.
 ---
 
