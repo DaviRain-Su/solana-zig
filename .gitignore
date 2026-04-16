@@ -1,3 +1,6 @@
 .zig-cache/
 zig-out/
 scripts/oracle/target/
+zig-pkg/
+.factory/
+.tmp-*
