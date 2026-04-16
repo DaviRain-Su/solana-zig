@@ -5,8 +5,7 @@ pub const WsClient = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
     stream: std.Io.net.Stream,
-    read_buffer: []u8,
-    write_buffer: []u8,
+    fd: std.posix.fd_t,
     next_id: u64 = 1,
 
     pub const ConnectError = std.mem.Allocator.Error || std.Io.net.IpAddress.ConnectError || std.Io.net.Ip6Address.ResolveError || error{
@@ -15,9 +14,9 @@ pub const WsClient = struct {
         WsProtocolError,
     };
 
-    pub const SendError = std.mem.Allocator.Error || std.Io.net.Stream.Writer.Error || error{WsProtocolError};
+    pub const SendError = std.mem.Allocator.Error || error{WsProtocolError};
 
-    pub const ReadError = std.Io.net.Stream.Reader.Error || std.Io.net.Stream.Writer.Error || std.mem.Allocator.Error || error{
+    pub const ReadError = std.mem.Allocator.Error || error{
         WsProtocolError,
         ConnectionClosed,
     };
@@ -37,27 +36,20 @@ pub const WsClient = struct {
         };
     };
 
-    /// Parse a ws:// or wss:// URL and connect to the host.
     pub fn connect(allocator: std.mem.Allocator, io: std.Io, url: []const u8) ConnectError!WsClient {
         const parsed = try parseWsUrl(url);
         const is_tls = parsed.protocol == .wss;
-        if (is_tls) return error.InvalidUrl; // TLS not yet supported in this minimal version
+        if (is_tls) return error.InvalidUrl;
 
         const addr = try std.Io.net.IpAddress.resolve(io, parsed.host, parsed.port);
         const stream = try std.Io.net.IpAddress.connect(&addr, io, .{ .mode = .stream });
         errdefer stream.close(io);
 
-        const read_buffer = try allocator.alloc(u8, 8192);
-        errdefer allocator.free(read_buffer);
-        const write_buffer = try allocator.alloc(u8, 8192);
-        errdefer allocator.free(write_buffer);
-
         var client = WsClient{
             .allocator = allocator,
             .io = io,
             .stream = stream,
-            .read_buffer = read_buffer,
-            .write_buffer = write_buffer,
+            .fd = stream.socket.handle,
         };
 
         try client.performHandshake(parsed.host, parsed.port, parsed.path);
@@ -66,22 +58,16 @@ pub const WsClient = struct {
 
     pub fn deinit(self: *WsClient) void {
         self.stream.close(self.io);
-        self.allocator.free(self.read_buffer);
-        self.allocator.free(self.write_buffer);
     }
 
-    /// Send a text frame (used for JSON-RPC messages).
     pub fn sendText(self: *WsClient, text: []const u8) SendError!void {
         try self.sendFrame(.text, text);
     }
 
-    /// Send a close frame.
     pub fn sendClose(self: *WsClient) SendError!void {
         try self.sendFrame(.close, &[_]u8{});
     }
 
-    /// Read one websocket message. Blocks until a message is received or an error occurs.
-    /// Caller owns the returned data and must free it with self.allocator.
     pub fn readMessage(self: *WsClient) ReadError!Message {
         var opcode: ?Message.Opcode = null;
         var payload: std.ArrayList(u8) = .empty;
@@ -168,6 +154,31 @@ pub const WsClient = struct {
         };
     }
 
+    fn posixReadAll(fd: std.posix.fd_t, buf: []u8) !void {
+        var off: usize = 0;
+        while (off < buf.len) {
+            const n = std.c.read(fd, buf[off..].ptr, buf.len - off);
+            if (n == 0) return error.ConnectionClosed;
+            if (n < 0) return error.WsProtocolError;
+            off += @intCast(n);
+        }
+    }
+
+    fn posixRead(fd: std.posix.fd_t, buf: []u8) !usize {
+        const n = std.c.read(fd, buf.ptr, buf.len);
+        if (n < 0) return error.WsProtocolError;
+        return @intCast(n);
+    }
+
+    fn posixWriteAll(fd: std.posix.fd_t, data: []const u8) !void {
+        var off: usize = 0;
+        while (off < data.len) {
+            const n = std.c.write(fd, data[off..].ptr, data.len - off);
+            if (n <= 0) return error.WsProtocolError;
+            off += @intCast(n);
+        }
+    }
+
     fn performHandshake(self: *WsClient, host: []const u8, port: u16, path: []const u8) ConnectError!void {
         var key_buf: [24]u8 = undefined;
         const key = generateSecWebSocketKey(self.io, &key_buf);
@@ -185,17 +196,12 @@ pub const WsClient = struct {
         );
         defer self.allocator.free(request);
 
-        var writer = self.stream.writer(self.io, self.write_buffer);
-        _ = (&writer.interface).writeAll(request) catch return error.HandshakeFailed;
+        posixWriteAll(self.fd, request) catch return error.HandshakeFailed;
 
-        var reader = self.stream.reader(self.io, self.read_buffer);
         var response_buf: [1024]u8 = undefined;
         var response_len: usize = 0;
-
-        // Read until we find \r\n\r\n
         while (response_len < response_buf.len) {
-            var vecs: [1][]u8 = .{response_buf[response_len..]};
-            const n = (&reader.interface).readVec(&vecs) catch return error.HandshakeFailed;
+            const n = posixRead(self.fd, response_buf[response_len..]) catch return error.HandshakeFailed;
             if (n == 0) return error.HandshakeFailed;
             response_len += n;
             if (std.mem.indexOf(u8, response_buf[0..response_len], "\r\n\r\n")) |_| break;
@@ -206,7 +212,6 @@ pub const WsClient = struct {
         const response = response_buf[0..response_len];
         if (!std.mem.startsWith(u8, response, "HTTP/1.1 101")) return error.HandshakeFailed;
 
-        // Validate Sec-WebSocket-Accept
         const accept_expected = computeWebSocketAccept(self.allocator, key) catch return error.HandshakeFailed;
         defer self.allocator.free(accept_expected);
 
@@ -237,12 +242,11 @@ pub const WsClient = struct {
     }
 
     fn sendFrameRaw(self: *WsClient, opcode: Message.Opcode, payload: []const u8) SendError!void {
-        var writer = self.stream.writer(self.io, self.write_buffer);
         var header: [14]u8 = undefined;
         var header_len: usize = 2;
 
-        header[0] = @as(u8, 0x80) | @intFromEnum(opcode); // FIN=1
-        const mask_bit: u8 = 0x80; // client always masks
+        header[0] = @as(u8, 0x80) | @intFromEnum(opcode);
+        const mask_bit: u8 = 0x80;
 
         if (payload.len <= 125) {
             header[1] = mask_bit | @as(u8, @intCast(payload.len));
@@ -270,14 +274,14 @@ pub const WsClient = struct {
         @memcpy(header[header_len..][0..4], &mask_key);
         header_len += 4;
 
-        (&writer.interface).writeAll(header[0..header_len]) catch return error.WsProtocolError;
+        posixWriteAll(self.fd, header[0..header_len]) catch return error.WsProtocolError;
 
-        // Write masked payload
-        var i: usize = 0;
-        while (i < payload.len) : (i += 1) {
-            const masked = payload[i] ^ mask_key[i % 4];
-            (&writer.interface).writeAll(&[_]u8{masked}) catch return error.WsProtocolError;
+        const masked_buf = self.allocator.alloc(u8, payload.len) catch return error.WsProtocolError;
+        defer self.allocator.free(masked_buf);
+        for (masked_buf, 0..) |*b, i| {
+            b.* = payload[i] ^ mask_key[i % 4];
         }
+        posixWriteAll(self.fd, masked_buf) catch return error.WsProtocolError;
     }
 
     const Frame = struct {
@@ -286,28 +290,27 @@ pub const WsClient = struct {
         payload: []const u8,
     };
 
-    fn readFrame(self: *WsClient) ReadError!Frame {
-        var reader = self.stream.reader(self.io, self.read_buffer);
+    fn mapReadErr(err: anyerror) ReadError {
+        if (err == error.ConnectionClosed) return error.ConnectionClosed;
+        return error.WsProtocolError;
+    }
 
+    fn readFrame(self: *WsClient) ReadError!Frame {
         var buf: [2]u8 = undefined;
-        var vecs_buf: [1][]u8 = .{&buf};
-        _ = (&reader.interface).readVecAll(&vecs_buf) catch return error.WsProtocolError;
+        posixReadAll(self.fd, &buf) catch |e| return mapReadErr(e);
 
         const fin = (buf[0] & 0x80) != 0;
-        const opcode_int = buf[0] & 0x0F;
-        const opcode: Message.Opcode = @enumFromInt(opcode_int);
+        const opcode: Message.Opcode = @enumFromInt(buf[0] & 0x0F);
         const masked = (buf[1] & 0x80) != 0;
         var payload_len: u64 = @as(u64, buf[1] & 0x7F);
 
         if (payload_len == 126) {
             var len_buf: [2]u8 = undefined;
-            var vecs_lb: [1][]u8 = .{&len_buf};
-            _ = (&reader.interface).readVecAll(&vecs_lb) catch return error.WsProtocolError;
+            posixReadAll(self.fd, &len_buf) catch |e| return mapReadErr(e);
             payload_len = (@as(u64, len_buf[0]) << 8) | @as(u64, len_buf[1]);
         } else if (payload_len == 127) {
             var len_buf: [8]u8 = undefined;
-            var vecs_lb2: [1][]u8 = .{&len_buf};
-            _ = (&reader.interface).readVecAll(&vecs_lb2) catch return error.WsProtocolError;
+            posixReadAll(self.fd, &len_buf) catch |e| return mapReadErr(e);
             payload_len = 0;
             for (len_buf) |b| {
                 payload_len = (payload_len << 8) | @as(u64, b);
@@ -316,22 +319,13 @@ pub const WsClient = struct {
 
         var mask_key: [4]u8 = undefined;
         if (masked) {
-            var vecs_mk: [1][]u8 = .{&mask_key};
-            _ = (&reader.interface).readVecAll(&vecs_mk) catch return error.WsProtocolError;
+            posixReadAll(self.fd, &mask_key) catch |e| return mapReadErr(e);
         }
 
-        const payload = try self.allocator.alloc(u8, @intCast(payload_len));
+        const payload = self.allocator.alloc(u8, @intCast(payload_len)) catch return error.WsProtocolError;
         errdefer self.allocator.free(payload);
 
-        var remaining = payload_len;
-        var offset: usize = 0;
-        while (remaining > 0) {
-            var vecs_pl: [1][]u8 = .{payload[offset..]};
-            const n = (&reader.interface).readVec(&vecs_pl) catch return error.WsProtocolError;
-            if (n == 0) return error.WsProtocolError;
-            offset += n;
-            remaining -= n;
-        }
+        posixReadAll(self.fd, payload) catch |e| return mapReadErr(e);
 
         if (masked) {
             for (payload, 0..) |*b, i| {
@@ -437,7 +431,7 @@ pub const WsRpcClient = struct {
         );
         defer self.ws.allocator.free(payload);
         try self.ws.sendText(payload);
-        _ = try self.readSubscriptionResult(); // consume ack
+        _ = try self.readSubscriptionResult();
     }
 
     pub fn readNotification(self: *WsRpcClient) (SubscribeError || WsClient.ReadError || error{OutOfMemory})!Notification {
@@ -487,71 +481,132 @@ pub const WsRpcClient = struct {
 // Mock WebSocket Server (for tests)
 // ------------------------------------------------------------------
 
+fn rawReadAll(fd: std.posix.fd_t, buf: []u8) !void {
+    var off: usize = 0;
+    while (off < buf.len) {
+        const n = std.c.read(fd, buf[off..].ptr, buf.len - off);
+        if (n <= 0) return error.WsProtocolError;
+        off += @intCast(n);
+    }
+}
+
+fn rawRead(fd: std.posix.fd_t, buf: []u8) !usize {
+    const n = std.c.read(fd, buf.ptr, buf.len);
+    if (n <= 0) return error.WsProtocolError;
+    return @intCast(n);
+}
+
+fn rawWriteAll(fd: std.posix.fd_t, data: []const u8) !void {
+    var off: usize = 0;
+    while (off < data.len) {
+        const n = std.c.write(fd, data[off..].ptr, data.len - off);
+        if (n <= 0) return error.WsProtocolError;
+        off += @intCast(n);
+    }
+}
+
 const MockWsServer = struct {
-    io: std.Io,
-    server: std.Io.net.Server,
+    const ServerContext = struct {
+        stopped: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
+        conn_fd: std.atomic.Value(c_int) = std.atomic.Value(c_int).init(-1),
+        listen_fd: std.posix.fd_t,
+    };
+
+    ctx: *ServerContext,
     thread: std.Thread,
     port: u16,
+    allocator: std.mem.Allocator,
 
-    fn start(allocator: std.mem.Allocator, io: std.Io) !MockWsServer {
-        const addr = std.Io.net.Ip4Address.loopback(0); // OS-assigned ephemeral port
-        const ip_addr: std.Io.net.IpAddress = .{ .ip4 = addr };
-        const server = try std.Io.net.IpAddress.listen(&ip_addr, io, .{ .mode = .stream });
+    fn start(allocator: std.mem.Allocator) !MockWsServer {
+        const listen_fd = std.c.socket(std.c.AF.INET, std.c.SOCK.STREAM, 0);
+        if (listen_fd < 0) return error.WsProtocolError;
 
-        const actual_port = server.socket.address.getPort();
-        const thread = try std.Thread.spawn(.{}, MockWsServer.run, .{ allocator, io, server });
+        var opt: c_int = 1;
+        _ = std.c.setsockopt(listen_fd, std.c.SOL.SOCKET, std.c.SO.REUSEADDR, @ptrCast(&opt), @sizeOf(c_int));
+
+        var addr: std.c.sockaddr.in = std.mem.zeroes(std.c.sockaddr.in);
+        addr.family = std.c.AF.INET;
+        addr.addr = std.mem.nativeToBig(u32, 0x7f000001);
+        addr.port = std.mem.nativeToBig(u16, 0);
+
+        if (std.c.bind(listen_fd, @ptrCast(&addr), @sizeOf(std.c.sockaddr.in)) < 0) return error.WsProtocolError;
+        if (std.c.listen(listen_fd, 2) < 0) return error.WsProtocolError;
+
+        var bound_addr: std.c.sockaddr.in = std.mem.zeroes(std.c.sockaddr.in);
+        var addr_len: std.c.socklen_t = @sizeOf(std.c.sockaddr.in);
+        if (std.c.getsockname(listen_fd, @ptrCast(&bound_addr), &addr_len) < 0) return error.WsProtocolError;
+        const port = std.mem.bigToNative(u16, bound_addr.port);
+
+        const ctx = try allocator.create(ServerContext);
+        ctx.* = .{ .listen_fd = listen_fd };
+
+        const thread = try std.Thread.spawn(.{}, MockWsServer.run, .{ allocator, ctx });
 
         return .{
-            .io = io,
-            .server = server,
+            .ctx = ctx,
             .thread = thread,
-            .port = actual_port,
+            .port = port,
+            .allocator = allocator,
         };
     }
 
     fn stop(self: *MockWsServer) void {
-        const addr = std.Io.net.Ip4Address.loopback(self.port);
-        const ip_addr: std.Io.net.IpAddress = .{ .ip4 = addr };
+        self.ctx.stopped.store(true, .release);
 
-        // Unblock any pending accept() without forcing a NOTSOCK panic in the worker thread.
-        for (0..2) |_| {
-            const stream = std.Io.net.IpAddress.connect(&ip_addr, self.io, .{ .mode = .stream }) catch break;
-            stream.close(self.io);
+        // Shutdown active connection if any
+        const cfd = self.ctx.conn_fd.swap(-1, .acq_rel);
+        if (cfd >= 0) {
+            _ = std.c.shutdown(cfd, 2);
+            _ = std.c.close(cfd);
+        }
+
+        // Connect to unblock accept()
+        const dummy_fd = std.c.socket(std.c.AF.INET, std.c.SOCK.STREAM, 0);
+        if (dummy_fd >= 0) {
+            var addr: std.c.sockaddr.in = std.mem.zeroes(std.c.sockaddr.in);
+            addr.family = std.c.AF.INET;
+            addr.addr = std.mem.nativeToBig(u32, 0x7f000001);
+            addr.port = std.mem.nativeToBig(u16, self.port);
+            _ = std.c.connect(dummy_fd, @ptrCast(&addr), @sizeOf(std.c.sockaddr.in));
+            _ = std.c.close(dummy_fd);
         }
 
         self.thread.join();
-        self.server.socket.close(self.io);
+        _ = std.c.shutdown(self.ctx.listen_fd, 2);
+        _ = std.c.close(self.ctx.listen_fd);
+        self.allocator.destroy(self.ctx);
     }
 
-    fn run(allocator: std.mem.Allocator, io: std.Io, server: std.Io.net.Server) !void {
-        var local_server = server;
-
-        // Accept up to 2 connections to support reconnect tests.
+    fn run(allocator: std.mem.Allocator, ctx: *ServerContext) void {
         for (0..2) |_| {
-            const stream = local_server.accept(io) catch return;
-            handleConnection(allocator, io, stream) catch {};
-            stream.close(io);
+            const conn_fd = std.c.accept(ctx.listen_fd, null, null);
+            if (conn_fd < 0) return;
+
+            if (ctx.stopped.load(.acquire)) {
+                _ = std.c.close(conn_fd);
+                return;
+            }
+            ctx.conn_fd.store(conn_fd, .release);
+
+            handleConnection(allocator, conn_fd) catch {};
+
+            const old = ctx.conn_fd.swap(-1, .acq_rel);
+            if (old >= 0) {
+                _ = std.c.shutdown(old, 2);
+                _ = std.c.close(old);
+            }
         }
     }
 
-    fn handleConnection(allocator: std.mem.Allocator, io: std.Io, stream: std.Io.net.Stream) !void {
-        var read_buf: [4096]u8 = undefined;
-        var write_buf: [4096]u8 = undefined;
-        var reader = stream.reader(io, &read_buf);
-        var writer = stream.writer(io, &write_buf);
-
-        // Read HTTP upgrade request
+    fn handleConnection(allocator: std.mem.Allocator, fd: std.posix.fd_t) !void {
         var req_buf: [1024]u8 = undefined;
         var req_len: usize = 0;
         while (req_len < req_buf.len) {
-            var vecs_req: [1][]u8 = .{req_buf[req_len..]};
-            const n = (&reader.interface).readVec(&vecs_req) catch return;
-            if (n == 0) return;
+            const n = rawRead(fd, req_buf[req_len..]) catch return;
             req_len += n;
             if (std.mem.indexOf(u8, req_buf[0..req_len], "\r\n\r\n")) |_| break;
         }
 
-        // Extract Sec-WebSocket-Key
         const key_prefix = "Sec-WebSocket-Key: ";
         const req = req_buf[0..req_len];
         const key_start = std.mem.indexOf(u8, req, key_prefix) orelse return;
@@ -561,7 +616,7 @@ const MockWsServer = struct {
         const accept = WsClient.computeWebSocketAccept(allocator, key) catch return;
         defer allocator.free(accept);
 
-        const response = try std.fmt.allocPrint(
+        const response = std.fmt.allocPrint(
             allocator,
             "HTTP/1.1 101 Switching Protocols\r\n" ++
                 "Upgrade: websocket\r\n" ++
@@ -569,29 +624,27 @@ const MockWsServer = struct {
                 "Sec-WebSocket-Accept: {s}\r\n" ++
                 "\r\n",
             .{accept},
-        );
+        ) catch return;
         defer allocator.free(response);
-        _ = (&writer.interface).writeAll(response) catch return;
+        rawWriteAll(fd, response) catch return;
 
-        // Simple echo loop for JSON-RPC subscribe/unsubscribe
-        const loop_allocator = allocator;
         var next_sub: u64 = 1;
 
         while (true) {
-            const frame = readFrameRaw(loop_allocator, io, &reader, &read_buf) catch break;
-            defer loop_allocator.free(frame.payload);
+            const frame = readFrameRaw(allocator, fd) catch break;
+            defer allocator.free(frame.payload);
 
             if (frame.opcode == .close) {
-                sendFrameRaw(&writer.interface, io, &write_buf, .close, &[_]u8{}) catch {};
+                sendFrameRaw(fd, .close, &[_]u8{}) catch {};
                 break;
             }
             if (frame.opcode == .ping) {
-                sendFrameRaw(&writer.interface, io, &write_buf, .pong, &[_]u8{}) catch {};
+                sendFrameRaw(fd, .pong, &[_]u8{}) catch {};
                 continue;
             }
             if (frame.opcode != .text and frame.opcode != .binary) continue;
 
-            var parsed = std.json.parseFromSlice(std.json.Value, loop_allocator, frame.payload, .{}) catch continue;
+            var parsed = std.json.parseFromSlice(std.json.Value, allocator, frame.payload, .{}) catch continue;
             defer parsed.deinit();
 
             const method = parsed.value.object.get("method") orelse continue;
@@ -603,32 +656,29 @@ const MockWsServer = struct {
             next_sub += 1;
 
             if (is_subscribe and malformed_subscribe_response) {
-                // Intentionally malformed JSON-RPC response for failure-path tests.
                 const reply = "{\"jsonrpc\":\"2.0\",\"result\":";
-                sendFrameRaw(&writer.interface, io, &write_buf, .text, reply) catch break;
+                sendFrameRaw(fd, .text, reply) catch break;
                 continue;
             }
 
-            const reply = try std.fmt.allocPrint(
-                loop_allocator,
+            const reply = std.fmt.allocPrint(
+                allocator,
                 "{{\"jsonrpc\":\"2.0\",\"result\":{d},\"id\":{d}}}",
                 .{ sub_id, id.integer },
-            );
-            defer loop_allocator.free(reply);
-            sendFrameRaw(&writer.interface, io, &write_buf, .text, reply) catch break;
+            ) catch break;
+            defer allocator.free(reply);
+            sendFrameRaw(fd, .text, reply) catch break;
 
-            // If it was a subscribe, send a mock notification
             if (is_subscribe) {
-                const notif = try std.fmt.allocPrint(
-                    loop_allocator,
+                const notif = std.fmt.allocPrint(
+                    allocator,
                     "{{\"jsonrpc\":\"2.0\",\"method\":\"{s}Notification\",\"params\":{{\"result\":{{\"mock\":true}},\"subscription\":{d}}}}}",
                     .{ method.string, sub_id },
-                );
-                defer loop_allocator.free(notif);
-                sendFrameRaw(&writer.interface, io, &write_buf, .text, notif) catch break;
+                ) catch break;
+                defer allocator.free(notif);
+                sendFrameRaw(fd, .text, notif) catch break;
 
                 if (force_disconnect_after_notify) {
-                    // Simulate server-side disconnect after the first notification.
                     break;
                 }
             }
@@ -641,11 +691,9 @@ const MockWsServer = struct {
         payload: []const u8,
     };
 
-    fn readFrameRaw(allocator: std.mem.Allocator, io: std.Io, reader: *std.Io.net.Stream.Reader, _: []u8) !FrameHeader {
-        _ = io;
+    fn readFrameRaw(allocator: std.mem.Allocator, fd: std.posix.fd_t) !FrameHeader {
         var h: [2]u8 = undefined;
-        var vecs_h: [1][]u8 = .{&h};
-        _ = try (&reader.interface).readVecAll(&vecs_h);
+        try rawReadAll(fd, &h);
         const fin = (h[0] & 0x80) != 0;
         const opcode: WsClient.Message.Opcode = @enumFromInt(h[0] & 0x0F);
         const masked = (h[1] & 0x80) != 0;
@@ -653,35 +701,24 @@ const MockWsServer = struct {
 
         if (payload_len == 126) {
             var lb: [2]u8 = undefined;
-            var vecs_lb_m: [1][]u8 = .{&lb};
-            _ = try (&reader.interface).readVecAll(&vecs_lb_m);
+            try rawReadAll(fd, &lb);
             payload_len = (@as(u64, lb[0]) << 8) | @as(u64, lb[1]);
         } else if (payload_len == 127) {
             var lb: [8]u8 = undefined;
-            var vecs_lb_m: [1][]u8 = .{&lb};
-            _ = try (&reader.interface).readVecAll(&vecs_lb_m);
+            try rawReadAll(fd, &lb);
             payload_len = 0;
             for (lb) |b| payload_len = (payload_len << 8) | b;
         }
 
         var mask_key: [4]u8 = undefined;
         if (masked) {
-            var vecs_mk_m: [1][]u8 = .{&mask_key};
-            _ = try (&reader.interface).readVecAll(&vecs_mk_m);
+            try rawReadAll(fd, &mask_key);
         }
 
         const payload = try allocator.alloc(u8, @intCast(payload_len));
         errdefer allocator.free(payload);
 
-        var remaining = payload_len;
-        var offset: usize = 0;
-        while (remaining > 0) {
-            var vecs_pl_m: [1][]u8 = .{payload[offset..]};
-            const n = (&reader.interface).readVec(&vecs_pl_m) catch return error.WsProtocolError;
-            if (n == 0) return error.WsProtocolError;
-            offset += n;
-            remaining -= n;
-        }
+        try rawReadAll(fd, payload);
 
         if (masked) {
             for (payload, 0..) |*b, i| b.* ^= mask_key[i % 4];
@@ -690,9 +727,7 @@ const MockWsServer = struct {
         return .{ .fin = fin, .opcode = opcode, .payload = payload };
     }
 
-    fn sendFrameRaw(writer: *std.Io.Writer, io: std.Io, buf: []u8, opcode: WsClient.Message.Opcode, payload: []const u8) !void {
-        _ = io;
-        _ = buf;
+    fn sendFrameRaw(fd: std.posix.fd_t, opcode: WsClient.Message.Opcode, payload: []const u8) !void {
         var header: [14]u8 = undefined;
         var header_len: usize = 2;
         header[0] = @as(u8, 0x80) | @as(u8, @intFromEnum(opcode));
@@ -717,8 +752,8 @@ const MockWsServer = struct {
                 header_len = 10;
             }
         }
-        _ = writer.writeAll(header[0..header_len]) catch return error.WsProtocolError;
-        _ = writer.writeAll(payload) catch return error.WsProtocolError;
+        try rawWriteAll(fd, header[0..header_len]);
+        try rawWriteAll(fd, payload);
     }
 };
 
@@ -730,7 +765,7 @@ test "WsRpcClient subscribe and receive notification" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var server = try MockWsServer.start(allocator, io);
+    var server = try MockWsServer.start(allocator);
     defer server.stop();
 
     const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
@@ -752,7 +787,7 @@ test "WsRpcClient disconnect detect and reconnect" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var server = try MockWsServer.start(allocator, io);
+    var server = try MockWsServer.start(allocator);
     defer server.stop();
 
     const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
@@ -764,16 +799,9 @@ test "WsRpcClient disconnect detect and reconnect" {
     const sub_id = try client.signatureSubscribe("deadbeef");
     try std.testing.expect(sub_id > 0);
 
-    // Simulate disconnect by stopping server after first notification
-    // Since server auto-closes after sending notification, readNotification will return error.ConnectionClosed
-    // But our mock server sends notification before close, so we can read it.
     var notif = try client.readNotification();
     defer notif.deinit();
 
-    // Now reconnect (server thread already exited, but in real test we'd restart server)
-    // For this test, we just verify reconnect() compiles and re-establishes connection.
-    // Since mock server only handles one connection, this will fail unless we restart server.
-    // We'll skip the actual reconnect read and just assert the method exists.
     try client.reconnect();
 }
 
@@ -781,7 +809,7 @@ test "ws_unsubscribe_ack_success" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var server = try MockWsServer.start(allocator, io);
+    var server = try MockWsServer.start(allocator);
     defer server.stop();
 
     const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
@@ -793,6 +821,10 @@ test "ws_unsubscribe_ack_success" {
     const sub_id = try client.accountSubscribe("11111111111111111111111111111111");
     try std.testing.expect(sub_id > 0);
 
+    // Consume the pending notification before unsubscribing.
+    var notif = try client.readNotification();
+    notif.deinit();
+
     try client.unsubscribe(sub_id, "accountUnsubscribe");
 }
 
@@ -800,7 +832,7 @@ test "ws_reconnect_detect_disconnect_then_reconnect" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var server = try MockWsServer.start(allocator, io);
+    var server = try MockWsServer.start(allocator);
     defer server.stop();
 
     const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
@@ -812,15 +844,12 @@ test "ws_reconnect_detect_disconnect_then_reconnect" {
     const sub_id = try client.logsSubscribe("force_disconnect_after_notify");
     try std.testing.expect(sub_id > 0);
 
-    // First notification is delivered, then server closes the stream.
     var notif = try client.readNotification();
     defer notif.deinit();
     try std.testing.expectEqualStrings("logsSubscribeNotification", notif.method);
 
-    // Next read observes the disconnect.
     try std.testing.expectError(error.ConnectionClosed, client.readNotification());
 
-    // Reconnect must restore connectivity.
     try client.reconnect();
 }
 
@@ -828,7 +857,7 @@ test "ws_reconnect_resubscribe_after_reconnect" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var server = try MockWsServer.start(allocator, io);
+    var server = try MockWsServer.start(allocator);
     defer server.stop();
 
     const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
@@ -854,7 +883,7 @@ test "ws_reconnect_subscription_response_malformed" {
     const allocator = std.testing.allocator;
     const io = std.testing.io;
 
-    var server = try MockWsServer.start(allocator, io);
+    var server = try MockWsServer.start(allocator);
     defer server.stop();
 
     const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
