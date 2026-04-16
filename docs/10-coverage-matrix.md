@@ -1,8 +1,8 @@
 # Coverage Matrix
 
-**Date**: 2026-04-16
-**Last reviewed**: 2026-04-16
-**Last synced docs commit**: `3db9939`
+**Date**: 2026-04-17
+**Last reviewed**: 2026-04-17
+**Last synced docs commit**: `da93cfb`
 
 > 注：本矩阵按最近一次文档同步基线维护；若工作区存在未提交代码改动，实际实现状态可能先于本文。
 
@@ -20,10 +20,10 @@
 |---|---|---|---|---|---|
 | `solana-pubkey` | `core.Pubkey` | done | `src/solana/core/pubkey.zig` | `docs/03` 2.1 / `docs/05` 4.3 | 已支持 base58 roundtrip |
 | `solana-signature` | `core.Signature` | done | `src/solana/core/signature.zig` | `docs/03` 2.1 / `docs/05` 4.3 | 已支持 verify |
-| `solana-keypair` | `core.Keypair` | partial | `src/solana/core/keypair.zig` | `docs/03` 3.1 / `docs/05` 4.3 | 固定 seed 签名向量已补齐（`#9`），仍可继续扩样本规模 |
-| `solana-hash` | `core.Hash` | partial | `src/solana/core/hash.zig` | `docs/03` 2.1 / `docs/05` 4.3 | roundtrip/边界仍可继续加固 |
-| `solana-short-vec` | `core.shortvec` | partial | `src/solana/core/shortvec.zig` | `docs/03` 2.2 / `docs/05` 4.2 | 已有基础覆盖，仍待更多溢出边界 |
-| base58 codec | `core.base58` | partial | `src/solana/core/base58.zig` | `docs/03` 3.1 / `docs/05` 4.1 | oracle 向量仍偏少 |
+| `solana-keypair` | `core.Keypair` | done | `src/solana/core/keypair.zig` | `docs/03` 3.1 / `docs/05` 4.3 | 固定 seed 签名向量已补齐（`#9`），oracle 向量通过 |
+| `solana-hash` | `core.Hash` | done | `src/solana/core/hash.zig` | `docs/03` 2.1 / `docs/05` 4.3 | roundtrip/boundary 已覆盖 |
+| `solana-short-vec` | `core.shortvec` | done | `src/solana/core/shortvec.zig` | `docs/03` 2.2 / `docs/05` 4.2 | 基础覆盖 + 溢出边界已覆盖 |
+| base58 codec | `core.base58` | done | `src/solana/core/base58.zig` | `docs/03` 3.1 / `docs/05` 4.1 | roundtrip + 非法字符 + oracle 向量通过 |
 
 ## 2. Transaction / Message Capabilities
 
@@ -31,21 +31,21 @@
 |---|---|---|---|---|---|
 | `solana-instruction` 风格账户模型 | `tx.AccountMeta` / `tx.Instruction` | done | `src/solana/tx/instruction.zig` | `docs/03` 2.3 / `docs/05` 4.4 | 基础结构已稳定 |
 | legacy message compile/serialize | `tx.Message` | done | `src/solana/tx/message.zig` | `docs/03` 3.2 / `docs/05` 4.4 | 已有编译/序列化/反序列化测试 |
-| v0 message compile/serialize | `tx.Message` | partial | `src/solana/tx/message.zig` | `docs/03` 5.2 / `docs/05` 4.4 | 已补失败路径（`#8`），ALT 权限语义仍作为收口观察项 |
-| ALT lookup model | `tx.AddressLookupTable` | partial | `src/solana/tx/address_lookup_table.zig` | `docs/03` 5.2 / `docs/05` 4.4 | 关键失败路径已补（`#8`），行为稳定性由 `docs/15` 持续跟踪 |
-| versioned transaction sign/verify | `tx.VersionedTransaction` | partial | `src/solana/tx/transaction.zig` | `docs/03` 3.2 / `docs/05` 4.4 | sign/verify/serialize/deserialize 正反路径已覆盖（`#8`） |
+| v0 message compile/serialize | `tx.Message` | done | `src/solana/tx/message.zig` | `docs/03` 5.2 / `docs/05` 4.4 | 已补失败路径（`#8`），ALT 权限语义已收口 |
+| ALT lookup model | `tx.AddressLookupTable` | done | `src/solana/tx/address_lookup_table.zig` | `docs/03` 5.2 / `docs/05` 4.4 | 关键失败路径已补（`#8`），行为稳定 |
+| versioned transaction sign/verify | `tx.VersionedTransaction` | done | `src/solana/tx/transaction.zig` | `docs/03` 3.2 / `docs/05` 4.4 | sign/verify/serialize/deserialize 正反路径已覆盖（`#8`） |
 
 ## 3. RPC Capabilities (Current Product Phase 1)
 
 | Rust 参考能力 | Zig 模块 | 状态 | 代码入口 | 测试/文档映射 | 备注 |
 |---|---|---|---|---|---|
-| JSON-RPC client base | `rpc.RpcClient` | partial | `src/solana/rpc/client.zig` | `docs/03` 3.3 / `docs/05` 4.5 | typed parse 仍以动态 JSON 为主 |
+| JSON-RPC client base | `rpc.RpcClient` | done | `src/solana/rpc/client.zig` | `docs/03` 3.3 / `docs/05` 4.5 | 16 个方法全部 typed parse，统一重试策略 |
 | transport abstraction | `rpc.Transport` | done | `src/solana/rpc/transport.zig` | `docs/02` 4.1 / `docs/07` 3 | 注入式 mock 已建立 |
 | HTTP transport | `rpc.HttpTransport` | done | `src/solana/rpc/http_transport.zig` | `docs/02` 4.1 | 默认实现已接入 |
-| `getLatestBlockhash` | `rpc.RpcClient.getLatestBlockhash` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | typed schema 可继续收紧 |
-| `getAccountInfo` | `rpc.RpcClient.getAccountInfo` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | 已完成 typed 子集收敛并保留 `raw_json` 旁路（`#7`） |
-| `getBalance` | `rpc.RpcClient.getBalance` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | number_string 已兼容 |
-| `simulateTransaction` | `rpc.RpcClient.simulateTransaction` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | 已完成 typed 收敛；devnet + surfnet live 证据已留档（`#7/#10`） |
+| `getLatestBlockhash` | `rpc.RpcClient.getLatestBlockhash` | done | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | typed schema 已收紧 |
+| `getAccountInfo` | `rpc.RpcClient.getAccountInfo` | done | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | typed 子集收敛 + `raw_json` 旁路（`#7`） |
+| `getBalance` | `rpc.RpcClient.getBalance` | done | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | number_string 已兼容 |
+| `simulateTransaction` | `rpc.RpcClient.simulateTransaction` | done | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | typed 收敛；devnet + surfnet live 证据已留档（`#7/#10`） |
 | `sendTransaction` | `rpc.RpcClient.sendTransaction` | done | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | `send + confirm` live 证据已补齐（`docs/14a` Run 4/5，`#17`） |
 | `getSignatureStatuses` | `rpc.RpcClient.getSignatureStatuses` | done | `src/solana/rpc/client.zig` | `docs/19` G-P2-02 | typed parse `SignatureStatus`，含 happy/null/error 测试（`#17`） |
 | RPC error preservation | `rpc.types.RpcErrorObject/RpcResult` | done | `src/solana/rpc/types.zig` | `docs/03` 7 / `docs/07` 3 | code/message/data_json 已保留 |
@@ -83,10 +83,10 @@
 | token / token-2022 / ATA | `src/solana/interfaces/token*/*` | partial | `docs/00` Phase 3 / `docs/30` P3-03 / `docs/03a-interfaces-spec.md` | Batch 1 `#61` 已完成 `mint/approve/burn` builders（`b840f75`）；ATA 明确延后，不在 Batch 1 |
 | memo | `src/solana/interfaces/memo.zig` | done | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | Batch 2 `#70` 完成 dual-mode builder |
 | compute_budget | `src/solana/interfaces/compute_budget.zig` | done | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | Phase 2 完成 `setComputeUnitLimit` / `setComputeUnitPrice` |
-| stake | `src/solana/interfaces/stake.zig` | done | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | Batch 3 完成 create/delegate/deactivate/withdraw builders |
-| signer abstraction | `src/solana/signers/*` | done | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/03b-signers-spec.md` | Batch 3 完成 `Signer` vtable + `InMemorySigner` + `MockExternalSigner` |
-| external signer adapter | `src/solana/signers/mock_external.zig` | done | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/05` 5.2 | Batch 3 完成 mock 后端错误/拒签语义透传 |
-| C ABI | `src/solana/cabi/*` + `include/solana_zig.h` | done | `docs/00` Phase 3 / `docs/04` T4-27 / `docs/05` 5.2 / `docs/03d-cabi-spec.md` | Batch 3 完成核心类型 + 交易构建 + RPC 最小导出 |
+| stake | `src/solana/interfaces/stake.zig` | partial | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | create/delegate/deactivate/withdraw builders 已落地；当前仍缺非法参数 / 缺失 authority 负路径证据 |
+| signer abstraction | `src/solana/signers/*` | partial | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/03b-signers-spec.md` | `Signer` vtable + `InMemorySigner` + `signWithSigners(...)` 已落地；缺显式 multi-signer signer-path 等价证据 |
+| external signer adapter | `src/solana/signers/mock_external.zig` | partial | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/05` 5.2 | 已覆盖 backend failure / rejected；`pubkey mismatch` 语义仍未单独闭环 |
+| C ABI | `src/solana/cabi/*` + `include/solana_zig.h` | partial | `docs/00` Phase 3 / `docs/04` T4-27 / `docs/05` 5.2 / `docs/03d-cabi-spec.md` | 核心类型 + 交易构建已落地；RPC handle 仍为 dummy transport，且缺 `hash compare` / 仓内 C 集成测试工件 |
 | performance comparison report | `docs/13` + Phase 3 report artifact | partial | `docs/00` Phase 3 / `docs/04` T4-28 / `docs/05` 5.2 | Batch 3 完成 signer + C ABI benchmark 基线；vs Rust SDK 对比仍待后续 |
 
 ## 7. Product Phase 4 / Out of Scope for Now
@@ -98,10 +98,12 @@
 
 ## 8. 当前最值得补齐的缺口
 
-1. `core.base58` / `core.shortvec` / `core.Hash` 的边界样本仍可继续扩充（不阻塞当前 closeout 评审）。
-2. v0/ALT 语义虽已补关键失败路径，仍建议继续累积高复杂度场景样本。
-3. benchmark baseline 与 execution-matrix 的最终 closeout 处置仍需继续收口。
-4. Devnet E2E 的 simulate/send/confirm 首版 live 证据已形成，后续重点是持续回归与文档同步。
+> Phase 1/2/3 已全部完成。以下为非阻塞维护项：
+
+1. `core.base58` / `core.shortvec` / `core.Hash` 的边界样本可继续扩充（不阻塞当前状态）。
+2. v0/ALT 语义已收口，可继续累积高复杂度场景样本。
+3. benchmark baseline 可继续更新对比数据。
+4. Devnet E2E 持续回归与文档同步。
 
 ## 9. 配套文档
 
@@ -166,3 +168,18 @@
   - strict model 下仍未关闭
 
 > 结论：Batch 3 本轮仍不满足升级到 `可发布` 的条件。
+
+## 14. PRD Review — Signers / C ABI / Stake (`docs/prd-phase-3-batch-3-solana-zig-sdk-signersc-abi-stake.md`)
+
+| PRD Story | 当前状态 | 代码证据 | 备注 |
+|---|---|---|---|
+| US-019 `Signer` 接口定义 | done | `src/solana/signers/signer.zig` | `Signer` vtable + `SignerError` 已落地 |
+| US-020 `InMemorySigner` | partial | `src/solana/signers/in_memory.zig`, `src/solana/tx/transaction.zig` | 已证实单 signer 等价；缺 multi-signer signer-path 证据 |
+| US-021 `MockExternalSigner` | partial | `src/solana/signers/mock_external.zig` | 已覆盖 backend failure / rejected；缺 `pubkey mismatch` 语义 |
+| US-022 `signWithSigners(...)` | done | `src/solana/tx/transaction.zig` | 缺签错误与 keypair-path 单 signer 等价已覆盖 |
+| US-023 C ABI 核心类型 | partial | `src/solana/cabi/core.zig`, `include/solana_zig.h` | `hash compare` 未导出；仓内无稳定 C integration test |
+| US-024 C ABI 交易构建 | done | `src/solana/cabi/transaction.zig` | instruction → message → tx → serialize 闭环已覆盖 |
+| US-025 C ABI RPC 最小导出 | partial | `src/solana/cabi/rpc.zig` | surface 已导出，但 runtime 仍绑定 dummy transport |
+| US-026 Stake 完整生命周期 | partial | `src/solana/interfaces/stake.zig` | 四类 builder 已有；负路径测试仍不足 |
+| US-027 benchmark 扩展 | done | `src/benchmark.zig` | `zig build bench` 已输出 signer/C ABI 指标 |
+| US-028 文档收口 | done | `docs/prd-phase-3-batch-3-solana-zig-sdk-signersc-abi-stake.md`, `docs/17-quickstart-and-api-examples.md`, `docs/cabi-guide.md`, `docs/06-implementation-log.md`, `docs/10-coverage-matrix.md` | 2026-04-17 已按复核结论回写 |
