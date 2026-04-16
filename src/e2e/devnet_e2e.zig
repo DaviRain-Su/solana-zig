@@ -282,6 +282,94 @@ fn buildTransferData(lamports: u64) [12]u8 {
     return data;
 }
 
+// --- P2-2 Failure Path: sendTransaction rpc_error (Mock) ---
+
+const MOCK_SEND_FAILURE =
+    \\{"jsonrpc":"2.0","id":3,"error":{"code":-32002,"message":"Transaction simulation failed: Attempt to debit an account but found no record of a prior credit.","data":{"err":"AccountNotFound"}}}
+;
+
+const MOCK_CONFIRM_WITH_ERROR =
+    \\{"jsonrpc":"2.0","id":4,"result":{"context":{"slot":100},"value":[{"slot":99,"confirmations":null,"err":{"InstructionError":[0,"Custom",1]},"confirmationStatus":"confirmed"}]}}
+;
+
+test "P2-2 mock: send failure path (rpc_error on sendTransaction)" {
+    const gpa = std.testing.allocator;
+    const payer = try Keypair.fromSeed(PAYER_SEED);
+
+    var responses = [_][]const u8{ MOCK_BLOCKHASH_RESPONSE, MOCK_SEND_FAILURE };
+    var mock = ScriptedMock{ .responses = &responses };
+    const transport = transport_mod.Transport.init(@ptrCast(&mock), ScriptedMock.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://mock.test", transport);
+    defer client.deinit();
+
+    const bh_result = try client.getLatestBlockhash();
+    switch (bh_result) {
+        .ok => |bh| {
+            const transfer_data = buildTransferData(1000);
+            const accounts = [_]AccountMeta{
+                .{ .pubkey = payer.pubkey(), .is_signer = true, .is_writable = true },
+                .{ .pubkey = payer.pubkey(), .is_signer = false, .is_writable = true },
+            };
+            const ixs = [_]Instruction{
+                .{ .program_id = SYSTEM_PROGRAM, .accounts = &accounts, .data = &transfer_data },
+            };
+            const msg = try Message.compileLegacy(gpa, payer.pubkey(), &ixs, bh.blockhash);
+            var tx = try VersionedTransaction.initUnsigned(gpa, msg);
+            defer tx.deinit();
+            try tx.sign(&[_]Keypair{payer});
+
+            const send_result = try client.sendTransaction(tx);
+            switch (send_result) {
+                .ok => return error.ExpectedSendFailure,
+                .rpc_error => |rpc_err| {
+                    defer rpc_err.deinit(gpa);
+                    // A-SEND-F1: code < 0
+                    try std.testing.expect(rpc_err.code < 0);
+                    // A-SEND-F2: message non-empty
+                    try std.testing.expect(rpc_err.message.len > 0);
+                },
+            }
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            return error.UnexpectedRpcError;
+        },
+    }
+}
+
+test "P2-2 mock: confirm failure path (tx confirmed with error)" {
+    const gpa = std.testing.allocator;
+
+    // Single-response mock: getSignatureStatuses returns confirmed status with tx error
+    var responses = [_][]const u8{MOCK_CONFIRM_WITH_ERROR};
+    var mock = ScriptedMock{ .responses = &responses };
+    const transport = transport_mod.Transport.init(@ptrCast(&mock), ScriptedMock.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://mock.test", transport);
+    defer client.deinit();
+
+    const dummy_sig = @import("solana_zig").core.Signature.init([_]u8{0xAA} ** 64);
+    const sigs = [_]@import("solana_zig").core.Signature{dummy_sig};
+    const status_result = try client.getSignatureStatuses(&sigs);
+    switch (status_result) {
+        .ok => |maybe_status| {
+            try std.testing.expect(maybe_status != null);
+            var status = maybe_status.?;
+            defer status.deinit(gpa);
+            // A-CONFIRM-F1: status is confirmed but has transaction error
+            try std.testing.expectEqualStrings("confirmed", status.confirmation_status.?);
+            try std.testing.expect(status.err_json != null);
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            return error.UnexpectedRpcError;
+        },
+    }
+}
+
+// --- P2-2 Live: sendTransaction + confirm evidence (#17) ---
+
 test "P2-2 live: airdrop -> construct -> sign -> send -> confirm (sendTransaction + confirm evidence)" {
     const gpa = std.testing.allocator;
 

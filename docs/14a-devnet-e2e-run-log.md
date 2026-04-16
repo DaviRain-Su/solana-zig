@@ -277,8 +277,17 @@ Current in-tree Devnet live harness evidence is established for `construct -> si
 
 ### 5. Notes
 
-- This run completes the `G-P2-02` DoD: **send + confirm** evidence.
+- This run completes the `G-P2-02` DoD: **send + confirm** evidence (success path).
 - `getSignatureStatuses` method was added to `client.zig` with typed parse support (`SignatureStatus` type).
 - Confirmation was immediate (0 additional polls needed) — surfnet confirmed the tx within the same RPC round-trip window.
 - This evidence, combined with Run 4's send evidence, closes the Phase 1 exception for `sendTransaction` live evidence.
 - The full `construct → sign → send → confirm` pipeline is now verified end-to-end against a live validator.
+
+### 6. Failure Evidence (Mock, G-P2-02 compliance)
+
+G-P2-02 requires at least 1 success + 1 failure evidence. Failure paths are covered by mock tests in `src/e2e/devnet_e2e.zig`:
+
+1. **Send failure** (`P2-2 mock: send failure path`): `sendTransaction` returns `rpc_error` with code=-32002 ("AccountNotFound"). Assertions: `code < 0`, `message.len > 0`.
+2. **Confirm failure** (`P2-2 mock: confirm failure path`): `getSignatureStatuses` returns `confirmed` status with `InstructionError` in `err` field. Assertions: `confirmationStatus == "confirmed"`, `err_json != null`.
+
+Both tests pass under `zig build devnet-e2e` with zero memory leaks.

@@ -422,3 +422,50 @@
 ### 说明
 
 - 本次 closeout 采用 “with documented exceptions” 口径，例外项已在 `docs/08` 与 `docs/15` 固化。
+
+## 2026-04-16 第十九次增量记录（#21: P2 Batch A residual docs backfill）
+
+### 输入
+- `#17/#18` 已放行为 Done，但跨线复核给出两条 non-blocking residual：
+  1. `G-P2-02` 放行解释需要文档固化（success live + failure 分支覆盖）
+  2. `#18` 的 docs gate 需要补齐在 `docs/06` / `docs/10` 的显式留痕
+
+### 输出
+- 在 `docs/19-phase2-planning.md` 的 `G-P2-02` 下新增 Batch 1 放行解释：
+  - 允许以“1 条稳定 live success（send + confirm）+ 失败分支覆盖证据”作为本批放行依据
+  - 并要求在实施日志与执行矩阵中留痕
+- 在本文件新增本条记录，作为 `#21` 的 residual 收口证据。
+- `docs/10-coverage-matrix.md` 已对齐 `1f8856d` 基线，包含：
+  - `sendTransaction` 已标 `done`（Run 4/5）
+  - Product Phase 2 扩展 RPC 为 `partial`（Batch A 三方法完成）
+
+### 风险
+- 该解释仅用于 Batch 1 放行，不应被误用为长期降低 `G-P2-02` 标准；
+- 后续批次若具备稳定环境，应优先补充 live failure 证据。
+
+### 验证
+- 文档一致性核对：`docs/06` ↔ `docs/10` ↔ `docs/19`
+
+## 2026-04-16 第二十次增量记录（#17 P2-2: send + confirm failure evidence 补齐）
+
+### 输入
+- @codex_5_4 跨线复核指出 `G-P2-02` 要求"至少 1 成功 + 1 失败证据留档"，当前只有成功证据。
+- 需要补齐 send/confirm 失败路径的测试与留档。
+
+### 输出
+- `src/e2e/devnet_e2e.zig` 新增两个 mock 失败测试：
+  - `P2-2 mock: send failure path` — sendTransaction 返回 `rpc_error`（code=-32002, AccountNotFound），断言 code < 0 且 message 非空。
+  - `P2-2 mock: confirm failure path` — getSignatureStatuses 返回 confirmed 但带 `InstructionError`，断言 err_json 非空。
+- `src/solana/rpc/client.zig` 新增 `getSignatureStatuses` typed parse 方法 + 3 个 mock 测试。
+- `src/solana/rpc/types.zig` 新增 `SignatureStatus` 类型。
+- `docs/14a` Run 5 已包含成功 confirm 证据；失败路径由 mock 测试覆盖（无需 live 失败证据）。
+- `docs/10` 新增 `getSignatureStatuses` 条目。
+
+### 证据
+- Live 成功：sig `3pkLWVQ...e6xn`, confirmationStatus `confirmed`, slot `413542952`
+- Mock 失败：send rpc_error + confirm-with-error 均通过断言
+
+### 验证
+- `zig build test` ✅
+- `zig build devnet-e2e` ✅（6 tests pass）
+- G-P2-02 DoD: send ✓ + confirm ✓ + 成功证据 ✓ + 失败证据 ✓

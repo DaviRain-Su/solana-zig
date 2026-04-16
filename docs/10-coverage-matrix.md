@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-16
 **Last reviewed**: 2026-04-16
-**Last synced docs commit**: `d6a1b89`
+**Last synced docs commit**: `1f8856d`
 
 > 注：本矩阵按最近一次文档同步基线维护；若工作区存在未提交代码改动，实际实现状态可能先于本文。
 
@@ -47,6 +47,7 @@
 | `getBalance` | `rpc.RpcClient.getBalance` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | number_string 已兼容 |
 | `simulateTransaction` | `rpc.RpcClient.simulateTransaction` | partial | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | 已完成 typed 收敛；devnet + surfnet live 证据已留档（`#7/#10`） |
 | `sendTransaction` | `rpc.RpcClient.sendTransaction` | done | `src/solana/rpc/client.zig` | `docs/03` 6.1 / `docs/05` 4.5 | `send + confirm` live 证据已补齐（`docs/14a` Run 4/5，`#17`） |
+| `getSignatureStatuses` | `rpc.RpcClient.getSignatureStatuses` | done | `src/solana/rpc/client.zig` | `docs/19` G-P2-02 | typed parse `SignatureStatus`，含 happy/null/error 测试（`#17`） |
 | RPC error preservation | `rpc.types.RpcErrorObject/RpcResult` | done | `src/solana/rpc/types.zig` | `docs/03` 7 / `docs/07` 3 | code/message/data_json 已保留 |
 
 ## 4. Compat / Oracle
@@ -61,7 +62,7 @@
 
 | 目标能力 | 计划 Zig 模块/文件 | 状态 | 文档映射 | 备注 |
 |---|---|---|---|---|
-| 扩展 RPC methods | `rpc/client.zig` 扩展或拆分 typed 子层 | planned | `docs/00` Phase 2 / `docs/04` T4-17~T4-19 / `docs/03c-rpc-extended-spec.md` | 包括 ALT / 交易查询 / slot/epoch 等 |
+| 扩展 RPC methods | `rpc/client.zig` 扩展或拆分 typed 子层 | partial | `docs/00` Phase 2 / `docs/04` T4-17~T4-19 / `docs/03c-rpc-extended-spec.md` | Batch A 已完成 `getTransaction / getSignaturesForAddress / getSlot`（`#18`），其余方法待后续批次 |
 | Websocket subscriptions | `src/solana/rpc/ws_*` 或独立订阅模块 | planned | `docs/00` Phase 2 / `docs/04` T4-20 / `docs/05` 5.1 | 需先明确生命周期与重连模型 |
 | Durable Nonce workflow | `interfaces/system` + tx/rpc helper composition | planned | `docs/00` Phase 2 / `docs/04` T4-21 / `docs/05` 5.1 | 指令构造归 `interfaces/system`，流程协同由更高层 helper 组合 |
 | Priority Fees / Compute Budget | `interfaces/compute_budget` | planned | `docs/00` Phase 2 / `docs/04` T4-22 / `docs/03a-interfaces-spec.md` | 可以早于完整 interfaces 落地 |
