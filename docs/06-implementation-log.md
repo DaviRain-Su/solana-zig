@@ -234,6 +234,22 @@
 ### 验证
 - 文档在“状态表述 / 当前主用户 / typed parse 最小粒度 / closeout ownership”四个维度进一步对齐。
 
+## 2026-04-16 第十四次增量记录（quickstart ownership 与 coverage anchor 同步）
+
+### 输入
+- 最新一轮 review 指出：`docs/17-quickstart-and-api-examples.md` 中的 transaction 示例错误地同时 `defer msg.deinit()` 又把 `msg` 传给 `VersionedTransaction.initUnsigned(...)`，会误导读者产生 double-free。
+- 同时 `docs/10-coverage-matrix.md` 的 commit 锚点已落后于最近一次文档新增提交。
+
+### 输出
+- `docs/17-quickstart-and-api-examples.md` 删除 `defer msg.deinit()`，并明确注释：`msg` 在 `initUnsigned(...)` 时所有权转移给 `tx`。
+- `docs/10-coverage-matrix.md` 的 `Last synced docs commit` 同步刷新到最近一次文档基线。
+
+### 风险
+- `docs/10` 的 commit 锚点本质上是文档审阅快照，后续每次文档提交后都仍需继续刷新，否则容易再次过期。
+
+### 验证
+- quickstart 示例的所有权语义已与 `src/solana/tx/transaction.zig` 当前实现一致。
+
 ## 2026-04-16 第十二次增量记录（收口文档补齐：L4 / Test Mapping / ALT 权限）
 
 ### 输入

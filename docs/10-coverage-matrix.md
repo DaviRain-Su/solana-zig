@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-16
 **Last reviewed**: 2026-04-16
-**Last synced docs commit**: `597aecb`
+**Last synced docs commit**: `d1c90c2`
 
 > 注：本矩阵按最近一次文档同步基线维护；若工作区存在未提交代码改动，实际实现状态可能先于本文。
 

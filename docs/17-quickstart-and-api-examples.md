@@ -113,8 +113,8 @@ test "legacy message + transaction example" {
         &instructions,
         recent,
     );
-    defer msg.deinit();
 
+    // Ownership of `msg` moves into `tx` here; do not call `msg.deinit()` after this.
     var tx = try sol.tx.VersionedTransaction.initUnsigned(alloc, msg);
     defer tx.deinit();
 
