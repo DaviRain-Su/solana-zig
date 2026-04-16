@@ -168,37 +168,4 @@ export class Connection {
     };
   }
 
-  /**
-   * Send a signed transaction (base64-encoded).
-   * Out of scope for Phase 1 contract (stops at simulate), but included as
-   * minimal passthrough for completeness.
-   */
-  async sendTransaction(
-    encodedTx: string
-  ): Promise<RpcResult<{ signature: string }>> {
-    const id = this.nextId++;
-    const payload = JSON.stringify({
-      jsonrpc: "2.0",
-      id,
-      method: "sendTransaction",
-      params: [
-        encodedTx,
-        { encoding: "base64", skipPreflight: false },
-      ],
-    });
-
-    const raw = await this.transport.postJson(this.endpoint, payload);
-    const json = JSON.parse(raw);
-
-    if (json.error) {
-      return {
-        kind: "rpc_error",
-        code: json.error.code,
-        message: json.error.message,
-        data: json.error.data,
-      };
-    }
-
-    return { kind: "ok", value: { signature: json.result } };
-  }
 }
