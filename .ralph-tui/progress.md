@@ -13,6 +13,7 @@ after each iteration and it's included in prompts for context.
 - For scalar/object read RPCs that only need a configurable `commitment`, prefer a tiny `*Options` struct plus a convenience wrapper that forwards to `WithOptions`; this keeps the public API uniform with richer RPC methods and makes payload-capture tests straightforward.
 - For scalar RPCs with stable public-cluster economics (for example rent-exemption quotes), combine payload-capture unit tests with a table-driven Devnet E2E that asserts a few canonical input/output pairs; this catches both wire-shape regressions and semantic drift without needing funded accounts.
 - For live Devnet RPCs that mutate state and can be faucet-limited, prefer a typed end-to-end assertion that captures the returned signature, polls the affected account for a before/after state delta, and explicitly treats rate-limit RPC errors as a logged skip path instead of a hard failure.
+- For live Devnet acceptance that needs a non-ephemeral on-chain artifact (for example an ALT account), prefer a discovery helper that scans recent blocks via raw JSON-RPC and reuses the discovered key in the typed client assertion; this avoids hardcoding addresses that may disappear while still validating the real parser.
 
 ---
 
@@ -105,5 +106,20 @@ after each iteration and it's included in prompts for context.
     - Live faucet-backed RPC acceptance is more robust when it proves a concrete account-state delta (`before_balance -> after_balance`) instead of only checking that the RPC returned success.
   - Gotchas encountered
     - Zig 0.16 in this repo does not expose `std.crypto.random`, so a dedicated deterministic seed is the safer choice for stable Devnet E2E accounts unless a different randomness source is wired explicitly.
+---
+
+## 2026-04-16 - US-007
+- Implemented typed `getAddressLookupTable` account parsing so successful responses now return an `AddressLookupTableAccount` shape (`key` + `state` with `addresses`), added explicit mock coverage for the `null`/not-found case, and added a gated Devnet E2E that discovers a recent ALT from live blocks before validating typed parsing against the RPC method.
+- Files changed:
+  - `src/solana/rpc/types.zig`
+  - `src/solana/rpc/client.zig`
+  - `src/e2e/devnet_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - `getAddressLookupTable` fits the repo best when the outer RPC response keeps Solana context metadata, but the nullable payload itself is promoted into an SDK-shaped account object (`key` + `state`) rather than exposing the raw wire layout directly.
+    - For live ALT verification, scanning recent `getBlock` results for `message.addressTableLookups[*].accountKey` is a practical way to discover a currently active table without hardcoding a brittle Devnet fixture.
+  - Gotchas encountered
+    - Zig rejects function parameters that shadow a top-level declaration in the same file, so local JSON helper argument names in `devnet_e2e.zig` must avoid `root` because that file already imports `const root = @import("solana_zig");`.
 ---
 

@@ -279,12 +279,15 @@ pub const RpcClient = struct {
         return .{ .ok = .{
             .context_slot = context_slot,
             .value = .{
-                .deactivation_slot = deactivation_slot,
-                .last_extended_slot = last_extended_slot,
-                .last_extended_slot_start_index = @intCast(start_index_u64),
-                .authority = authority,
-                .addresses = addresses,
-                .raw_json = raw_json,
+                .key = table_address,
+                .state = .{
+                    .deactivation_slot = deactivation_slot,
+                    .last_extended_slot = last_extended_slot,
+                    .last_extended_slot_start_index = @intCast(start_index_u64),
+                    .authority = authority,
+                    .addresses = addresses,
+                    .raw_json = raw_json,
+                },
             },
         } };
     }
@@ -2465,12 +2468,35 @@ test "rpc client getAddressLookupTable typed parse happy path" {
             try std.testing.expectEqual(@as(u64, 88), owned.context_slot);
             try std.testing.expect(owned.value != null);
             const value = owned.value.?;
-            try std.testing.expectEqual(@as(u64, std.math.maxInt(u64)), value.deactivation_slot);
-            try std.testing.expectEqual(@as(u64, 80), value.last_extended_slot);
-            try std.testing.expectEqual(@as(u8, 2), value.last_extended_slot_start_index);
-            try std.testing.expect(value.authority != null);
-            try std.testing.expectEqual(@as(usize, 2), value.addresses.len);
-            try std.testing.expect(value.raw_json != null);
+            try std.testing.expect(value.key.eql(table_address));
+            try std.testing.expectEqual(@as(u64, std.math.maxInt(u64)), value.state.deactivation_slot);
+            try std.testing.expectEqual(@as(u64, 80), value.state.last_extended_slot);
+            try std.testing.expectEqual(@as(u8, 2), value.state.last_extended_slot_start_index);
+            try std.testing.expect(value.state.authority != null);
+            try std.testing.expectEqual(@as(usize, 2), value.state.addresses.len);
+            try std.testing.expect(value.state.raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getAddressLookupTable returns null when lookup table is missing" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":89},\"value\":null}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const table_address = pubkey_mod.Pubkey.init([_]u8{35} ** 32);
+    const result = try client.getAddressLookupTable(table_address);
+    switch (result) {
+        .ok => |table_result| {
+            var owned = table_result;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 89), owned.context_slot);
+            try std.testing.expect(owned.value == null);
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
@@ -2485,7 +2511,7 @@ test "rpc client getAddressLookupTable preserves rpc error" {
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
 
-    const table_address = pubkey_mod.Pubkey.init([_]u8{35} ** 32);
+    const table_address = pubkey_mod.Pubkey.init([_]u8{36} ** 32);
     const result = try client.getAddressLookupTable(table_address);
     switch (result) {
         .ok => return error.ExpectedRpcError,
@@ -2505,7 +2531,7 @@ test "rpc client getAddressLookupTable returns InvalidRpcResponse on malformed s
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
 
-    const table_address = pubkey_mod.Pubkey.init([_]u8{36} ** 32);
+    const table_address = pubkey_mod.Pubkey.init([_]u8{37} ** 32);
     try std.testing.expectError(error.InvalidRpcResponse, client.getAddressLookupTable(table_address));
 }
 
@@ -2545,7 +2571,7 @@ test "rpc client batch b read methods local-live evidence (gated)" {
         },
     }
 
-    const table_address = pubkey_mod.Pubkey.init([_]u8{37} ** 32);
+    const table_address = pubkey_mod.Pubkey.init([_]u8{38} ** 32);
     const table_result = try client.getAddressLookupTable(table_address);
     switch (table_result) {
         .ok => |result| {
@@ -2703,7 +2729,7 @@ test "rpc client getAddressLookupTable success-or-exception convergence evidence
         return;
     }
 
-    const table_address = pubkey_mod.Pubkey.init([_]u8{37} ** 32);
+    const table_address = pubkey_mod.Pubkey.init([_]u8{38} ** 32);
     var saw_success = false;
     var saw_method_not_found = false;
 

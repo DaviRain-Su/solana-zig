@@ -237,7 +237,7 @@ pub const RequestAirdropResult = struct {
     signature: signature_mod.Signature,
 };
 
-pub const AddressLookupTableInfo = struct {
+pub const AddressLookupTableState = struct {
     deactivation_slot: u64,
     last_extended_slot: u64,
     last_extended_slot_start_index: u8,
@@ -245,15 +245,24 @@ pub const AddressLookupTableInfo = struct {
     addresses: []pubkey_mod.Pubkey,
     raw_json: ?[]const u8 = null,
 
-    pub fn deinit(self: *AddressLookupTableInfo, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *AddressLookupTableState, allocator: std.mem.Allocator) void {
         allocator.free(self.addresses);
         if (self.raw_json) |raw| allocator.free(raw);
     }
 };
 
+pub const AddressLookupTableAccount = struct {
+    key: pubkey_mod.Pubkey,
+    state: AddressLookupTableState,
+
+    pub fn deinit(self: *AddressLookupTableAccount, allocator: std.mem.Allocator) void {
+        self.state.deinit(allocator);
+    }
+};
+
 pub const AddressLookupTableResult = struct {
     context_slot: u64,
-    value: ?AddressLookupTableInfo,
+    value: ?AddressLookupTableAccount,
 
     pub fn deinit(self: *AddressLookupTableResult, allocator: std.mem.Allocator) void {
         if (self.value) |*v| v.deinit(allocator);

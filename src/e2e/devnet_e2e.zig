@@ -39,6 +39,7 @@ const LIVE_AIRDROP_LAMPORTS: u64 = 100_000_000;
 const MAX_BALANCE_POLLS: u32 = 30;
 const MAX_CONFIRM_POLLS: u32 = 30;
 const MAX_GET_TRANSACTION_POLLS: u32 = 30;
+const MAX_ALT_DISCOVERY_BLOCKS: u64 = 32;
 
 fn isRateLimitedRpcError(code: i64, message: []const u8) bool {
     if (code == -32005) return true;
@@ -290,6 +291,88 @@ fn requestAirdrop(client: *RpcClient, pubkey_str: []const u8, lamports: u64) !vo
     const raw = try client.transport.postJson(gpa, client.endpoint, payload);
     defer gpa.free(raw);
     // We don't parse — just fire and forget. The validator will fund the account.
+}
+
+fn getJsonField(value: *const std.json.Value, field: []const u8) ?*const std.json.Value {
+    if (value.* != .object) return null;
+    const obj_ptr: *std.json.ObjectMap = @constCast(&value.object);
+    return obj_ptr.getPtr(field);
+}
+
+fn getJsonStringField(value: *const std.json.Value, field: []const u8) ?[]const u8 {
+    const field_value = getJsonField(value, field) orelse return null;
+    if (field_value.* != .string) return null;
+    return field_value.string;
+}
+
+fn postJsonAndParse(
+    client: *RpcClient,
+    allocator: std.mem.Allocator,
+    payload: []const u8,
+) !std.json.Parsed(std.json.Value) {
+    const raw = try client.transport.postJson(allocator, client.endpoint, payload);
+    defer allocator.free(raw);
+
+    var parsed = std.json.parseFromSlice(std.json.Value, allocator, raw, .{}) catch {
+        return error.RpcParse;
+    };
+    if (parsed.value != .object) {
+        parsed.deinit();
+        return error.InvalidRpcResponse;
+    }
+    return parsed;
+}
+
+fn discoverRecentAddressLookupTable(client: *RpcClient, allocator: std.mem.Allocator) !?Pubkey {
+    const slot_result = try client.getSlot();
+    const latest_slot = switch (slot_result) {
+        .ok => |slot| slot,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(allocator);
+            std.debug.print("[US-007 live] getSlot rpc_error during ALT discovery: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    };
+
+    var offset: u64 = 0;
+    while (offset < MAX_ALT_DISCOVERY_BLOCKS and latest_slot >= offset) : (offset += 1) {
+        const slot = latest_slot - offset;
+        const payload = try std.fmt.allocPrint(
+            allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":200,\"method\":\"getBlock\",\"params\":[{d},{{\"encoding\":\"json\",\"transactionDetails\":\"full\",\"rewards\":false,\"maxSupportedTransactionVersion\":0}}]}}",
+            .{slot},
+        );
+        defer allocator.free(payload);
+
+        var parsed = postJsonAndParse(client, allocator, payload) catch |err| switch (err) {
+            error.RpcTransport, error.RpcParse, error.InvalidRpcResponse => continue,
+            else => return err,
+        };
+        defer parsed.deinit();
+
+        const root_value = &parsed.value;
+        if (getJsonField(root_value, "error") != null) continue;
+
+        const result = getJsonField(root_value, "result") orelse continue;
+        if (result.* != .object) continue;
+
+        const transactions = getJsonField(result, "transactions") orelse continue;
+        if (transactions.* != .array) continue;
+
+        for (transactions.array.items) |tx_item| {
+            const tx_value = getJsonField(&tx_item, "transaction") orelse continue;
+            const message = getJsonField(tx_value, "message") orelse continue;
+            const lookups = getJsonField(message, "addressTableLookups") orelse continue;
+            if (lookups.* != .array or lookups.array.items.len == 0) continue;
+
+            for (lookups.array.items) |lookup_item| {
+                const account_key = getJsonStringField(&lookup_item, "accountKey") orelse continue;
+                return try Pubkey.fromBase58(account_key);
+            }
+        }
+    }
+
+    return null;
 }
 
 /// Build a System Program transfer instruction (instruction index 2).
@@ -908,4 +991,55 @@ test "US-006 live: requestAirdrop returns a signature and increases balance" {
         "[US-006 live] balance increased: before={d}, after={d}, delta={d}\n",
         .{ before_balance, after_balance, after_balance - before_balance },
     );
+}
+
+test "US-007 live: getAddressLookupTable returns account state for a recent devnet ALT" {
+    const gpa = std.testing.allocator;
+
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping US-007 live devnet E2E\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    std.debug.print("[US-007 live] endpoint: {s}\n", .{endpoint});
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const table_address = (try discoverRecentAddressLookupTable(&client, gpa)) orelse {
+        std.debug.print("[US-007 live] skip: no recent address lookup table activity found on Devnet\n", .{});
+        return;
+    };
+    const table_b58 = try table_address.toBase58Alloc(gpa);
+    defer gpa.free(table_b58);
+
+    std.debug.print("[US-007 live] discovered ALT: {s}\n", .{table_b58});
+
+    const result = try client.getAddressLookupTable(table_address);
+    switch (result) {
+        .ok => |table_result| {
+            var owned = table_result;
+            defer owned.deinit(gpa);
+            try std.testing.expect(owned.value != null);
+
+            const account = owned.value.?;
+            try std.testing.expect(account.key.eql(table_address));
+            try std.testing.expect(account.state.addresses.len > 0);
+            try std.testing.expect(account.state.raw_json != null);
+
+            std.debug.print(
+                "[US-007 live] getAddressLookupTable .ok — key={s}, addresses={d}, lastExtendedSlot={d}\n",
+                .{ table_b58, account.state.addresses.len, account.state.last_extended_slot },
+            );
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-007 live] getAddressLookupTable rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
 }
