@@ -34,7 +34,7 @@ TEST_LOG="$OUT_DIR/batch5-test-${TIMESTAMP}-${COMMIT_SHA}.log"
 DEVNET_LOG="$OUT_DIR/batch5-smoke-devnet-${TIMESTAMP}-${COMMIT_SHA}.log"
 LOCAL_LOG="$OUT_DIR/batch5-smoke-local-${TIMESTAMP}-${COMMIT_SHA}.log"
 
-TEST_STATUS="$(run_and_capture "test" "zig build test --summary all" "$TEST_LOG")"
+TEST_STATUS="$(run_and_capture "test" "env -u SOLANA_RPC_URL -u SURFPOOL_RPC_URL zig build test --summary all" "$TEST_LOG")"
 
 if [[ -n "${SOLANA_RPC_URL:-}" ]]; then
   DEVNET_STATUS="$(run_and_capture "devnet-smoke" "zig build devnet-e2e --summary all" "$DEVNET_LOG")"

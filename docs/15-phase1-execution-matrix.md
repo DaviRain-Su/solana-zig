@@ -180,9 +180,29 @@
   - 当前口径：**无例外**
   - 原因：本轮按 canonical 三件套 + `snapshot()/WsStats` 三条机械 recoverability 证据收口，不涉及 live/integration 替代模型
 - `#52 release.Batch 6 preflight automation`
-  - 当前例外口径：样例运行中 `public devnet` smoke 与 `local-live` smoke 均缺失
-  - 本批处理：以 `ALLOW_BATCH6_EXCEPTION=true` 生成标准报告，当前 Batch 6 release readiness 仅保持 `provisional: 有条件发布`
-  - 直接原因：
-    - `public devnet` smoke missing
-    - `local-live` smoke missing
-  - 后续收敛：在后续 Batch 6 证据链中补齐双侧 smoke 后，再将 `docs/27` verdict 升级到 `可发布`
+  - 当前状态：**已收敛 / resolved by `#56`**
+  - 收口证据：
+    - `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all` → `7/7 PASS`
+    - `SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all` → `2/2 PASS`
+    - `preflight_batch6.sh` verdict = `可发布`（commit `21656d3`）
+  - 证据落点：`docs/14a-devnet-e2e-run-log.md` Run 11 + `docs/27-batch6-release-readiness.md`
+
+## 12. Phase 2 Batch 7 Extension Tracking
+
+> 按 `docs/29-phase2-batch7-planning.md` 的冻结口径，第七批实现 / 例外 / gate 统一继续落在本矩阵中留痕。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| Batch B RPC landing | done | `#55` | — | `6d5f1be` 4 方法 typed parse + canonical `148/148` | `docs/10` + `docs/14a` | `G-P2G-02` 方法级 integration 规则 |
+| Batch 5/6 smoke closure | done | `#56` | — | devnet `7/7` + local-live `2/2` + preflight `可发布` | `docs/14a` Run 11 + `docs/25` + `docs/27` | `G-P2G-03` 双侧 smoke |
+| Phase 2 closeout artifact | in-progress | `#57` | `#56` 结果 | — | `docs/28` | `G-P2G-04` |
+| Batch 7 docs/gate | in-progress | `#58` | `#55/#56/#57` | — | `docs/06+10+14a+15+25+27+28` | `G-P2G-05` |
+
+### Batch 7 Exception Register
+
+- `#55 rpc.Batch B RPC landing`
+  - `getEpochInfo` / `getMinimumBalanceForRentExemption`：public devnet integration 由 `#56` smoke 间接覆盖（devnet-e2e harness 通过）
+  - `requestAirdrop`：public devnet 侧受 rate-limit skip，local-live 侧成功；按 Batch 7 口径登记为 **partial exception**（单侧成功 + 另侧 rate-limit skip）
+  - `getAddressLookupTable`：不在 smoke harness 成功路径中；按 Batch 7 口径登记为 **Batch 7 exception**（RPC error evidence + 后续收敛阶段为 Phase 3）
+- `#56 release.Batch 5/6 smoke closure`
+  - 当前口径：**无例外**（双侧 smoke 均 PASS）

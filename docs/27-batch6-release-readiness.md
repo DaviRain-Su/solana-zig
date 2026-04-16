@@ -1,8 +1,8 @@
 # Batch 6 Release Readiness Checklist
 
 **Date**: 2026-04-16  
-**Status**: Final（`#53` closeout, verdict = `有条件发布`）  
-**Owner**: `#53`  
+**Status**: Final（upgraded by `#56`, verdict = `可发布`）  
+**Owner**: `#53` / `#56`  
 **Batch**: Product Phase 2 Batch 6
 
 > 该文件是 Batch 6 专属 release readiness 产物。  
@@ -22,14 +22,14 @@
 3. 存在未收敛 exception：verdict 只能为 `有条件发布` 或 `不可发布`
 4. 无未收敛 exception：才允许 `可发布`
 
-## 3. 当前状态（after `#50/#51/#52`）
+## 3. 当前状态（upgraded by `#56` smoke closure）
 
-- Build/Test：`PASS`（latest canonical closeout：`1e53cd1`, `131/131 tests passed`）
-- Smoke(public devnet)：`MISSING`
-- Smoke(local-live)：`MISSING`
+- Build/Test：`PASS`（smoke upgrade closeout：`21656d3`, `152/152 tests passed`）
+- Smoke(public devnet)：`PASS`（`SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all` → `7/7`）
+- Smoke(local-live)：`PASS`（`SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all` → `2/2`）
 - Docs consistency：`PASS`
-- Exception register：**required**
-- Verdict：`final: 有条件发布`
+- Exception register：**cleared**
+- Verdict：`final: 可发布`
 
 ## 4. Preflight Automation（P2-29）
 
@@ -41,26 +41,23 @@
   - report: `artifacts/release/batch6-preflight-<timestamp>-<commit>.md`
   - logs: `artifacts/release/batch6-*.log`
 
-## 5. Sample Run（`#52` exception path）
+## 5. Sample Run（`#56` smoke closure）
 
 - command:
-  - `ALLOW_BATCH6_EXCEPTION=true scripts/release/preflight_batch6.sh /tmp/batch6-preflight-93bb638`
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 scripts/release/preflight_batch6.sh /tmp/batch7-smoke-b6-v2`
 - report:
-  - `/tmp/batch6-preflight-93bb638/batch6-preflight-20260416-200221-93bb638.md`
+  - `/tmp/batch7-smoke-b6-v2/batch6-preflight-20260416-204023-21656d3.md`
 - result summary:
   - `build/test`: `PASS`
-  - `smoke(public devnet)`: `MISSING`
-  - `smoke(local-live)`: `MISSING`
-  - `exception_required`: `true`
-  - `verdict`: `有条件发布`
+  - `smoke(public devnet)`: `PASS`
+  - `smoke(local-live)`: `PASS`
+  - `exception_required`: `false`
+  - `verdict`: `可发布`
 
 ## 6. Batch 6 Exception（当前）
 
-- `Batch 6 Exception (P2-29 preflight smoke)`
-  - `public devnet` smoke missing
-  - `local-live` smoke missing
-  - 当前按 `ALLOW_BATCH6_EXCEPTION=true` 走 `有条件发布`
-  - 收敛计划：在后续 Batch 6 证据链中补齐双侧 smoke 后，再将 verdict 升级到 `可发布`
+- 无未收敛 Batch 6 exception。
+- 原 `P2-29 preflight smoke` exception 已由 `#56` 补齐双侧 smoke 后解除。
 
 ## 7. Batch 6 Final Gate Summary
 
@@ -68,4 +65,5 @@
 - `#51` `G-P2F-03`：PASS（recoverability 三条机械证据全部通过）
 - `#52` `G-P2F-04`：PASS（preflight 主入口 / 报告规范 / exception-path 样例到位）
 - `#53` `G-P2F-05`：PASS（docs/gate 对账完成）
-- Final verdict：`有条件发布`
+- `#56` smoke upgrade：PASS（public devnet + local-live + preflight verdict `可发布`）
+- Final verdict：`可发布`
