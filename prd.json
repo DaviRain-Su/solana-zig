@@ -31,9 +31,10 @@
         "Devnet E2E 验证：查询已知活跃地址的签名历史"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "labels": [],
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-003",
@@ -290,6 +291,6 @@
     "createdAt": "2026-04-16T13:19:37.279Z",
     "version": "1.0.0",
     "sourcePrd": "tasks/prd-phase-2-solana-zig-sdk-rpcwebsocket.md",
-    "updatedAt": "2026-04-16T13:33:49.749Z"
+    "updatedAt": "2026-04-16T13:43:27.605Z"
   }
 }

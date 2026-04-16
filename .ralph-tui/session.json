@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T13:33:49.750Z",
-  "currentIteration": 1,
+  "updatedAt": "2026-04-16T13:43:27.607Z",
+  "currentIteration": 2,
   "maxIterations": 0,
-  "tasksCompleted": 0,
+  "tasksCompleted": 1,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -24,6 +24,16 @@
       "durationMs": 600071,
       "startedAt": "2026-04-16T13:20:17.990Z",
       "endedAt": "2026-04-16T13:30:18.061Z"
+    },
+    {
+      "iteration": 2,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "getTransaction RPC 方法",
+      "taskCompleted": true,
+      "durationMs": 206669,
+      "startedAt": "2026-04-16T13:30:23.078Z",
+      "endedAt": "2026-04-16T13:33:49.747Z"
     }
   ],
   "skippedTaskIds": [],

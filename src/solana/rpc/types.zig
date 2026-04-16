@@ -37,6 +37,12 @@ pub const GetTransactionOptions = struct {
     max_supported_transaction_version: ?u8 = 0,
 };
 
+pub const GetSignaturesForAddressOptions = struct {
+    before: ?signature_mod.Signature = null,
+    until: ?signature_mod.Signature = null,
+    limit: ?u32 = null,
+};
+
 pub const AccountInfo = struct {
     lamports: u64,
     owner: pubkey_mod.Pubkey,

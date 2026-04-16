@@ -662,3 +662,47 @@ test "US-017 live: airdrop -> construct -> sign -> simulate -> send -> confirm" 
         },
     }
 }
+
+test "US-002 live: getSignaturesForAddress returns history for an active address" {
+    const gpa = std.testing.allocator;
+
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping US-002 live devnet E2E\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    std.debug.print("[US-002 live] endpoint: {s}\n", .{endpoint});
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const result = try client.getSignaturesForAddressWithOptions(SYSTEM_PROGRAM, .{
+        .limit = 2,
+    });
+    switch (result) {
+        .ok => |history_result| {
+            var history = history_result;
+            defer history.deinit(gpa);
+
+            try std.testing.expect(history.items.len > 0);
+            try std.testing.expect(history.items[0].slot > 0);
+            try std.testing.expect(history.items[0].raw_json != null);
+
+            const first_sig_b58 = try history.items[0].signature.toBase58Alloc(gpa);
+            defer gpa.free(first_sig_b58);
+            std.debug.print(
+                "[US-002 live] getSignaturesForAddress .ok — count={d}, first_sig={s}, first_slot={d}\n",
+                .{ history.items.len, first_sig_b58, history.items[0].slot },
+            );
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-002 live] getSignaturesForAddress rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
+}

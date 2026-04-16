@@ -276,21 +276,55 @@ pub const RpcClient = struct {
     }
 
     pub fn getSignaturesForAddress(self: *RpcClient, pubkey: pubkey_mod.Pubkey, limit: ?u32) !types.RpcResult(types.SignaturesForAddressResult) {
+        return self.getSignaturesForAddressWithOptions(pubkey, .{ .limit = limit });
+    }
+
+    pub fn getSignaturesForAddressWithOptions(
+        self: *RpcClient,
+        pubkey: pubkey_mod.Pubkey,
+        options: types.GetSignaturesForAddressOptions,
+    ) !types.RpcResult(types.SignaturesForAddressResult) {
         const address = try pubkey.toBase58Alloc(self.allocator);
         defer self.allocator.free(address);
 
-        const payload = if (limit) |l|
-            try std.fmt.allocPrint(
-                self.allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSignaturesForAddress\",\"params\":[\"{s}\",{{\"limit\":{d}}}]}}",
-                .{ self.nextRpcId(), address, l },
-            )
-        else
-            try std.fmt.allocPrint(
-                self.allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSignaturesForAddress\",\"params\":[\"{s}\"]}}",
-                .{ self.nextRpcId(), address },
-            );
+        var payload_out: std.Io.Writer.Allocating = .init(self.allocator);
+        defer payload_out.deinit();
+
+        try payload_out.writer.print(
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSignaturesForAddress\",\"params\":[\"{s}\"",
+            .{ self.nextRpcId(), address },
+        );
+
+        if (options.before != null or options.until != null or options.limit != null) {
+            try payload_out.writer.writeByte(',');
+            try payload_out.writer.writeByte('{');
+
+            var wrote_field = false;
+            if (options.before) |before| {
+                const before_b58 = try before.toBase58Alloc(self.allocator);
+                defer self.allocator.free(before_b58);
+
+                try payload_out.writer.print("\"before\":\"{s}\"", .{before_b58});
+                wrote_field = true;
+            }
+            if (options.until) |until| {
+                const until_b58 = try until.toBase58Alloc(self.allocator);
+                defer self.allocator.free(until_b58);
+
+                if (wrote_field) try payload_out.writer.writeByte(',');
+                try payload_out.writer.print("\"until\":\"{s}\"", .{until_b58});
+                wrote_field = true;
+            }
+            if (options.limit) |limit| {
+                if (wrote_field) try payload_out.writer.writeByte(',');
+                try payload_out.writer.print("\"limit\":{d}", .{limit});
+            }
+
+            try payload_out.writer.writeByte('}');
+        }
+
+        try payload_out.writer.writeAll("]}");
+        const payload = try self.allocator.dupe(u8, payload_out.written());
         defer self.allocator.free(payload);
 
         var response = try self.callAndParse(payload);
@@ -887,14 +921,11 @@ fn parseTransactionMeta(allocator: std.mem.Allocator, result: *const std.json.Va
     const err_json = try extractOptionalFieldJson(allocator, meta_value, "err");
     errdefer if (err_json) |err| allocator.free(err);
 
-    const log_messages = if (getObjectField(meta_value, "logMessages")) |log_messages_value|
-        blk: {
-            if (log_messages_value.* == .null) break :blk null;
-            if (log_messages_value.* != .array) return error.InvalidRpcResponse;
-            break :blk try parseStringArray(allocator, meta_value, "logMessages");
-        }
-    else
-        null;
+    const log_messages = if (getObjectField(meta_value, "logMessages")) |log_messages_value| blk: {
+        if (log_messages_value.* == .null) break :blk null;
+        if (log_messages_value.* != .array) return error.InvalidRpcResponse;
+        break :blk try parseStringArray(allocator, meta_value, "logMessages");
+    } else null;
     errdefer if (log_messages) |logs| {
         for (logs) |log| allocator.free(log);
         allocator.free(logs);
@@ -1619,13 +1650,21 @@ test "rpc client getSignaturesForAddress typed parse happy path" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
         .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[{\"signature\":\"5FtkHfQ5N62hCV7Wz4NQTRz5fWPQjY7Y9YByK7GfP4Hbw7jV4kD5mYTHPwo2fhtxQzpgLQ8vndqaM8UZz2xM4V5d\",\"slot\":777,\"err\":null,\"memo\":\"ok\",\"blockTime\":1234}]}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
 
     const pubkey = pubkey_mod.Pubkey.init([_]u8{42} ** 32);
-    const result = try client.getSignaturesForAddress(pubkey, 10);
+    const before = @import("../core/signature.zig").Signature.init([_]u8{0x11} ** 64);
+    const until = @import("../core/signature.zig").Signature.init([_]u8{0x22} ** 64);
+    const result = try client.getSignaturesForAddressWithOptions(pubkey, .{
+        .before = before,
+        .until = until,
+        .limit = 10,
+    });
     switch (result) {
         .ok => |sig_result| {
             var owned = sig_result;
@@ -1636,6 +1675,41 @@ test "rpc client getSignaturesForAddress typed parse happy path" {
             try std.testing.expect(owned.items[0].err_json == null);
             try std.testing.expectEqualStrings("ok", owned.items[0].memo.?);
             try std.testing.expect(owned.items[0].raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    const before_b58 = try before.toBase58Alloc(gpa);
+    defer gpa.free(before_b58);
+    const until_b58 = try until.toBase58Alloc(gpa);
+    defer gpa.free(until_b58);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"method\":\"getSignaturesForAddress\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"before\":\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, before_b58) != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"until\":\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, until_b58) != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"limit\":10") != null);
+}
+
+test "rpc client getSignaturesForAddress supports empty list responses" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[]}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{45} ** 32);
+    const result = try client.getSignaturesForAddressWithOptions(pubkey, .{
+        .limit = 5,
+    });
+    switch (result) {
+        .ok => |sig_result| {
+            var owned = sig_result;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(usize, 0), owned.items.len);
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
