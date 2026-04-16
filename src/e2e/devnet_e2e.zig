@@ -309,6 +309,14 @@ fn getJsonStringField(value: *const std.json.Value, field: []const u8) ?[]const 
     return field_value.string;
 }
 
+fn getJsonU64Field(value: *const std.json.Value, field: []const u8) ?u64 {
+    const field_value = getJsonField(value, field) orelse return null;
+    return switch (field_value.*) {
+        .integer => |int_value| if (int_value < 0) null else @as(u64, @intCast(int_value)),
+        else => null,
+    };
+}
+
 fn postJsonAndParse(
     client: *RpcClient,
     allocator: std.mem.Allocator,
@@ -879,6 +887,72 @@ test "US-002 live: getSignaturesForAddress returns history for an active address
     }
 }
 
+test "US-003 live: getSignatureStatuses returns status for a recent signature" {
+    const gpa = std.testing.allocator;
+
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping US-003 live devnet E2E\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    std.debug.print("[US-003 live] endpoint: {s}\n", .{endpoint});
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const history_result = try client.getSignaturesForAddressWithOptions(SYSTEM_PROGRAM, .{
+        .limit = 1,
+    });
+    const signature = switch (history_result) {
+        .ok => |history_result_ok| blk: {
+            var history = history_result_ok;
+            defer history.deinit(gpa);
+
+            try std.testing.expect(history.items.len > 0);
+            break :blk history.items[0].signature;
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-003 live] getSignaturesForAddress rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    };
+
+    const sig_b58 = try signature.toBase58Alloc(gpa);
+    defer gpa.free(sig_b58);
+
+    const statuses_result = try client.getSignatureStatusesWithOptions(&[_]root.core.Signature{signature}, .{
+        .search_transaction_history = true,
+    });
+    switch (statuses_result) {
+        .ok => |statuses_result_ok| {
+            var statuses = statuses_result_ok;
+            defer statuses.deinit(gpa);
+
+            try std.testing.expectEqual(@as(usize, 1), statuses.items.len);
+            try std.testing.expect(statuses.items[0] != null);
+
+            const status = statuses.items[0].?;
+            try std.testing.expect(status.slot > 0);
+            try std.testing.expect(status.confirmation_status != null);
+
+            std.debug.print(
+                "[US-003 live] getSignatureStatuses .ok — signature={s}, slot={d}, confirmationStatus={s}\n",
+                .{ sig_b58, status.slot, status.confirmation_status.? },
+            );
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-003 live] getSignatureStatuses rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
+}
+
 test "US-004 live: getSlot and getEpochInfo return positive values and structure" {
     const gpa = std.testing.allocator;
 
@@ -1293,66 +1367,63 @@ test "US-009 live: getTokenAccountBalance and getTokenSupply return typed token 
     }
 }
 
-fn deriveWsEndpointFromRpcUrl(allocator: std.mem.Allocator, rpc_endpoint: []const u8) !?[]u8 {
-    if (std.mem.startsWith(u8, rpc_endpoint, "ws://")) {
-        return try allocator.dupe(u8, rpc_endpoint);
-    }
-    if (std.mem.startsWith(u8, rpc_endpoint, "wss://")) {
-        return null;
-    }
-    if (std.mem.startsWith(u8, rpc_endpoint, "http://")) {
-        return try std.fmt.allocPrint(allocator, "ws://{s}", .{rpc_endpoint["http://".len..]});
-    }
-    if (std.mem.startsWith(u8, rpc_endpoint, "https://")) {
-        return null;
-    }
-    return null;
-}
+const DevnetLiveEndpoints = struct {
+    rpc_endpoint: []u8,
+    ws_endpoint: []u8,
 
-fn resolveDevnetWsEndpoint(allocator: std.mem.Allocator, label: []const u8) !?[]u8 {
-    const explicit_ws_endpoint = std.process.Environ.getAlloc(std.testing.environ, allocator, "SOLANA_WS_URL") catch |err| switch (err) {
-        error.EnvironmentVariableMissing => null,
-        else => return err,
-    };
-    if (explicit_ws_endpoint) |endpoint| {
-        if (std.mem.startsWith(u8, endpoint, "ws://")) return endpoint;
-        std.debug.print(
-            "[{s}] skip: SOLANA_WS_URL must use ws:// because the current websocket transport does not support TLS\n",
-            .{label},
-        );
-        allocator.free(endpoint);
-        return null;
+    fn deinit(self: *DevnetLiveEndpoints, allocator: std.mem.Allocator) void {
+        allocator.free(self.rpc_endpoint);
+        allocator.free(self.ws_endpoint);
     }
+};
 
+fn resolveDevnetLiveEndpoints(allocator: std.mem.Allocator, label: []const u8) !?DevnetLiveEndpoints {
     const rpc_endpoint = std.process.Environ.getAlloc(std.testing.environ, allocator, "SOLANA_RPC_URL") catch |err| switch (err) {
         error.EnvironmentVariableMissing => {
-            std.debug.print("[{s}] skip: neither SOLANA_WS_URL nor SOLANA_RPC_URL is set\n", .{label});
+            std.debug.print("[{s}] skip: SOLANA_RPC_URL not set\n", .{label});
             return null;
         },
         else => return err,
     };
-    defer allocator.free(rpc_endpoint);
+    errdefer allocator.free(rpc_endpoint);
 
-    const derived = (try deriveWsEndpointFromRpcUrl(allocator, rpc_endpoint)) orelse {
-        std.debug.print(
-            "[{s}] skip: set SOLANA_WS_URL=ws://... because automatic derivation from {s} would require unsupported wss:// transport\n",
-            .{ label, rpc_endpoint },
-        );
-        return null;
+    const ws_endpoint = std.process.Environ.getAlloc(std.testing.environ, allocator, "SOLANA_WS_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[{s}] skip: SOLANA_WS_URL not set\n", .{label});
+            allocator.free(rpc_endpoint);
+            return null;
+        },
+        else => return err,
     };
-    return derived;
+    errdefer allocator.free(ws_endpoint);
+
+    if (!std.mem.startsWith(u8, ws_endpoint, "ws://")) {
+        std.debug.print(
+            "[{s}] skip: SOLANA_WS_URL must use ws:// because the current websocket transport does not support TLS\n",
+            .{label},
+        );
+        allocator.free(rpc_endpoint);
+        allocator.free(ws_endpoint);
+        return null;
+    }
+
+    return .{
+        .rpc_endpoint = rpc_endpoint,
+        .ws_endpoint = ws_endpoint,
+    };
 }
 
 test "US-012 live devnet: websocket reconnect resumes slot notifications" {
     const gpa = std.testing.allocator;
     const io = std.testing.io;
 
-    const ws_endpoint = (try resolveDevnetWsEndpoint(gpa, "US-012 live")) orelse return;
-    defer gpa.free(ws_endpoint);
+    var endpoints = (try resolveDevnetLiveEndpoints(gpa, "US-012 live")) orelse return;
+    defer endpoints.deinit(gpa);
 
-    std.debug.print("[US-012 live] ws endpoint: {s}\n", .{ws_endpoint});
+    std.debug.print("[US-012 live] rpc endpoint: {s}\n", .{endpoints.rpc_endpoint});
+    std.debug.print("[US-012 live] ws endpoint: {s}\n", .{endpoints.ws_endpoint});
 
-    var client = try root.rpc.WsRpcClient.connect(gpa, io, ws_endpoint);
+    var client = try root.rpc.WsRpcClient.connect(gpa, io, endpoints.ws_endpoint);
     defer client.deinit();
     client.setReconnectConfig(.{
         .max_retries = 3,
@@ -1389,4 +1460,149 @@ test "US-012 live devnet: websocket reconnect resumes slot notifications" {
         "[US-012 live] recovered slot notification — subscription={d}, slot={d}, reconnects={d}\n",
         .{ recovered.subscription_id, recovered.slot, stats.reconnect_attempts_total },
     );
+}
+
+test "US-016 live: websocket accountSubscribe and signatureSubscribe observe a sent transaction" {
+    const gpa = std.testing.allocator;
+    const io = std.testing.io;
+
+    var endpoints = (try resolveDevnetLiveEndpoints(gpa, "US-016 live")) orelse return;
+    defer endpoints.deinit(gpa);
+
+    std.debug.print("[US-016 live] rpc endpoint: {s}\n", .{endpoints.rpc_endpoint});
+    std.debug.print("[US-016 live] ws endpoint: {s}\n", .{endpoints.ws_endpoint});
+
+    const WS_SEED = [_]u8{ 91, 24, 167, 8, 53, 219, 112, 64, 15, 231, 4, 178, 89, 143, 34, 201, 76, 155, 18, 240, 61, 132, 17, 222, 105, 40, 193, 7, 148, 58, 211, 99 };
+    const payer = try Keypair.fromSeed(WS_SEED);
+    const payer_b58 = try payer.pubkey().toBase58Alloc(gpa);
+    defer gpa.free(payer_b58);
+
+    var rpc_client = try RpcClient.init(gpa, io, endpoints.rpc_endpoint);
+    defer rpc_client.deinit();
+
+    requestAirdrop(&rpc_client, payer_b58, LIVE_AIRDROP_LAMPORTS) catch |err| {
+        std.debug.print("[US-016 live] airdrop failed (may be rate-limited): {}\n", .{err});
+    };
+
+    var before_balance: u64 = 0;
+    var balance_attempts: u32 = 0;
+    while (balance_attempts < MAX_BALANCE_POLLS) : (balance_attempts += 1) {
+        const balance_result = try rpc_client.getBalance(payer.pubkey());
+        switch (balance_result) {
+            .ok => |balance| {
+                before_balance = balance;
+                if (before_balance > 0) break;
+            },
+            .rpc_error => |rpc_err| {
+                defer rpc_err.deinit(gpa);
+                std.debug.print("[US-016 live] balance poll {d}: rpc_error: {s}\n", .{ balance_attempts, rpc_err.message });
+            },
+        }
+    }
+
+    std.debug.print("[US-016 live] payer={s}, funded_balance={d}\n", .{ payer_b58, before_balance });
+    if (before_balance == 0) {
+        std.debug.print("[US-016 live] skip: payer has no funds (airdrop may be rate-limited)\n", .{});
+        return;
+    }
+
+    const blockhash_result = try rpc_client.getLatestBlockhash();
+    const blockhash = switch (blockhash_result) {
+        .ok => |latest| latest.blockhash,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-016 live] getLatestBlockhash rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    };
+
+    var tx = try buildSignedSelfTransferTx(gpa, payer, blockhash, LIVE_SEND_LAMPORTS);
+    defer tx.deinit();
+
+    const expected_signature = tx.signatures[0];
+    const expected_signature_b58 = try expected_signature.toBase58Alloc(gpa);
+    defer gpa.free(expected_signature_b58);
+
+    var ws_client = try root.rpc.WsRpcClient.connect(gpa, io, endpoints.ws_endpoint);
+    defer ws_client.deinit();
+
+    const account_subscription_id = try ws_client.accountSubscribe(payer_b58);
+    const signature_subscription_id = try ws_client.signatureSubscribe(expected_signature_b58);
+    std.debug.print(
+        "[US-016 live] subscribed — account_sub={d}, signature_sub={d}, signature={s}\n",
+        .{ account_subscription_id, signature_subscription_id, expected_signature_b58 },
+    );
+
+    const send_result = try rpc_client.sendTransaction(tx);
+    switch (send_result) {
+        .ok => |send| {
+            try std.testing.expectEqualSlices(u8, &expected_signature.bytes, &send.signature.bytes);
+            std.debug.print("[US-016 live] sendTransaction .ok — sig: {s}\n", .{expected_signature_b58});
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-016 live] sendTransaction rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetSendFailed;
+        },
+    }
+
+    var saw_account_notification = false;
+    var saw_signature_notification = false;
+    var notification_reads: u32 = 0;
+
+    while (!(saw_account_notification and saw_signature_notification)) : (notification_reads += 1) {
+        if (notification_reads >= 8) return error.InvalidSubscriptionResponse;
+
+        var notification = try ws_client.readNotification();
+        defer notification.deinit();
+
+        if (std.mem.eql(u8, notification.method, "accountNotification")) {
+            try std.testing.expectEqual(account_subscription_id, notification.subscription_id);
+
+            const context = getJsonField(&notification.result, "context") orelse return error.InvalidSubscriptionResponse;
+            const slot = getJsonU64Field(context, "slot") orelse return error.InvalidSubscriptionResponse;
+            const account = getJsonField(&notification.result, "value") orelse return error.InvalidSubscriptionResponse;
+            const lamports = getJsonU64Field(account, "lamports") orelse return error.InvalidSubscriptionResponse;
+            const owner = getJsonStringField(account, "owner") orelse return error.InvalidSubscriptionResponse;
+
+            try std.testing.expect(slot > 0);
+            try std.testing.expect(lamports < before_balance);
+            try std.testing.expectEqualStrings("11111111111111111111111111111111", owner);
+
+            saw_account_notification = true;
+            std.debug.print(
+                "[US-016 live] accountNotification — subscription={d}, slot={d}, before={d}, after={d}\n",
+                .{ notification.subscription_id, slot, before_balance, lamports },
+            );
+            continue;
+        }
+
+        if (std.mem.eql(u8, notification.method, "signatureNotification")) {
+            try std.testing.expectEqual(signature_subscription_id, notification.subscription_id);
+
+            const context = getJsonField(&notification.result, "context") orelse return error.InvalidSubscriptionResponse;
+            const slot = getJsonU64Field(context, "slot") orelse return error.InvalidSubscriptionResponse;
+            const signature_value = getJsonField(&notification.result, "value") orelse return error.InvalidSubscriptionResponse;
+            const err_value = getJsonField(signature_value, "err") orelse return error.InvalidSubscriptionResponse;
+
+            try std.testing.expect(slot > 0);
+            try std.testing.expect(err_value.* == .null);
+
+            saw_signature_notification = true;
+            std.debug.print(
+                "[US-016 live] signatureNotification — subscription={d}, slot={d}, err=null\n",
+                .{ notification.subscription_id, slot },
+            );
+            continue;
+        }
+
+        std.debug.print(
+            "[US-016 live] ignoring interleaved {s} notification for subscription={d}\n",
+            .{ notification.method, notification.subscription_id },
+        );
+    }
+
+    try ws_client.accountUnsubscribe(account_subscription_id);
+    try ws_client.signatureUnsubscribe(signature_subscription_id);
+    std.debug.print("[US-016 live] websocket account/signature subscriptions completed successfully\n", .{});
 }

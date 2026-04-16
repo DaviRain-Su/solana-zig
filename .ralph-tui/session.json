@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T16:14:42.588Z",
-  "currentIteration": 22,
+  "updatedAt": "2026-04-16T16:29:01.094Z",
+  "currentIteration": 24,
   "maxIterations": 0,
-  "tasksCompleted": 14,
+  "tasksCompleted": 15,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -234,6 +234,26 @@
       "durationMs": 600017,
       "startedAt": "2026-04-16T16:02:01.373Z",
       "endedAt": "2026-04-16T16:12:01.390Z"
+    },
+    {
+      "iteration": 23,
+      "status": "completed",
+      "taskId": "US-015",
+      "taskTitle": "Websocket 消息编解码 benchmark",
+      "taskCompleted": true,
+      "durationMs": 156176,
+      "startedAt": "2026-04-16T16:12:06.411Z",
+      "endedAt": "2026-04-16T16:14:42.587Z"
+    },
+    {
+      "iteration": 24,
+      "status": "failed",
+      "taskId": "US-016",
+      "taskTitle": "Devnet E2E 扩展验收",
+      "taskCompleted": false,
+      "durationMs": 600030,
+      "startedAt": "2026-04-16T16:14:43.667Z",
+      "endedAt": "2026-04-16T16:24:43.697Z"
     }
   ],
   "skippedTaskIds": [],

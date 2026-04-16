@@ -179,7 +179,7 @@ pub fn build(b: *std.Build) void {
         .root_module = devnet_e2e_mod,
     });
     const run_devnet_e2e = b.addRunArtifact(devnet_e2e_tests);
-    const devnet_e2e_step = b.step("devnet-e2e", "Run Devnet E2E tests (mock always; live when SOLANA_RPC_URL set)");
+    const devnet_e2e_step = b.step("devnet-e2e", "Run Devnet E2E tests (mock always; live RPC when SOLANA_RPC_URL is set; live websocket when SOLANA_RPC_URL and SOLANA_WS_URL are set)");
     devnet_e2e_step.dependOn(&run_devnet_e2e.step);
 
     // Nonce E2E tests for Phase 2 Batch 3 (#34 P2-14)

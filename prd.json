@@ -267,9 +267,10 @@
         "测试结果可留档（log 输出关键信息）"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "labels": [],
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-017",
@@ -304,6 +305,6 @@
     "createdAt": "2026-04-16T13:19:37.279Z",
     "version": "1.0.0",
     "sourcePrd": "tasks/prd-phase-2-solana-zig-sdk-rpcwebsocket.md",
-    "updatedAt": "2026-04-16T16:14:42.587Z"
+    "updatedAt": "2026-04-16T16:29:01.093Z"
   }
 }

@@ -7,6 +7,7 @@ after each iteration and it's included in prompts for context.
 
 *Add reusable patterns discovered during development here.*
 
+- For live websocket acceptance that must prove both `accountSubscribe` and `signatureSubscribe`, fund a deterministic payer over RPC first, precompute the transaction signature locally, subscribe to the payer account plus that signature before `sendTransaction`, then drain generic websocket notifications until both methods are observed; this avoids missing signature notifications that would race if the subscription were created after submission.
 - Extended RPC methods follow a consistent pattern in `src/solana/rpc/client.zig`: expose a default convenience method plus `WithOptions`, build the JSON-RPC payload manually, return `types.RpcResult(?T)` for nullable RPC results, parse a minimal typed subset, and preserve the full server payload via `raw_json` / `err_json` for forward-compatible inspection.
 - When an RPC method grows multiple optional request parameters, assemble the JSON payload with `std.Io.Writer.Allocating` instead of branching `allocPrint` permutations; keep a deterministic field order so payload-capture unit tests can assert on the wire shape.
 - Batch-style RPC lookups should preserve Solana’s positional response semantics with `[]?T` result items; single-signature confirmation helpers can still layer on top by reading `items[0]`, while tests assert both payload shape and null-slot mapping.
@@ -245,5 +246,31 @@ after each iteration and it's included in prompts for context.
     - Websocket codec benchmarking in this repo is most reliable when the harness calls the public websocket JSON helpers directly, so benchmark coverage stays locked to the production wire format.
   - Gotchas encountered
     - The generated `logsNotification` benchmark fixture had one extra closing brace before `subscription`, which made the JSON invalid and surfaced as `error.InvalidSubscriptionResponse` only when `zig build bench` exercised the logs parser.
+---
+
+## 2026-04-17 - US-016
+- Implemented explicit Devnet E2E coverage for `getSignatureStatuses`, plus a new live websocket scenario that validates `accountSubscribe` and `signatureSubscribe` against a real sent transaction using a deterministic funded payer.
+- Tightened websocket live gating so `zig build devnet-e2e` now skips websocket cases unless both `SOLANA_RPC_URL` and `SOLANA_WS_URL` are set, and updated the build step description to reflect the RPC/websocket split.
+- Files changed:
+  - `src/e2e/devnet_e2e.zig`
+  - `build.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - When a websocket live test must observe both account and signature notifications for the same mutation, subscribing before `sendTransaction` with a precomputed signature is more reliable than subscribing after an RPC returns a signature.
+  - Gotchas encountered
+    - The websocket client’s typed `read*Notification` helpers expect the next queued frame to match the requested method, so mixed-method live assertions are safer when they consume generic `readNotification()` envelopes and dispatch by `method` in the harness.
+---
+
+## 2026-04-17 - US-016
+- Verified the existing `zig build devnet-e2e` harness already satisfies US-016: all extended RPC stories have at least one live Devnet scenario, websocket live coverage exercises both `accountSubscribe` and `signatureSubscribe`, and the run is gated by `SOLANA_RPC_URL` / `SOLANA_WS_URL` with explicit skip logs when unset.
+- Re-ran repository validators to confirm the story remains green without further code changes.
+- Files changed:
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - The current Devnet acceptance harness is structured as one story-aligned live test per extended RPC capability, which makes it straightforward to verify Phase 2 coverage by inspecting `src/e2e/devnet_e2e.zig` alongside the build step wiring in `build.zig`.
+  - Gotchas encountered
+    - `zig build devnet-e2e` intentionally passes in environments without live Devnet credentials because the harness treats missing `SOLANA_RPC_URL` / `SOLANA_WS_URL` as logged skips rather than failures; that skip path is part of the acceptance criteria, not a test gap.
 ---
 
