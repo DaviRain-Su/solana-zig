@@ -40,8 +40,7 @@ test "K3-H1: happy path surfpool E2E" {
     const ixs = [_]sol.tx.Instruction{
         .{ .program_id = program_id, .accounts = &accounts, .data = ix_data },
     };
-    var msg = try sol.tx.Message.compileLegacy(gpa, payer.pubkey(), &ixs, bh.ok.blockhash);
-    defer msg.deinit();
+    const msg = try sol.tx.Message.compileLegacy(gpa, payer.pubkey(), &ixs, bh.ok.blockhash);
 
     // S4-S5: construct, sign and verify transaction
     var tx = try sol.tx.VersionedTransaction.initUnsigned(gpa, msg);
@@ -57,15 +56,11 @@ test "K3-H1: happy path surfpool E2E" {
     switch (sim) {
         .ok => |v| {
             var owned = v;
-            defer owned.deinit();
+            defer owned.deinit(gpa);
             // A-H4: .ok variant returned
-            // A-H5: simulation JSON err == null
-            const value_obj = v.value.object;
-            const err_field = value_obj.get("err");
-            if (err_field) |ef| {
-                if (ef != .null) {
-                    std.debug.print("K3-H1 note: simulation err field present but RPC returned ok: {any}\n", .{ef});
-                }
+            // A-H5: simulation typed err field is null in happy path.
+            if (v.err_json) |err| {
+                std.debug.print("K3-H1 note: simulation err field present but RPC returned ok: {s}\n", .{err});
             }
         },
         .rpc_error => |e| {
@@ -105,8 +100,7 @@ test "K3-F1: failure path unsigned simulation" {
     const ixs = [_]sol.tx.Instruction{
         .{ .program_id = program_id, .accounts = &accounts, .data = ix_data },
     };
-    var msg = try sol.tx.Message.compileLegacy(gpa, payer.pubkey(), &ixs, bh.ok.blockhash);
-    defer msg.deinit();
+    const msg = try sol.tx.Message.compileLegacy(gpa, payer.pubkey(), &ixs, bh.ok.blockhash);
 
     // S4: construct unsigned transaction (intentionally skip sign)
     var tx = try sol.tx.VersionedTransaction.initUnsigned(gpa, msg);
@@ -117,11 +111,9 @@ test "K3-F1: failure path unsigned simulation" {
     switch (sim) {
         .ok => |v| {
             var owned = v;
-            defer owned.deinit();
-            // A-F1-fallback: if .ok, then value.err != null
-            const value_obj = v.value.object;
-            const err_field = value_obj.get("err");
-            const has_err = if (err_field) |ef| ef != .null else false;
+            defer owned.deinit(gpa);
+            // A-F1-fallback: if .ok, typed err_json must be present.
+            const has_err = v.err_json != null;
             if (!has_err) {
                 std.debug.print("K3-F1 fallback failed: expected err != null in .ok branch\n", .{});
                 return error.ExpectedSimulationError;

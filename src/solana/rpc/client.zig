@@ -36,10 +36,14 @@ pub const RpcClient = struct {
     }
 
     pub fn getLatestBlockhash(self: *RpcClient) !types.RpcResult(types.LatestBlockhash) {
+        return self.getLatestBlockhashWithCommitment(.confirmed);
+    }
+
+    pub fn getLatestBlockhashWithCommitment(self: *RpcClient, commitment: types.Commitment) !types.RpcResult(types.LatestBlockhash) {
         const payload = try std.fmt.allocPrint(
             self.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getLatestBlockhash\",\"params\":[{{\"commitment\":\"confirmed\"}}]}}",
-            .{self.nextRpcId()},
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getLatestBlockhash\",\"params\":[{{\"commitment\":\"{s}\"}}]}}",
+            .{ self.nextRpcId(), commitment.jsonString() },
         );
         defer self.allocator.free(payload);
 
@@ -753,6 +757,8 @@ fn parseStringArray(allocator: std.mem.Allocator, value: *const std.json.Value, 
 const MockTransport = struct {
     response_body: []const u8 = "",
     should_fail: bool = false,
+    capture_payload: bool = false,
+    captured_payload: ?[]u8 = null,
 
     fn postJson(
         ctx: *anyopaque,
@@ -761,10 +767,12 @@ const MockTransport = struct {
         payload: []const u8,
     ) transport_mod.PostJsonError![]u8 {
         _ = url;
-        _ = payload;
 
         const self: *MockTransport = @ptrCast(@alignCast(ctx));
         if (self.should_fail) return error.RpcTransport;
+        if (self.capture_payload) {
+            self.captured_payload = try allocator.dupe(u8, payload);
+        }
         return allocator.dupe(u8, self.response_body);
     }
 };
@@ -851,6 +859,90 @@ test "rpc client returns transport error with injected transport" {
 
     const pubkey = pubkey_mod.Pubkey.init([_]u8{3} ** 32);
     try std.testing.expectError(error.RpcTransport, client.getBalance(pubkey));
+}
+
+test "rpc client getLatestBlockhash supports all commitment levels" {
+    const gpa = std.testing.allocator;
+    const cases = [_]struct {
+        commitment: types.Commitment,
+        expected_json: []const u8,
+    }{
+        .{ .commitment = .processed, .expected_json = "\"commitment\":\"processed\"" },
+        .{ .commitment = .confirmed, .expected_json = "\"commitment\":\"confirmed\"" },
+        .{ .commitment = .finalized, .expected_json = "\"commitment\":\"finalized\"" },
+    };
+    const expected_blockhash = hash_mod.Hash.init([_]u8{0} ** hash_mod.Hash.LENGTH);
+
+    for (cases) |case| {
+        var mock: MockTransport = .{
+            .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":{\"blockhash\":\"11111111111111111111111111111111\",\"lastValidBlockHeight\":123}}}",
+            .capture_payload = true,
+        };
+        defer if (mock.captured_payload) |payload| gpa.free(payload);
+
+        const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+        var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+        defer client.deinit();
+
+        const result = try client.getLatestBlockhashWithCommitment(case.commitment);
+        switch (result) {
+            .ok => |latest| {
+                try std.testing.expectEqualSlices(u8, &expected_blockhash.bytes, &latest.blockhash.bytes);
+                try std.testing.expectEqual(@as(u64, 123), latest.last_valid_block_height);
+            },
+            .rpc_error => return error.UnexpectedRpcError,
+        }
+
+        const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+        try std.testing.expect(std.mem.indexOf(u8, payload, case.expected_json) != null);
+    }
+}
+
+test "rpc client getLatestBlockhash defaults to confirmed commitment" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":{\"blockhash\":\"11111111111111111111111111111111\",\"lastValidBlockHeight\":456}}}",
+        .capture_payload = true,
+    };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
+
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const result = try client.getLatestBlockhash();
+    switch (result) {
+        .ok => |latest| try std.testing.expectEqual(@as(u64, 456), latest.last_valid_block_height),
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"commitment\":\"confirmed\"") != null);
+}
+
+test "rpc client getLatestBlockhash preserves rpc error payload" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32004,\"message\":\"block not available\",\"data\":{\"commitment\":\"processed\"}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const result = try client.getLatestBlockhashWithCommitment(.processed);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32004), rpc_err.code);
+            try std.testing.expectEqualStrings("block not available", rpc_err.message);
+            try std.testing.expect(rpc_err.data_json != null);
+        },
+    }
 }
 
 test "rpc client getAccountInfo typed parse happy path" {
