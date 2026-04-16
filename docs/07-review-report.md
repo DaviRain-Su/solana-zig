@@ -19,8 +19,8 @@
 ### Medium
 
 - M-01: RPC 解析仍以动态 JSON 为主，typed schema 收敛不足
-- 影响：边界缺陷发现成本高
-- 状态：仍是 Product Phase 1 收尾重点
+- 影响：边界缺陷发现成本高，且易混淆 Phase 1 与 Phase 2 的边界
+- 状态：当前 5 个高频方法的最小 typed schema 收敛仍是 Product Phase 1 收尾重点；更广泛 typed parse 扩展属于 Product Phase 2
 
 - M-02: Devnet E2E 与未来 Websocket 测试依赖外部环境稳定性
 - 影响：CI 波动风险

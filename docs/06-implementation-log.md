@@ -115,6 +115,24 @@
 ### 验证
 - 文档链已补齐：`README -> 00 -> 10 -> 11/12/13/14/15`。
 
+## 2026-04-16 第七次增量记录（吸收文档 review 反馈）
+
+### 输入
+- 针对当前文档集收到 5 条高置信度 review 反馈：依赖策略口径、typed parse 的 phase 归属、Phase 3 性能对比报告闭环、Phase 2 任务先于设计锁定、README 收口范围表述。
+
+### 输出
+- `docs/00` 的依赖策略改为统一口径：优先 Zig std，默认不引入外部依赖；若确有必要，仅允许最小外部依赖并需 ADR。
+- 明确 typed parse 分层：Phase 1 只要求当前 5 个高频 RPC 的最小 typed schema 收敛；更广泛 typed parse 扩展归入 Phase 2。
+- `docs/03c` 锁定 `getTransaction` 第一版采用 `json` encoding 基线，并锁定 Durable Nonce 指令构造归属 `interfaces/system`。
+- `docs/04/05/08/10/13` 补上 Phase 3 性能对比报告的任务、测试/证据和退出条件闭环。
+- `README.md` 当前剩余工作补充 typed RPC parse 收紧。
+
+### 风险
+- 以上修订收紧了未来实现边界；若后续实现发现 `getTransaction(json)` 或 Nonce 归属需调整，应通过 ADR 明确变更。
+
+### 验证
+- 文档中的 phase/任务/退出条件已按 review 反馈重新对齐。
+
 ### 风险
 - 当前变更主要是治理与命名统一，不直接提升实现覆盖率。
 - 如果后续 roadmap 再调整，仍需同步回写 `docs/01/04/05/08`。

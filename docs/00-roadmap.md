@@ -6,7 +6,7 @@
 
 **设计原则**：
 - 行为兼容优先于 API 命名兼容
-- Zero external dependencies（仅依赖 Zig std）
+- 优先 Zig std，默认不引入外部依赖；如确有必要，仅允许最小外部依赖并需显式 ADR 记录
 - 显式内存管理（allocator 参数模式）
 - 每个 Product Phase 独立可交付、独立可测试
 
@@ -31,7 +31,7 @@
 **待补齐**（Phase 1 收尾）：
 - [ ] Oracle 向量扩充（非零 pubkey、Keypair 签名、Message/Transaction 序列化）
 - [ ] `std.testing.allocator` 系统性 leak 检测
-- [ ] RPC 高频响应 typed schema（至少 `LatestBlockhash`、`AccountInfo`）
+- [ ] 当前 5 个高频 RPC 的最小 typed schema 收敛（至少 `LatestBlockhash`、`AccountInfo`；更广泛 typed parse 扩展属于 Phase 2）
 - [ ] 序列化性能 benchmark 基线
 
 ---

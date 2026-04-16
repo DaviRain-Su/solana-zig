@@ -346,7 +346,7 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 
 - `03a-interfaces-spec.md`：system/token/token-2022/compute-budget/memo 接口层字节契约与 API 契约（主要对应 Product Phase 2-3，其中 compute-budget 可在 Phase 2 提前落地）
 - `03b-signers-spec.md`：signer 抽象、后端适配、错误语义与生命周期契约（对应 Product Phase 3）
-- `03c-rpc-extended-spec.md`：高频以外 RPC 方法扩展、typed parse 策略与兼容策略（对应 Product Phase 2）
+- `03c-rpc-extended-spec.md`：高频以外 RPC 方法扩展，以及 Phase 1 最小 typed schema 之后的 typed parse 扩展策略与兼容策略（主要对应 Product Phase 2）
 
 当前已建立的子规格文件：
 - `docs/03a-interfaces-spec.md`

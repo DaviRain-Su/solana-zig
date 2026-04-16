@@ -60,7 +60,7 @@
 ## 5. 后续扩展测试规划
 
 ### 5.1 Product Phase 2（扩展 RPC + 实时/交易增强）
-- I-RPCX-001: `getTransaction` / `getSignaturesForAddress` / `getTokenAccountsByOwner` mock + Devnet 对照
+- I-RPCX-001: `getTransaction(json baseline)` / `getSignaturesForAddress` / `getTokenAccountsByOwner` mock + Devnet 对照
 - I-RPCX-002: `getSlot` / `getEpochInfo` / `getMinimumBalanceForRentExemption` / `requestAirdrop` 覆盖
 - I-RPCX-003: `getAddressLookupTable` 与 ALT 管理语义覆盖
 - I-WS-001: `accountSubscribe` / `logsSubscribe` / `signatureSubscribe` 的连接、断线、重连、取消订阅测试
@@ -77,6 +77,7 @@
 - I-SIGN-003: signer 切换对交易序列化无副作用
 - I-CABI-001: C ABI 所有权与释放约定测试
 - I-CABI-002: 头文件与导出符号一致性检查
+- I-PERF-001: Phase 3 性能对比报告中的 benchmark 方法、输入 profile 与复跑说明一致
 
 ## 6. Gate 定义
 
@@ -85,7 +86,7 @@
 - G3：L4 在配置环境时全绿（建议）
 - G4：新增公共 API 必须带 Happy + Error 用例
 - G5：Product Phase 2 宣称可用前，L6 核心用例必须通过
-- G6：Product Phase 3 宣称可用前，L7 核心用例必须通过
+- G6：Product Phase 3 宣称可用前，L7 核心用例必须通过，且性能对比报告已形成可复跑记录
 - G7：所有使用动态分配的用例无内存泄漏（`std.testing.allocator`）
 
 ## 7. 产物要求

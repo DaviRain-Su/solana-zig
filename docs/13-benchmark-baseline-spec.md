@@ -11,6 +11,10 @@
 2. 后续优化是否真的带来收益
 3. 是否有明显退化需要进入 review
 
+边界约定：
+- **Phase 1** 只要求建立 Zig 侧 benchmark baseline。
+- **Phase 3** 在 interfaces/signers/C ABI 相对稳定后，再补 `vs Rust SDK` 的性能对比报告与复跑说明。
+
 ## 2. Scope
 
 Phase 1 最低 benchmark 集合建议覆盖：
@@ -97,3 +101,4 @@ Phase 1 最低 benchmark 集合建议覆盖：
 - 至少覆盖 message / tx 主路径
 - 记录中包含 commit、环境、optimize mode
 - 结果可被后续版本复跑对比
+- 若进入 Product Phase 3 的性能对比报告阶段，需补充 Rust 对照环境与方法一致性说明

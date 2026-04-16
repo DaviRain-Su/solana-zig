@@ -1,6 +1,6 @@
 # Phase 3c - RPC Extended Spec
 
-> 本文是 `docs/03-technical-spec.md` 的子规格，承接 Product Phase 2 的扩展 RPC、Websocket 与 typed parse 收敛。
+> 本文是 `docs/03-technical-spec.md` 的子规格，承接 Product Phase 2 的扩展 RPC、Websocket，以及 Phase 1 最小 typed schema 之后的 typed parse 扩展。
 
 ## 1. Scope
 
@@ -24,7 +24,13 @@
 
 ## 3. Parse Strategy
 
-当前 `RpcClient` 已可工作，但仍较多返回 `OwnedJson`。Phase 2 的目标是逐步引入 typed parse 子层：
+当前 `RpcClient` 已可工作，但仍较多返回 `OwnedJson`。
+
+边界约定：
+- **Phase 1 closeout** 仅要求对当前 5 个高频方法完成“最小可接受”的 typed schema 收敛（至少 `LatestBlockhash`、`AccountInfo`）。
+- **Phase 2** 再继续推进更广泛的 typed parse 子层与扩展 RPC 的结构化输出。
+
+Phase 2 的目标是逐步引入 typed parse 子层：
 
 ```zig
 pub const ParsedAccountInfo = struct { ... };
@@ -59,12 +65,12 @@ pub const ParsedTransaction = struct { ... };
 
 ### 5.2 Nonce
 - 应支持 nonce 账户查询
-- 应支持与 `system` 指令层配合完成 nonce advance 工作流
+- **锁定决策**：Nonce Advance 指令构造归属 `interfaces/system`；涉及查询、组装与离线签名协同的流程，可由 tx/rpc helper 组合完成
 - 离线签名路径不得依赖隐式网络查询
 
 ### 5.3 Transaction Query
-- `getTransaction` 需先明确返回编码策略（json / jsonParsed / base64）
-- 第一版建议锁单一编码，避免同时展开全部解析形态
+- **锁定决策**：`getTransaction` 第一版以 `json` encoding 作为基线，不在首版同时展开 `jsonParsed` / `base64`
+- 后续若扩展更多 encoding，需通过 ADR 或子规格修订明确
 
 ## 6. Error Model
 
@@ -97,14 +103,13 @@ pub const ParsedTransaction = struct { ... };
 ## 8. First Implementation Order
 
 1. `getAddressLookupTable`
-2. `getTransaction` / `getSignaturesForAddress`
+2. `getTransaction(json baseline)` / `getSignaturesForAddress`
 3. `getSlot` / `getEpochInfo` / `getMinimumBalanceForRentExemption` / `requestAirdrop`
-4. typed parse 子层（先高频结果）
+4. typed parse 子层（先扩展高频结果；当前 5 个高频方法的最小收敛仍属于 Phase 1）
 5. Websocket 订阅骨架
-6. Durable Nonce 工作流联调
+6. Durable Nonce 工作流联调（指令构造落在 `interfaces/system`）
 
 ## 9. Open Questions
 
 - Websocket 是否放在 `rpc/` 下，还是独立 `subscriptions/` 模块？
 - typed parse 是否需要单独文件层级（如 `rpc/parsed/*`）？
-- `getTransaction` 第一版应选哪种 encoding 作为锁定基线？

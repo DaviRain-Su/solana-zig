@@ -42,6 +42,7 @@
 - interfaces 扩展：system/token/token-2022/memo/stake 等
 - signers 可插拔后端
 - C ABI 导出与多语言消费约定
+- 性能对比报告（vs Rust SDK）与复跑说明
 
 ### Product Phase 4（评估）
 - 链上语义子项目（独立生命周期）
@@ -72,7 +73,7 @@
 
 - Product Phase 1 退出条件：高频 RPC + tx 路线稳定，离线门禁持续通过，M3 收口项完成。
 - Product Phase 2 退出条件：扩展 RPC / Websocket / Nonce 工作流形成可重复验证闭环。
-- Product Phase 3 退出条件：主要 interfaces、至少两类 signer 后端、C ABI 核心路径可用。
+- Product Phase 3 退出条件：主要 interfaces、至少两类 signer 后端、C ABI 核心路径可用，且性能对比报告已留档并可复跑。
 - Product Phase 4 退出条件：形成独立 `solana-program-zig` 可行性结论与拆分方案。
 
 ## 8. 长期维护清单

@@ -59,7 +59,7 @@
 |---|---|---|---|---|
 | 扩展 RPC methods | `rpc/client.zig` 扩展或拆分 typed 子层 | planned | `docs/00` Phase 2 / `docs/04` T4-17~T4-19 / `docs/03c-rpc-extended-spec.md` | 包括 ALT / 交易查询 / slot/epoch 等 |
 | Websocket subscriptions | `src/solana/rpc/ws_*` 或独立订阅模块 | planned | `docs/00` Phase 2 / `docs/04` T4-20 / `docs/05` 5.1 | 需先明确生命周期与重连模型 |
-| Durable Nonce workflow | `interfaces/system` 或 tx helper | planned | `docs/00` Phase 2 / `docs/04` T4-21 / `docs/05` 5.1 | 涉及查询 + 指令构造 + 离线签名 |
+| Durable Nonce workflow | `interfaces/system` + tx/rpc helper composition | planned | `docs/00` Phase 2 / `docs/04` T4-21 / `docs/05` 5.1 | 指令构造归 `interfaces/system`，流程协同由更高层 helper 组合 |
 | Priority Fees / Compute Budget | `interfaces/compute_budget` | planned | `docs/00` Phase 2 / `docs/04` T4-22 / `docs/03a-interfaces-spec.md` | 可以早于完整 interfaces 落地 |
 
 ## 6. Product Phase 3 Planned Coverage
@@ -72,6 +72,7 @@
 | signer abstraction | `src/solana/signers/*` | planned | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/03b-signers-spec.md` | 先抽象接口，再接入 tx |
 | external signer adapter | `src/solana/signers/external_*` | planned | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/05` 5.2 | mock/KMS/HSM stub |
 | C ABI | `src/c/*` 或等价导出层 | planned | `docs/00` Phase 3 / `docs/04` T4-27 / `docs/05` 5.2 | 需补所有权与释放规则 |
+| performance comparison report | `docs/13` + Phase 3 report artifact | planned | `docs/00` Phase 3 / `docs/04` T4-28 / `docs/05` 5.2 | 需形成 vs Rust SDK 的可复跑对比说明 |
 
 ## 7. Product Phase 4 / Out of Scope for Now
 

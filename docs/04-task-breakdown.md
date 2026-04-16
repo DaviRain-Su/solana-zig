@@ -50,10 +50,10 @@
 | ID | 预估 | 依赖 | 验收标准 |
 |---|---:|---|---|
 | T4-17 | 4h | M3 | `getAddressLookupTable` + mock/test |
-| T4-18 | 4h | T4-17 | `getTransaction` / `getSignaturesForAddress` / `getTokenAccountsByOwner` 首批覆盖 |
+| T4-18 | 4h | T4-17 | `getTransaction(json baseline)` / `getSignaturesForAddress` / `getTokenAccountsByOwner` 首批覆盖 |
 | T4-19 | 4h | T4-17 | `getSlot` / `getEpochInfo` / `getMinimumBalanceForRentExemption` / `requestAirdrop` 覆盖 |
 | T4-20 | 4h | T4-18,T4-19 | Websocket 订阅骨架（connect / reconnect / unsubscribe） |
-| T4-21 | 4h | T4-17 | Durable Nonce 查询 + Nonce Advance 指令构造 |
+| T4-21 | 4h | T4-17 | Durable Nonce 查询 + `interfaces/system` 中的 Nonce Advance 指令构造 |
 | T4-22 | 3h | T4-21 | Priority Fees / Compute Budget 指令构造与测试 |
 
 ### 4.2 Product Phase 3 候选任务（interfaces + signers + C ABI）
@@ -65,12 +65,13 @@
 | T4-25 | 4h | T4-24 | token-2022 / memo / stake 首批接口能力与覆盖矩阵初版 |
 | T4-26 | 4h | T4-23 | `signers` 抽象接口 + in-memory / external adapter |
 | T4-27 | 4h | T4-25,T4-26 | C ABI 导出层、头文件与所有权文档 |
+| T4-28 | 3h | T4-27 | Phase 3 性能对比报告（vs Rust SDK）与复跑说明 |
 
 ## 5. 执行顺序
 
 1. `T4-01 -> T4-16`（当前承诺：Product Phase 1 / M1-M3）
 2. `T4-17 -> T4-22`（后续：Product Phase 2 backlog）
-3. `T4-23 -> T4-27`（后续：Product Phase 3 backlog）
+3. `T4-23 -> T4-28`（后续：Product Phase 3 backlog）
 
 ## 6. DoD（每任务）
 

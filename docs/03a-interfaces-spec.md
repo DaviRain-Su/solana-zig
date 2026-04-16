@@ -56,6 +56,7 @@ pub fn buildXxxInstructions(allocator: std.mem.Allocator, params: Params) ![]tx.
 
 ### 5.1 system
 - 首批目标：`transfer`, `create_account`, `assign`, `advance_nonce_account`
+- 锁定归属：Durable Nonce 的指令构造归入 `system` 模块；若需要查询 + 组装 + 签名协同，则在更高层 helper 中组合
 - 必须定义：
   - program id
   - instruction discriminant
@@ -117,4 +118,3 @@ pub fn buildXxxInstructions(allocator: std.mem.Allocator, params: Params) ![]tx.
 
 - ATA helper 是否应只返回 instruction，还是允许返回“可能需要的前置账户集合”？
 - token-2022 扩展能力是否按扩展点拆子模块？
-- Durable Nonce 指令是否归入 `system`，还是单独放到 tx helper？
