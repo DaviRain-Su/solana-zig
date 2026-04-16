@@ -29,10 +29,12 @@ pub const tx = struct {
 
 pub const rpc = struct {
     pub const types = @import("rpc/types.zig");
+    pub const transport = @import("rpc/transport.zig");
     pub const http_transport = @import("rpc/http_transport.zig");
     pub const client = @import("rpc/client.zig");
 
     pub const RpcClient = client.RpcClient;
+    pub const Transport = transport.Transport;
     pub const OwnedJson = types.OwnedJson;
 };
 
