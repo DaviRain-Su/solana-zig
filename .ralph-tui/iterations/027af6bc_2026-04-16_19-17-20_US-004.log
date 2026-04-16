@@ -1,0 +1,36 @@
+# Iteration 4 Log
+
+## Metadata
+
+- **Task ID**: US-004
+- **Task Title**: Keypair generation and Ed25519 signing
+- **Description**: As a Zig developer, I want Keypair with generation, seed recovery, and signing so that I can sign transactions in Zig.
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T11:17:20.729Z
+- **Ended At**: 2026-04-16T11:23:10.758Z
+- **Duration**: 5m 50s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-004 Done
+
+Implemented `Keypair` random generation and 64-byte secret-key recovery in `src/solana/core/keypair.zig`, while preserving the existing deterministic `fromSeed`, signing, and verification flow.
+
+## Verification
+- `zig fmt --check src/solana/core/keypair.zig`
+- `zig build test`
+
+## Acceptance Criteria
+- Random `Keypair` generation: ✅
+- Recovery from 64-byte seed/secret key bytes: ✅
+- Ed25519 signing: ✅
+- Signature verification: ✅
+- Deterministic oracle signature matches Rust SDK output: ✅ (existing oracle tests still pass)
+
+Also appended the required US-004 entry and reusable pattern note to `.ralph-tui/progress.md`.
+
+<promise>COMPLETE</promise>
+]9;4;0;

@@ -10,6 +10,7 @@ after each iteration and it's included in prompts for context.
 - Core fixed-size value types follow a shared wrapper pattern: expose `pub const LENGTH`, store bytes in a fixed array field, provide `init`/`fromSlice` plus `fromBase58`/`toBase58Alloc` helpers, and keep inline tests beside the type; shared base58 helpers surface `error.InvalidLength` and `error.InvalidBase58` consistently.
 - When a fixed-size crypto wrapper needs an "unsigned" sentinel, expose it as a type-level helper like `zero()` and reuse that helper at call sites instead of repeating inline zero-byte struct literals.
 - When wrapping Zig std crypto key material, expose public length constants and byte-oriented constructors around `std.crypto.sign.Ed25519` so 32-byte deterministic seeds and 64-byte secret-key recovery share one `Keypair` API without leaking stdlib internals to callers.
+- For Solana wire-format varints, keep the public API ergonomic with `usize` inputs/results but enforce the protocol's strict `shortu16` rules at the codec boundary: 1-3 bytes only, `u16` maximum, canonical encodings only, and decode should report consumed bytes for cursor-based parsers.
 
 ---
 
@@ -64,5 +65,19 @@ after each iteration and it's included in prompts for context.
     - `Keypair` can stay ergonomic by exposing raw-length constants while delegating cryptographic validation to Zig stdlib helpers, which preserves compatibility with downstream transaction-signing APIs.
   - Gotchas encountered
     - Zig stdlib Ed25519 secret keys are 64-byte values composed of the 32-byte seed plus a cached 32-byte public key, so recovery should use `KeyPair.fromSecretKey` in order to reject mismatched embedded public keys instead of trusting raw bytes blindly.
+---
+
+## 2026-04-16 - US-005
+- What was implemented
+  - Tightened `src/solana/core/shortvec.zig` to match `solana-short-vec 3.2.0` `shortu16` semantics: encoding now rejects values above `u16::MAX`, decoding accepts only canonical 1-3 byte encodings, rejects aliases and invalid third-byte continuations, and still reports consumed bytes for cursor-based message parsing.
+  - Added boundary and invalid-case inline coverage for canonical encodings including `0`, `127`, `128`, `16383`, `16384`, and `65535`, plus alias, truncation, overflow, and over-limit encode failures.
+- Files changed
+  - `src/solana/core/shortvec.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Solana's `shortvec` compatibility point is specifically Rust `shortu16`, so the repo can keep `usize` at the API edge while enforcing strict canonical `u16` framing inside the codec.
+  - Gotchas encountered
+    - A generic LEB128 decoder is too permissive for Solana: aliases like `[0x80, 0x00]` for zero and continued third bytes must be rejected even though they decode numerically.
 ---
 
