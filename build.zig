@@ -181,6 +181,22 @@ pub fn build(b: *std.Build) void {
     const devnet_e2e_step = b.step("devnet-e2e", "Run Devnet E2E tests (mock always; live when SOLANA_RPC_URL set)");
     devnet_e2e_step.dependOn(&run_devnet_e2e.step);
 
+    // Nonce E2E tests for Phase 2 Batch 3 (#34 P2-14)
+    const nonce_e2e_mod = b.createModule(.{
+        .root_source_file = b.path("src/e2e/nonce_e2e.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "solana_zig", .module = mod },
+        },
+    });
+    const nonce_e2e_tests = b.addTest(.{
+        .root_module = nonce_e2e_mod,
+    });
+    const run_nonce_e2e = b.addRunArtifact(nonce_e2e_tests);
+    const nonce_e2e_step = b.step("nonce-e2e", "Run Nonce E2E tests (mock always; live when SOLANA_RPC_URL set)");
+    nonce_e2e_step.dependOn(&run_nonce_e2e.step);
+
     // Benchmark executable for Phase 1 baseline (docs/13)
     const bench_exe = b.addExecutable(.{
         .name = "benchmark",
@@ -188,7 +204,6 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/benchmark.zig"),
             .target = target,
             .optimize = .ReleaseFast,
-            .link_libc = true,
         }),
     });
     b.installArtifact(bench_exe);
