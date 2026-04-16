@@ -48,6 +48,7 @@ pub const interfaces = struct {
     pub const system = @import("interfaces/system.zig");
     pub const compute_budget = @import("interfaces/compute_budget.zig");
     pub const token = @import("interfaces/token.zig");
+    pub const memo = @import("interfaces/memo.zig");
 };
 
 pub const compat = struct {
