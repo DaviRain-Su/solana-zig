@@ -245,13 +245,15 @@ pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !Rp
 
 ## 7. Error Model
 
-统一错误集合定义于 `src/solana/errors.zig`：
+核心错误集合定义于 `src/solana/errors.zig`：
 - 编码解码：`InvalidBase58/InvalidLength/InvalidShortVec/IntegerOverflow`
 - 消息交易：`MissingAccountKey/MissingProgramId/TooManyAccounts/DuplicateLookupKey/InvalidMessage/InvalidTransaction/SignatureCountMismatch/MissingRequiredSignature/UnsupportedMessageVersion`
-- RPC：`RpcTransport/RpcParse/InvalidRpcResponse/RpcTimeout`
+- RPC 传输/解析：`RpcTransport/RpcParse/InvalidRpcResponse/RpcTimeout`
 
-RPC 业务错误不丢失：
-- 返回 `RpcResult.rpc_error{code,message,data_json}`
+RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
+- `RpcErrorObject { code, message, data_json }`
+- `RpcResult(T)`：`ok: T` 或 `rpc_error: RpcErrorObject`
+- 当 JSON-RPC 返回 `error` 字段时，必须走 `RpcResult.rpc_error`，不丢失 `code/message/data` 语义
 
 ---
 
@@ -284,7 +286,7 @@ RPC 业务错误不丢失：
 
 ---
 
-## 10. Boundary & Failure Scenarios (>=10)
+## 10. Boundary & Failure Scenarios
 
 1. base58 输入含非法字符（如 `0/O/I/l`） -> `error.InvalidBase58`
 2. `Pubkey.fromSlice` 长度非 32 -> `error.InvalidLength`

@@ -32,7 +32,7 @@
 
 ## 3. 已解决项
 
-- `RpcClient` 支持 transport 抽象注入，mock 测试路径已建立
+- `RpcClient` 支持 transport 抽象注入，mock 测试路径已建立（happy path / rpc_error / transport error 三个注入式测试）
 - v0 lookup 冲突语义与规格已统一
 - `RpcResult/RpcErrorObject` 重复定义问题已清理
 

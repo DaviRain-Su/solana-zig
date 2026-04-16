@@ -20,6 +20,7 @@
 - 默认：`zig build test`
 - Devnet 测试启用：`SOLANA_RPC_URL` 存在
 - 无 `SOLANA_RPC_URL`：L4 全部 skip，不影响离线门禁
+- 所有涉及动态分配的测试必须使用 `std.testing.allocator` 并通过泄漏检测
 
 ## 4. 当前范围测试矩阵（M1-M3）
 
@@ -71,6 +72,7 @@
 - G3：L4 在配置环境时全绿（建议）
 - G4：新增公共 API 必须带 Happy + Error 用例
 - G5（Phase 2+）：L6 核心用例通过后方可宣称“接口/签名后端能力可用”
+- G6：所有使用动态分配的用例无内存泄漏（`std.testing.allocator`）
 
 ## 7. 产物要求
 

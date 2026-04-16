@@ -4,6 +4,7 @@ Zig implementation roadmap for Solana capabilities, aligned to Rust SDK semantic
 
 ## Current Status (M1)
 Current implementation is **off-chain first** (host/client path), not full on-chain parity yet.
+Current Status (M1 - core structures implemented, remaining tests and benchmarks in progress).
 
 - Core: `Pubkey`, `Signature`, `Keypair`, `Hash`, `base58`, `shortvec`
 - Tx: `Instruction`, `Message` (legacy + v0), `VersionedTransaction`
