@@ -1,13 +1,17 @@
 # Phase 3 - Technical Spec
 
-> 注：本文标题中的“Phase 3”是文档生命周期序号（技术规格文档），不是产品路线图中的 Product Phase 3。
+> 注：本文标题中的"Phase 3"是文档生命周期序号（技术规格文档），不是产品路线图中的 Product Phase 3。
 
 ## 1. Scope
 
-本规格覆盖当前 `Phase 1` 的 Zig 实现边界：
+本规格覆盖当前实现的 Zig 边界：
 - core: `base58/shortvec/Pubkey/Signature/Keypair/Hash`
-- tx: `Instruction/Message(legacy+v0)/VersionedTransaction`
-- rpc: `HttpTransport/RpcClient` 及 9 个公开方法（5 个 Phase 1 高频方法 + 4 个 Phase 2 扩展方法）
+- tx: `Instruction/Message(legacy+v0)/AddressLookupTable/VersionedTransaction`
+- rpc: `HttpTransport/RpcClient` 及 **16 个公开方法**（5 个 Phase 1 高频 + 11 个 Phase 2 扩展）
+- rpc: `WsClient/WsRpcClient` — WebSocket 客户端（7 种订阅 + 重连 + 去重 + 可观测性）
+- interfaces: `system/token/token_2022/compute_budget/memo/stake/ata`
+- signers: `Signer` vtable + `InMemorySigner` + `MockExternalSigner`
+- cabi: C ABI 导出层（`cabi/core.zig` / `cabi/transaction.zig` / `cabi/rpc.zig`）
 - compat: `oracle_vector` / `bincode_compat`
 
 实现约束：
@@ -15,7 +19,7 @@
 
 不覆盖：
 - on-chain `no_std/SBF` 运行时语义
-- 全量 JSON-RPC 方法映射
+- 全量 JSON-RPC 方法映射（当前 16 个高频方法）
 - Rust 宏生态等高级 API 对齐
 
 ---
@@ -133,15 +137,25 @@ pub fn VersionedTransaction.deserialize(allocator: std.mem.Allocator, bytes: []c
 ### 3.3 RPC
 
 ```zig
+// Phase 1 (5 methods)
 pub fn RpcClient.getLatestBlockhash(self: *RpcClient) !RpcResult(LatestBlockhash)
-pub fn RpcClient.getAccountInfo(self: *RpcClient, pubkey: Pubkey) !RpcResult(AccountInfo)
+pub fn RpcClient.getAccountInfo(self: *RpcClient, pubkey: Pubkey) !RpcResult(?AccountInfo)
 pub fn RpcClient.getBalance(self: *RpcClient, pubkey: Pubkey) !RpcResult(u64)
 pub fn RpcClient.simulateTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(SimulateTransactionResult)
 pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(SendTransactionResult)
+
+// Phase 2 (11 methods)
 pub fn RpcClient.getSlot(self: *RpcClient) !RpcResult(u64)
+pub fn RpcClient.getEpochInfo(self: *RpcClient) !RpcResult(EpochInfo)
+pub fn RpcClient.getMinimumBalanceForRentExemption(self: *RpcClient, data_len: usize) !RpcResult(u64)
+pub fn RpcClient.requestAirdrop(self: *RpcClient, pubkey: Pubkey, lamports: u64) !RpcResult(RequestAirdropResult)
+pub fn RpcClient.getAddressLookupTable(self: *RpcClient, table_address: Pubkey) !RpcResult(AddressLookupTableResult)
 pub fn RpcClient.getSignaturesForAddress(self: *RpcClient, pubkey: Pubkey, limit: ?u32) !RpcResult(SignaturesForAddressResult)
-pub fn RpcClient.getTransaction(self: *RpcClient, signature: Signature) !RpcResult(TransactionInfo)
-pub fn RpcClient.getSignatureStatuses(self: *RpcClient, signatures: []const Signature) !RpcResult(?SignatureStatus)
+pub fn RpcClient.getTokenAccountsByOwner(self: *RpcClient, owner: Pubkey, program_id: Pubkey) !RpcResult(TokenAccountsByOwnerResult)
+pub fn RpcClient.getTokenAccountBalance(self: *RpcClient, token_account: Pubkey) !RpcResult(TokenAmount)
+pub fn RpcClient.getTokenSupply(self: *RpcClient, mint: Pubkey) !RpcResult(TokenAmount)
+pub fn RpcClient.getTransaction(self: *RpcClient, signature: Signature) !RpcResult(?TransactionInfo)
+pub fn RpcClient.getSignatureStatuses(self: *RpcClient, signatures: []const Signature) !RpcResult(SignatureStatusesResult)
 ```
 
 前置条件：
@@ -351,7 +365,7 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 
 ## 11. Test Mapping (实现与规格对应)
 
-当前代码内已覆盖：
+当前代码已覆盖（208 tests）：
 - base58 roundtrip + 非法字符
 - shortvec roundtrip + invalid
 - pubkey/signature 固定长度校验
@@ -369,17 +383,35 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 - tx sign/serialize/deserialize/verify
 - 缺失签名失败
 - RpcClient mock transport 测试：
-  - happy path
-  - rpc_error 保真
-  - transport error
+  - 16 个 RPC 方法 happy / rpc_error / malformed 覆盖
   - `getAccountInfo` / `simulateTransaction` malformed success response 清理
+  - 统一重试策略（exponential backoff + rate limit 感知）
+- WebSocket 测试：
+  - 7 种订阅/取消订阅
+  - reconnect / resubscribe / dedup / heartbeat / observability
 - 导出 API 可用性：`Message.DecodeResult` 可经包导出被外部引用
-- oracle vector 对照（当前为 v2 core 子集：pubkey/hash/shortvec）
-
-后续必须补齐（下一阶段 04/05 执行）：
-- 更完整的 v0 / ALT oracle 与失败路径覆盖（尤其是多 lookup / versioned tx 场景）
-- RPC 其余高频方法的 malformed/typed parse 收口与更系统的错误路径覆盖
-- `docs/15` 中剩余 `open / in-progress / closeable` 条目的最终 closeout 处置，以及与 Devnet evidence pack 的一致性回写
+- oracle vector 对照（core + keypair + message + transaction）
+- Interfaces 测试：
+  - system: Transfer / CreateAccount / AdvanceNonceAccount / Assign
+  - token: TransferChecked / CloseAccount / MintTo / Approve / Burn
+  - token_2022: Mint / Approve / Burn + program-id 区分
+  - compute_budget: SetComputeUnitLimit / SetComputeUnitPrice
+  - memo: dual-mode (signer / no-signer)
+  - stake: Create / Delegate / Deactivate / Withdraw
+  - ata: findProgramAddress + createAssociatedTokenAccount
+- Signers 测试：
+  - InMemorySigner sign/verify
+  - MockExternalSigner 错误/拒签语义
+  - Signer 切换对交易序列化无副作用
+- C ABI 测试：
+  - 核心类型导出 + 交易构建 + RPC 最小导出
+  - 头文件一致性
+- Devnet E2E：
+  - `zig build devnet-e2e` — mock + live 双模式
+  - `zig build nonce-e2e` — Nonce 完整流程
+  - `zig build e2e` — Surfpool 本地验证（K3-H1 + K3-F1）
+- Benchmark：
+  - `zig build bench` — Pubkey/shortvec/Message/Transaction/Ed25519/Signer/C ABI
 
 ---
 

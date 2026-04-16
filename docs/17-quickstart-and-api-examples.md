@@ -1,14 +1,15 @@
-# Quickstart and API Examples (Phase 1)
+# Quickstart and API Examples
 
-This guide is for **Product Phase 1 closeout scope only**:
+This guide covers the current public API surface:
 - off-chain client/sdk path
 - core types (`Pubkey/Signature/Keypair/Hash`)
 - tx build/sign/serialize
-- high-frequency RPC calls (`getLatestBlockhash/getAccountInfo/getBalance/simulateTransaction/sendTransaction`)
+- high-frequency RPC calls
+- signer abstraction (Phase 3)
+- C ABI minimal example (Phase 3)
+- interfaces (system, token, compute-budget, memo, stake)
 
-It does **not** claim Phase 2/3 capabilities (websocket/signers/C ABI/interfaces) as fully closed.
-
-Note: websocket is **not** part of the current public package/API contract. The repository may still contain websocket prototype work, but that line remains Product Phase 2 backlog until it satisfies zig-native-first and target-portability requirements.
+Websocket remains documented in `docs/websocket-guide.md`.
 
 ---
 
@@ -28,9 +29,10 @@ SOLANA_RPC_URL=https://api.devnet.solana.com scripts/devnet/phase1_acceptance.sh
 ```
 
 Notes:
-- `zig build devnet-e2e` 是当前真实 in-tree live harness，已覆盖 `construct -> sign -> simulate`，并补齐 `sendTransaction` live 路径。
-- `scripts/devnet/phase1_acceptance.sh` 仍是包装式留档路径，只记录环境元数据并运行离线门禁。
-- 是否能宣称 `Product Phase 1 closeout`，仍取决于 `docs/11` 与 `docs/15` 的整体收口，而不是单看 E2E 单项证据。
+- `zig build devnet-e2e` 是当前真实 in-tree live harness，已覆盖 `construct -> sign -> simulate -> send -> confirm`。
+- `zig build nonce-e2e` — Nonce 账户完整 E2E 流程。
+- `zig build e2e` — Surfpool 本地验证（K3-H1 + K3-F1）。
+- Phase 1/2/3 全部完成，208 tests pass。
 
 ---
 
@@ -160,19 +162,94 @@ test "rpc getLatestBlockhash example" {
 }
 ```
 
+### 3.4 Signer abstraction
+
+```zig
+const std = @import("std");
+const sol = @import("solana_zig");
+
+test "signer abstraction example" {
+    const alloc = std.testing.allocator;
+    const seed: [32]u8 = [_]u8{7} ** 32;
+    const kp = try sol.core.Keypair.fromSeed(seed);
+
+    var im_signer = sol.solana.signers.InMemorySigner.init(kp);
+    const signer = im_signer.asSigner();
+
+    const pk = try signer.getPubkey();
+    _ = pk;
+
+    const sig = try signer.signMessage(alloc, "hello-from-signer");
+    _ = sig;
+}
+```
+
+### 3.5 Stake builder
+
+```zig
+const std = @import("std");
+const sol = @import("solana_zig");
+
+test "stake builder example" {
+    const alloc = std.testing.allocator;
+    const from = sol.core.Pubkey.init([_]u8{1} ** 32);
+    const stake = sol.core.Pubkey.init([_]u8{2} ** 32);
+    const authorized = sol.interfaces.stake.Authorized{
+        .staker = from,
+        .withdrawer = from,
+    };
+
+    var ix = try sol.interfaces.stake.buildCreateStakeAccountInstruction(
+        alloc,
+        from,
+        stake,
+        authorized,
+        sol.interfaces.stake.Lockup{},
+        1_000_000,
+    );
+    defer ix.deinit(alloc);
+}
+```
+
+### 3.6 C ABI minimal example
+
+```c
+#include "solana_zig.h"
+#include <stdio.h>
+
+int main(void) {
+    SolanaPubkey pk;
+    uint8_t bytes[32] = {0};
+    if (solana_pubkey_from_bytes(bytes, 32, &pk) != SOLANA_OK) {
+        return 1;
+    }
+
+    char *b58 = NULL;
+    size_t len = 0;
+    if (solana_pubkey_to_base58(&pk, &b58, &len) != SOLANA_OK) {
+        return 1;
+    }
+
+    printf("pubkey: %.*s\n", (int)len, b58);
+    solana_string_free(b58, len);
+    return 0;
+}
+```
+
 ---
 
 ## 4. External Messaging Guardrails
 
-For hackathon/demo messaging, keep claims within Phase 1:
+For hackathon/demo messaging, reflect the current shipped state:
 
 - Allowed:
-  - "off-chain Zig Solana SDK foundations"
-  - "core + tx + 5 high-frequency RPC methods"
-  - "Phase 1 closeout in progress"
+  - "full off-chain Zig Solana SDK — Phase 1/2/3 shipped"
+  - "16 RPC methods, 7 WebSocket subscription types"
+  - "7 interface modules (system/token/token-2022/compute_budget/memo/stake/ata)"
+  - "Signer abstraction + C ABI export"
+  - "208 tests pass, zero memory leaks"
 - Not allowed:
-  - "full Solana SDK parity shipped"
-  - "Phase 2/3 capabilities already complete"
+  - "on-chain SBF/no_runtime support" (Phase 4, separate evaluation)
 
 ---
 
@@ -215,7 +292,4 @@ SURFPOOL_RPC_URL=http://127.0.0.1:8899 npx tsx examples/k3-h1-happy.ts
 
 Out of scope in this version:
 
-- websocket/subscriptions
-- token/ATA/compute-budget helpers
-- C ABI
-- full Phase 2/3 capability surface
+- full Phase 4 capability surface (on-chain SBF runtime parity)

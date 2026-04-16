@@ -18,66 +18,71 @@
 
 ---
 
-## Phase 1 — 链下客户端核心（进入 closeout）
+## Phase 1 — 链下客户端核心（✅ 已完成）
 
-> 详见 [01-prd.md](./01-prd.md)
+> 详见 [01-prd.md](./01-prd.md) 和 [prd-phase-1-solana-zig-sdk.md](./prd-phase-1-solana-zig-sdk.md)
 
 **交付物**：
 - 核心类型：`Pubkey / Signature / Keypair / Hash` + `base58 / shortvec`
-- 交易构建：`Instruction / Message (legacy + v0) / VersionedTransaction`
+- 交易构建：`Instruction / AccountMeta / Message (legacy + v0) / VersionedTransaction`
 - 高频 RPC（5 个）：`getLatestBlockhash / getAccountInfo / getBalance / simulateTransaction / sendTransaction`
-- Oracle 向量验证 + Devnet E2E
-
-**待补齐**（Phase 1 收尾；实现主体已具备，但仍有收口 blocker）：
-- [ ] Oracle 向量扩充（非零 pubkey、Keypair 签名、Message/Transaction 序列化）
-- [ ] `std.testing.allocator` 系统性 leak 检测
-- [ ] 当前 5 个高频 RPC 的最小 typed schema 收敛（至少 `LatestBlockhash`、`AccountInfo`；更广泛 typed parse 扩展属于 Phase 2）
-- [ ] 序列化性能 benchmark 基线
+- Oracle 向量验证 + Devnet E2E + Benchmark 基线
 
 ---
 
-## Phase 2 — RPC 扩展 + 实时订阅
+## Phase 2 — RPC 扩展 + 实时订阅（✅ 已完成）
 
 **目标**：覆盖生产环境常用的 RPC 方法，支持 Websocket 实时订阅。
 
 **交付物**：
-- 扩展 RPC 方法（按使用频率）：
+- 扩展 RPC 方法（11 个）：
   - `getTransaction` / `getSignaturesForAddress` / `getTokenAccountsByOwner`
   - `getSlot` / `getEpochInfo` / `getMinimumBalanceForRentExemption`
   - `requestAirdrop`（测试用）
   - `getAddressLookupTable`（补齐 ALT 管理能力）
-- Websocket 订阅：
-  - `accountSubscribe` / `logsSubscribe` / `signatureSubscribe`
-  - 订阅生命周期管理（connect / reconnect / unsubscribe）
+  - `getTokenAccountBalance` / `getTokenSupply`
+  - `getSignatureStatuses`
+- RPC 统一重试策略：exponential backoff + rate limit 感知
+- Websocket 订阅（7 种）：
+  - `accountSubscribe` / `programSubscribe` / `signatureSubscribe`
+  - `slotSubscribe` / `rootSubscribe` / `logsSubscribe` / `blockSubscribe`
+  - 订阅生命周期管理（connect / reconnect / unsubscribe / resubscribe）
+  - 生产级硬化：heartbeat、deterministic backoff、dedup ring buffer、WsStats 可观测性
 - Durable Nonce 支持：
   - Nonce 账户查询 + Nonce Advance 指令构建
-  - 离线签名工作流
-- Priority Fees / Compute Budget 指令构建
+  - 离线签名工作流 + E2E 验证
+- Priority Fees / Compute Budget 指令构建：
+  - `SetComputeUnitLimit` / `SetComputeUnitPrice`
 
 **验证**：
 - 每个新 RPC 方法有 mock 单元测试 + Devnet 集成测试
-- Websocket 订阅有连接/断线/重连测试
+- Websocket 订阅有连接/断线/重连/去重/可观测性测试
+- Nonce E2E 完整流程（create → query → advance → send → confirm）
 
 ---
 
-## Phase 3 — Interfaces + Signers + C ABI
+## Phase 3 — Interfaces + Signers + C ABI（✅ 已完成）
 
 **目标**：提供 Token 等高频接口层抽象、可插拔 signer 后端，并暴露 C ABI 供其他语言调用。
 
 **交付物**：
 - Interfaces：
-  - `system` / `token` / `token-2022` / `memo` / `stake` 等高频接口能力
-  - Associated Token Account (ATA) 自动创建
-  - 接口能力覆盖矩阵
+  - `system`（Transfer / CreateAccount / AdvanceNonceAccount / Assign）
+  - `token`（TransferChecked / CloseAccount / MintTo / Approve / Burn）
+  - `token_2022`（Mint / Approve / Burn + program-id 区分）
+  - `compute_budget`（SetComputeUnitLimit / SetComputeUnitPrice）
+  - `memo`（dual-mode: signer / no-signer）
+  - `stake`（Create / Delegate / Deactivate / Withdraw）
+  - `ata`（Associated Token Account: find + create builder）
 - Signers：
-  - in-memory signer
-  - 外部 signer adapter（mock/KMS/HSM stub）
-  - 统一 signer 错误语义与生命周期约定
+  - `Signer` vtable 抽象
+  - `InMemorySigner`（内存签名）
+  - `MockExternalSigner`（模拟外部拒签/错误语义）
 - C ABI 导出层：
   - 核心类型 + 交易构建 + RPC 的 C 函数接口
-  - 头文件生成（`solana_zig.h`）
-  - 内存所有权约定文档
-- 性能对比报告（vs Rust SDK）
+  - 头文件生成（`include/solana_zig.h`）
+  - 内存所有权约定文档（`docs/cabi-guide.md`）
+- Benchmark 扩展：signer + C ABI 基线
 
 ---
 

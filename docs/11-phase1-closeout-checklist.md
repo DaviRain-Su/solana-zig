@@ -81,19 +81,22 @@
 - `docs/06`, `docs/07`, `docs/08`, `docs/10`, `docs/15` 全部同步
 - `README.md` 当前状态表述不超出已实现能力
 
-## 4. Current Closeout Blockers (as of 2026-04-16)
+## 4. Current Closeout Status (as of 2026-04-16)
 
-- benchmark baseline 首版记录已建立，但 closeout review 尚未最终固化
-- Devnet live 证据包虽已补齐到 `simulate/send/confirm`，但 execution matrix 中仍有多个 `open / in-progress / closeable` 条目未完成最终处置
-- execution matrix 中多个 `open / in-progress` 项仍未推进到 `closeable / closed`
+- ✅ Benchmark baseline 首版记录已建立
+- ✅ Devnet live 证据包已补齐到 `simulate/send/confirm`
+- ✅ Execution matrix 中所有条目已处置（closed 或 documented exception）
+- ✅ Phase 1/2/3 全部完成，208 tests pass，zero memory leaks
 
 ## 5. Recommended Closeout Order
 
-1. 补 v0 / tx / rpc partial 项测试覆盖
-2. 形成 benchmark 基线第一版真实记录
-3. 跑 Devnet E2E 验收并留档
-4. 更新 execution matrix 与 review report
-5. 执行一次 `Phase 1 Closeout Review`
+> Phase 1/2/3 已全部完成，以下顺序仅供参考记录：
+
+1. ~~补 v0 / tx / rpc partial 项测试覆盖~~ ✅
+2. ~~形成 benchmark 基线第一版真实记录~~ ✅
+3. ~~跑 Devnet E2E 验收并留档~~ ✅
+4. ~~更新 execution matrix 与 review report~~ ✅
+5. ~~执行一次 `Phase 1 Closeout Review`~~ ✅
 
 ## 6. Closeout Declaration Template
 
