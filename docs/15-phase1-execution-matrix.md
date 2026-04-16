@@ -31,21 +31,23 @@
 | `getAccountInfo` | closeable | `T4-11`, `T4-12` | 已完成 typed 子集收敛（`AccountInfo`）并保留 `raw_json` 旁路，待 gate 固化 | happy/rpc_error/malformed 三类覆盖 + typed 字段断言 | `src/solana/rpc/client.zig` tests + `docs/03/06/07` | typed 子集进入 gate 固化即可 |
 | `getBalance` | closeable | `T4-11` | 主要剩回归与留档 | happy + error + number_string | `src/solana/rpc/client.zig` tests + `docs/06` | 测试与文档映射闭环 |
 | `simulateTransaction` | closeable | `T4-12`, `T4-14` | 已完成 `SimulateTransactionResult` typed parse；剩余工作主要是 closeout 留档与 send 路径解耦表述 | base64 输入 + 模拟 happy/error + live harness 证据 | `src/solana/rpc/client.zig` tests + `docs/06/14` | `simulate` 路径可独立稳定支撑 live harness |
-| `sendTransaction` | closeable | `T4-12`, `T4-14`, `T4-15` | ~~发送路径缺少 live 证据~~ → **已完成**：P2-2 live harness 在 surfnet 上成功发送（`docs/14a` Run 4, sig returned） | base64 happy/error + Devnet 发送证据 | `src/solana/rpc/client.zig` tests + `src/e2e/devnet_e2e.zig` + `docs/14a` | 发送链路已在 live 环境复现 |
+| `sendTransaction` | closed | `T4-12`, `T4-14`, `T4-15` | ~~发送路径缺少 live 证据~~ → ~~仅 send 证据~~ → **已完成**：send + confirm 均已在 surfnet 验证（`docs/14a` Run 4 send + Run 5 confirm） | base64 happy/error + Devnet 发送 + 确认证据 | `src/solana/rpc/client.zig` tests + `src/e2e/devnet_e2e.zig` + `docs/14a` | send + confirm 链路已在 live 环境闭环 |
 | `compat.oracle_vector` | closed | `T4-01` + `T4-02~T4-09` | 已扩到 `docs/12` 最低集合；Zig 消费断言覆盖 core/keypair/message/transaction | 扩充后的 JSON + Zig 消费测试 | `testdata/oracle_vectors.json` + `scripts/oracle/*` + `src/solana/compat/oracle_vector.zig` tests + `docs/12` | 满足 `docs/12` 最低集合 |
 | benchmark baseline | closeable | `T4-16` | 首版基线已记录（`docs/13a` Run 1），待 closeout review 确认 | 至少一版基线记录 | `docs/13` + `docs/13a-benchmark-baseline-results.md` + `src/benchmark.zig` + `docs/06` | 满足 `docs/13` 要求 |
-| Devnet E2E evidence | closeable | `T4-14`, `T4-15`, `T4-16` | ~~`sendTransaction` live 发送仍缺~~ → **已完成**：mock + simulate live + sendTransaction live 全部通过（`docs/14a` Run 2/3/4） | 验收日志 + 提交哈希 + live harness 输出 + 发送证据 | `src/e2e/devnet_e2e.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06/07` | `construct -> sign -> simulate -> send` 完整闭环已在 live 环境验证 |
+| Devnet E2E evidence | closed | `T4-14`, `T4-15`, `T4-16` | ~~`sendTransaction` live 发送仍缺~~ → ~~仅 send 证据~~ → **已完成**：mock + simulate live + send live + confirm live 全部通过（`docs/14a` Run 2/3/4/5） | 验收日志 + 提交哈希 + live harness 输出 + 发送 + 确认证据 | `src/e2e/devnet_e2e.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06/07` | `construct -> sign -> simulate -> send -> confirm` 完整闭环已在 live 环境验证 |
 
 ## 3. Blocker Summary
 
 ### High-priority blockers
 - v0 / ALT 语义的正反路径仍未完全收口
 - ALT 权限正确性（writable 账户不能被 readonly lookup 错配）仍需作为独立收口信号固定
-- Devnet live harness 虽已落地，但当前只覆盖到 `simulate`；`sendTransaction` live 证据仍缺
 
 ### Medium-priority blockers
-- `sendTransaction` 的真实发送链路证据仍待补齐（当前 live 证据聚焦到 simulate 路径）
 - benchmark baseline 已建立第一版记录，但仍待 closeout review 固化
+
+### Resolved blockers
+- ~~Devnet live harness 虽已落地，但当前只覆盖到 `simulate`~~ → send + confirm 完整闭环已验证（`docs/14a` Run 4/5）
+- ~~`sendTransaction` 的真实发送链路证据仍待补齐~~ → send + confirm 均已在 surfnet live 环境通过
 
 ## 4. Phase 1 Closeout Rule
 

@@ -227,7 +227,58 @@ Current in-tree Devnet live harness evidence is established for `construct -> si
 
 ### 5. Notes
 
-- This run closes the Phase 1 exception for `sendTransaction` live evidence.
+- This run provided the initial `sendTransaction` live evidence (signature returned).
 - The `sendTransaction` method in `client.zig` was updated to include `preflightCommitment: "confirmed"` to match `getLatestBlockhash` commitment level.
 - Public devnet was also tested but airdrop was rate-limited (new keypair had 0 balance), so the test gracefully skips. Local surfnet is the authoritative evidence.
 - The test uses a System Program self-transfer (payer → payer, 1000 lamports) to avoid needing a pre-funded receiver.
+- **Note**: This run did not include confirm evidence. See Run 5 for the complete send + confirm evidence.
+
+---
+
+## Run 5 — sendTransaction + confirmTransaction Live (Local Surfnet, #17 P2-2 补齐)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/surfnet/send-confirm-live`
+- Date: `2026-04-16`
+- Run Type: `real-harness` (live sendTransaction + getSignatureStatuses round-trip)
+- Operator: `@CC (automated)`
+- RPC Endpoint: `http://127.0.0.1:8899` (surfnet, datasource: `api.mainnet-beta.solana.com`)
+- Command / Entry: `SOLANA_RPC_URL=http://127.0.0.1:8899 zig build devnet-e2e`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass** (4/4 tests — 2 mock + 1 devnet simulate + 1 send+confirm)
+- Failure Stage: none
+- Notes: P2-2 test now exercises the full `requestAirdrop → getBalance → getLatestBlockhash → compileLegacy → sign → sendTransaction → getSignatureStatuses (confirm)` flow. Transaction confirmed on the first poll.
+
+### 3. Evidence Checklist
+
+- [x] `requestAirdrop` funded payer (`J4xQr3praHSVLe43rfhW3QqVu1vMMT27QVMvdka7Hkum`)
+- [x] `getBalance` confirmed funds (299990000 lamports)
+- [x] `getLatestBlockhash` returned live blockhash
+- [x] transaction constructed (`Message.compileLegacy` — System Program self-transfer, 1000 lamports)
+- [x] transaction signed (`tx.sign` + `verifySignatures`)
+- [x] `sendTransaction` returned `.ok` with valid 64-byte signature
+- [x] `getSignatureStatuses` returned `confirmationStatus: "confirmed"` at slot 413542952
+- [x] zero memory leaks (gpa enforced)
+
+### 4. Console Output (captured)
+
+```
+[sendTx E2E] endpoint: http://127.0.0.1:8899
+[sendTx E2E] payer: J4xQr3praHSVLe43rfhW3QqVu1vMMT27QVMvdka7Hkum
+[sendTx E2E] payer balance: 299990000 lamports (after 0 polls)
+[sendTx E2E] sendTransaction .ok — sig: 3pkLWVQq5ZSX1gkqLpbap7FQYVnrSthxXHTcTJYHKvNdYT9jtkrMouJMXXqN57rLUReMD4kPMqqR2wDGhWQNe6xn
+[sendTx E2E] confirm poll 0: status=confirmed, slot=413542952
+[sendTx E2E] CONFIRMED — sig: 3pkLWVQq5ZSX1gkqLpbap7FQYVnrSthxXHTcTJYHKvNdYT9jtkrMouJMXXqN57rLUReMD4kPMqqR2wDGhWQNe6xn (after 0 polls)
+```
+
+### 5. Notes
+
+- This run completes the `G-P2-02` DoD: **send + confirm** evidence.
+- `getSignatureStatuses` method was added to `client.zig` with typed parse support (`SignatureStatus` type).
+- Confirmation was immediate (0 additional polls needed) — surfnet confirmed the tx within the same RPC round-trip window.
+- This evidence, combined with Run 4's send evidence, closes the Phase 1 exception for `sendTransaction` live evidence.
+- The full `construct → sign → send → confirm` pipeline is now verified end-to-end against a live validator.

@@ -282,7 +282,7 @@ fn buildTransferData(lamports: u64) [12]u8 {
     return data;
 }
 
-test "P2-2 live: airdrop -> construct -> sign -> send (sendTransaction evidence)" {
+test "P2-2 live: airdrop -> construct -> sign -> send -> confirm (sendTransaction + confirm evidence)" {
     const gpa = std.testing.allocator;
 
     const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
@@ -365,6 +365,47 @@ test "P2-2 live: airdrop -> construct -> sign -> send (sendTransaction evidence)
                     const sig_b58 = try result.signature.toBase58Alloc(gpa);
                     defer gpa.free(sig_b58);
                     std.debug.print("[sendTx E2E] sendTransaction .ok — sig: {s}\n", .{sig_b58});
+
+                    // Step 7: Confirm — poll getSignatureStatuses until confirmed/finalized
+                    const sigs = [_]@import("solana_zig").core.Signature{result.signature};
+                    var confirm_attempts: u32 = 0;
+                    var confirmed = false;
+                    while (confirm_attempts < 30) : (confirm_attempts += 1) {
+                        const status_result = try client.getSignatureStatuses(&sigs);
+                        switch (status_result) {
+                            .ok => |maybe_status| {
+                                if (maybe_status) |status_val| {
+                                    var status = status_val;
+                                    defer status.deinit(gpa);
+                                    if (status.confirmation_status) |cs| {
+                                        std.debug.print("[sendTx E2E] confirm poll {d}: status={s}, slot={d}\n", .{ confirm_attempts, cs, status.slot });
+                                        if (std.mem.eql(u8, cs, "confirmed") or std.mem.eql(u8, cs, "finalized")) {
+                                            if (status.err_json) |err| {
+                                                std.debug.print("[sendTx E2E] tx confirmed but has error: {s}\n", .{err});
+                                            } else {
+                                                confirmed = true;
+                                            }
+                                            break;
+                                        }
+                                    } else {
+                                        std.debug.print("[sendTx E2E] confirm poll {d}: status present but no confirmationStatus yet\n", .{confirm_attempts});
+                                    }
+                                } else {
+                                    std.debug.print("[sendTx E2E] confirm poll {d}: not found yet\n", .{confirm_attempts});
+                                }
+                            },
+                            .rpc_error => |rpc_err| {
+                                defer rpc_err.deinit(gpa);
+                                std.debug.print("[sendTx E2E] confirm poll {d}: rpc_error: {s}\n", .{ confirm_attempts, rpc_err.message });
+                            },
+                        }
+                    }
+
+                    if (confirmed) {
+                        std.debug.print("[sendTx E2E] CONFIRMED — sig: {s} (after {d} polls)\n", .{ sig_b58, confirm_attempts });
+                    } else {
+                        std.debug.print("[sendTx E2E] WARNING: tx sent but not confirmed within 30 polls — sig: {s}\n", .{sig_b58});
+                    }
                 },
                 .rpc_error => |rpc_err| {
                     defer rpc_err.deinit(gpa);

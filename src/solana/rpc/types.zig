@@ -66,3 +66,49 @@ pub fn RpcResult(comptime T: type) type {
 pub const SendTransactionResult = struct {
     signature: signature_mod.Signature,
 };
+
+pub const SignatureStatusInfo = struct {
+    signature: signature_mod.Signature,
+    slot: u64,
+    err_json: ?[]const u8 = null,
+    memo: ?[]const u8 = null,
+    block_time: ?i64 = null,
+    raw_json: ?[]const u8 = null,
+
+    pub fn deinit(self: *SignatureStatusInfo, allocator: std.mem.Allocator) void {
+        if (self.err_json) |err| allocator.free(err);
+        if (self.memo) |memo| allocator.free(memo);
+        if (self.raw_json) |raw| allocator.free(raw);
+    }
+};
+
+pub const SignaturesForAddressResult = struct {
+    items: []SignatureStatusInfo,
+
+    pub fn deinit(self: *SignaturesForAddressResult, allocator: std.mem.Allocator) void {
+        for (self.items) |*item| item.deinit(allocator);
+        allocator.free(self.items);
+    }
+};
+
+pub const SignatureStatus = struct {
+    slot: u64,
+    confirmations: ?u64 = null,
+    err_json: ?[]const u8 = null,
+    confirmation_status: ?[]const u8 = null,
+
+    pub fn deinit(self: *SignatureStatus, allocator: std.mem.Allocator) void {
+        if (self.err_json) |err| allocator.free(err);
+        if (self.confirmation_status) |cs| allocator.free(cs);
+    }
+};
+
+pub const TransactionInfo = struct {
+    slot: u64,
+    block_time: ?i64 = null,
+    raw_json: []const u8,
+
+    pub fn deinit(self: *TransactionInfo, allocator: std.mem.Allocator) void {
+        allocator.free(self.raw_json);
+    }
+};

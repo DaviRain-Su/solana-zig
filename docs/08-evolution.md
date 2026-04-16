@@ -93,7 +93,7 @@
 
 | 条目 | 候选类型 | 当前边界 | 后续阶段 |
 |---|---|---|---|
-| `sendTransaction` live send/confirm 证据 | scope-candidate | 当前 live harness 只覆盖到 `construct -> sign -> simulate`，未纳入 send/confirm | 待 closeout review 决定 |
+| ~~`sendTransaction` live send/confirm 证据~~ | ~~scope-candidate~~ → **resolved** | send + confirm 均已在 surfnet live 环境验证（`docs/14a` Run 4/5, `getSignatureStatuses` confirm 证据） | 不再作为例外项 |
 | `rpc.RpcClient` 更广泛 typed parse 扩展 | scope-candidate | 高频路径已收敛（`#7`），扩展 typed parse 是否下沉到 Phase 2 待最终确认 | 待 closeout review 决定 |
 | `tx.AddressLookupTable` 更细粒度权限语义 | quality-candidate | 关键失败路径已补齐（`#8`），高复杂度语义场景继续加固 | 待 closeout review 决定 |
 | `core.base58` / `core.shortvec` / `core.Hash` 样本扩展 | quality-candidate | 已满足最低集合，边界样本仍可继续扩充 | 待 closeout review 决定 |

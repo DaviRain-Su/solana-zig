@@ -89,6 +89,132 @@ pub const RpcClient = struct {
         return .{ .ok = lamports };
     }
 
+    pub fn getSlot(self: *RpcClient) !types.RpcResult(u64) {
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSlot\",\"params\":[{{\"commitment\":\"confirmed\"}}]}}",
+            .{self.nextRpcId()},
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        defer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const slot_value = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        const slot = parseIntegerAsU64(slot_value) orelse return error.InvalidRpcResponse;
+        return .{ .ok = slot };
+    }
+
+    pub fn getSignaturesForAddress(self: *RpcClient, pubkey: pubkey_mod.Pubkey, limit: ?u32) !types.RpcResult(types.SignaturesForAddressResult) {
+        const address = try pubkey.toBase58Alloc(self.allocator);
+        defer self.allocator.free(address);
+
+        const payload = if (limit) |l|
+            try std.fmt.allocPrint(
+                self.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSignaturesForAddress\",\"params\":[\"{s}\",{{\"limit\":{d}}}]}}",
+                .{ self.nextRpcId(), address, l },
+            )
+        else
+            try std.fmt.allocPrint(
+                self.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSignaturesForAddress\",\"params\":[\"{s}\"]}}",
+                .{ self.nextRpcId(), address },
+            );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            response.parsed.deinit();
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        if (result.* != .array) return error.InvalidRpcResponse;
+
+        const items = try self.allocator.alloc(types.SignatureStatusInfo, result.array.items.len);
+        errdefer self.allocator.free(items);
+
+        var initialized: usize = 0;
+        errdefer {
+            for (items[0..initialized]) |*item| item.deinit(self.allocator);
+        }
+
+        for (result.array.items, 0..) |item, i| {
+            if (item != .object) return error.InvalidRpcResponse;
+
+            const signature_str = getStringField(&item, "signature") orelse return error.InvalidRpcResponse;
+            const slot = getU64Field(&item, "slot") orelse return error.InvalidRpcResponse;
+            const signature = try @import("../core/signature.zig").Signature.fromBase58(signature_str);
+
+            const err_json = try extractOptionalFieldJson(self.allocator, &item, "err");
+            errdefer if (err_json) |err| self.allocator.free(err);
+
+            const memo = try extractOptionalString(self.allocator, &item, "memo");
+            errdefer if (memo) |m| self.allocator.free(m);
+
+            const block_time = getOptionalI64Field(&item, "blockTime");
+            const raw_json = try stringifyValue(self.allocator, item);
+            errdefer self.allocator.free(raw_json);
+
+            items[i] = .{
+                .signature = signature,
+                .slot = slot,
+                .err_json = err_json,
+                .memo = memo,
+                .block_time = block_time,
+                .raw_json = raw_json,
+            };
+            initialized += 1;
+        }
+
+        response.parsed.deinit();
+        return .{ .ok = .{ .items = items } };
+    }
+
+    pub fn getTransaction(self: *RpcClient, signature: @import("../core/signature.zig").Signature) !types.RpcResult(types.TransactionInfo) {
+        const signature_b58 = try signature.toBase58Alloc(self.allocator);
+        defer self.allocator.free(signature_b58);
+
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getTransaction\",\"params\":[\"{s}\",{{\"encoding\":\"json\",\"commitment\":\"confirmed\",\"maxSupportedTransactionVersion\":0}}]}}",
+            .{ self.nextRpcId(), signature_b58 },
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            response.parsed.deinit();
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        if (result.* != .object) return error.InvalidRpcResponse;
+
+        const slot = getU64Field(result, "slot") orelse return error.InvalidRpcResponse;
+        const block_time = getOptionalI64Field(result, "blockTime");
+        const raw_json = try stringifyValue(self.allocator, result.*);
+
+        response.parsed.deinit();
+        return .{ .ok = .{
+            .slot = slot,
+            .block_time = block_time,
+            .raw_json = raw_json,
+        } };
+    }
+
     pub fn getAccountInfo(self: *RpcClient, pubkey: pubkey_mod.Pubkey) !types.RpcResult(types.AccountInfo) {
         const address = try pubkey.toBase58Alloc(self.allocator);
         defer self.allocator.free(address);
@@ -181,6 +307,69 @@ pub const RpcClient = struct {
             .logs = logs,
             .units_consumed = units_consumed,
             .raw_json = raw_json,
+        } };
+    }
+
+    pub fn getSignatureStatuses(self: *RpcClient, signatures: []const @import("../core/signature.zig").Signature) !types.RpcResult(?types.SignatureStatus) {
+        // Build JSON array of signature strings
+        var sig_array: std.Io.Writer.Allocating = .init(self.allocator);
+        defer sig_array.deinit();
+        try sig_array.writer.writeByte('[');
+        for (signatures, 0..) |sig, i| {
+            if (i > 0) try sig_array.writer.writeByte(',');
+            try sig_array.writer.writeByte('"');
+            const sig_b58 = try sig.toBase58Alloc(self.allocator);
+            defer self.allocator.free(sig_b58);
+            try sig_array.writer.writeAll(sig_b58);
+            try sig_array.writer.writeByte('"');
+        }
+        try sig_array.writer.writeByte(']');
+
+        const payload = try std.fmt.allocPrint(
+            self.allocator,
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSignatureStatuses\",\"params\":[{s},{{\"searchTransactionHistory\":true}}]}}",
+            .{ self.nextRpcId(), sig_array.written() },
+        );
+        defer self.allocator.free(payload);
+
+        var response = try self.callAndParse(payload);
+        errdefer response.parsed.deinit();
+
+        if (try extractRpcError(self.allocator, response.parsed.value)) |rpc_err| {
+            response.parsed.deinit();
+            return .{ .rpc_error = rpc_err };
+        }
+
+        const root = &response.parsed.value;
+        const result = getObjectField(root, "result") orelse return error.InvalidRpcResponse;
+        const value = getObjectField(result, "value") orelse return error.InvalidRpcResponse;
+        if (value.* != .array) return error.InvalidRpcResponse;
+
+        // Return first status (or null if not found yet)
+        if (value.array.items.len == 0 or value.array.items[0] == .null) {
+            response.parsed.deinit();
+            return .{ .ok = null };
+        }
+
+        const item = &value.array.items[0];
+        if (item.* != .object) return error.InvalidRpcResponse;
+
+        const slot = getU64Field(item, "slot") orelse return error.InvalidRpcResponse;
+        const confirmations = getU64Field(item, "confirmations");
+        const err_json = try extractOptionalFieldJson(self.allocator, item, "err");
+        errdefer if (err_json) |err| self.allocator.free(err);
+        const confirmation_status = if (getStringField(item, "confirmationStatus")) |cs|
+            try self.allocator.dupe(u8, cs)
+        else
+            null;
+        errdefer if (confirmation_status) |cs| self.allocator.free(cs);
+
+        response.parsed.deinit();
+        return .{ .ok = .{
+            .slot = slot,
+            .confirmations = confirmations,
+            .err_json = err_json,
+            .confirmation_status = confirmation_status,
         } };
     }
 
@@ -293,6 +482,33 @@ fn parseIntegerAsU64(value: *const std.json.Value) ?u64 {
         .number_string => |s| std.fmt.parseInt(u64, s, 10) catch null,
         else => null,
     };
+}
+
+fn parseIntegerAsI64(value: *const std.json.Value) ?i64 {
+    return switch (value.*) {
+        .integer => |n| n,
+        .number_string => |s| std.fmt.parseInt(i64, s, 10) catch null,
+        else => null,
+    };
+}
+
+fn getOptionalI64Field(root: *const std.json.Value, field: []const u8) ?i64 {
+    const value = getObjectField(root, field) orelse return null;
+    if (value.* == .null) return null;
+    return parseIntegerAsI64(value);
+}
+
+fn extractOptionalFieldJson(allocator: std.mem.Allocator, root: *const std.json.Value, field: []const u8) !?[]const u8 {
+    const value = getObjectField(root, field) orelse return null;
+    if (value.* == .null) return null;
+    return try stringifyValue(allocator, value.*);
+}
+
+fn extractOptionalString(allocator: std.mem.Allocator, root: *const std.json.Value, field: []const u8) !?[]const u8 {
+    const value = getObjectField(root, field) orelse return null;
+    if (value.* == .null) return null;
+    if (value.* != .string) return error.InvalidRpcResponse;
+    return try allocator.dupe(u8, value.string);
 }
 
 fn stringifyValue(allocator: std.mem.Allocator, value: std.json.Value) ![]u8 {
@@ -649,4 +865,248 @@ test "rpc client simulateTransaction returns InvalidRpcResponse on malformed suc
     defer tx.deinit();
 
     try std.testing.expectError(error.InvalidRpcResponse, client.simulateTransaction(tx));
+}
+
+test "rpc client getSlot typed parse happy path" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":123456}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const result = try client.getSlot();
+    switch (result) {
+        .ok => |slot| try std.testing.expectEqual(@as(u64, 123456), slot),
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getSlot preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32000,\"message\":\"slot unavailable\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const result = try client.getSlot();
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32000), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getSlot returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"slot\":1}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+    try std.testing.expectError(error.InvalidRpcResponse, client.getSlot());
+}
+
+test "rpc client getSignaturesForAddress typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[{\"signature\":\"5FtkHfQ5N62hCV7Wz4NQTRz5fWPQjY7Y9YByK7GfP4Hbw7jV4kD5mYTHPwo2fhtxQzpgLQ8vndqaM8UZz2xM4V5d\",\"slot\":777,\"err\":null,\"memo\":\"ok\",\"blockTime\":1234}]}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{42} ** 32);
+    const result = try client.getSignaturesForAddress(pubkey, 10);
+    switch (result) {
+        .ok => |sig_result| {
+            var owned = sig_result;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(usize, 1), owned.items.len);
+            try std.testing.expectEqual(@as(u64, 777), owned.items[0].slot);
+            try std.testing.expectEqual(@as(i64, 1234), owned.items[0].block_time.?);
+            try std.testing.expect(owned.items[0].err_json == null);
+            try std.testing.expectEqualStrings("ok", owned.items[0].memo.?);
+            try std.testing.expect(owned.items[0].raw_json != null);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getSignaturesForAddress preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"bad address\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{43} ** 32);
+    const result = try client.getSignaturesForAddress(pubkey, null);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getSignaturesForAddress returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[{\"slot\":1}]}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{44} ** 32);
+    try std.testing.expectError(error.InvalidRpcResponse, client.getSignaturesForAddress(pubkey, null));
+}
+
+test "rpc client getTransaction typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"slot\":99,\"blockTime\":555,\"meta\":{\"status\":{\"Ok\":null}},\"transaction\":{\"message\":{\"accountKeys\":[]}}}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const seed = [_]u8{9} ** 32;
+    const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
+    const msg = "tx-for-get-transaction";
+    const sig = try kp.sign(msg);
+
+    const result = try client.getTransaction(sig);
+    switch (result) {
+        .ok => |tx_info| {
+            var owned = tx_info;
+            defer owned.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 99), owned.slot);
+            try std.testing.expectEqual(@as(i64, 555), owned.block_time.?);
+            try std.testing.expect(owned.raw_json.len > 0);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getTransaction preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32015,\"message\":\"transaction not available\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const seed = [_]u8{10} ** 32;
+    const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
+    const sig = try kp.sign("tx-for-rpc-error");
+
+    const result = try client.getTransaction(sig);
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32015), rpc_err.code);
+        },
+    }
+}
+
+test "rpc client getTransaction returns InvalidRpcResponse on malformed success" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"blockTime\":1}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const seed = [_]u8{11} ** 32;
+    const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
+    const sig = try kp.sign("tx-for-malformed");
+    try std.testing.expectError(error.InvalidRpcResponse, client.getTransaction(sig));
+}
+
+test "rpc client getSignatureStatuses typed parse happy path" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":100},\"value\":[{\"slot\":72,\"confirmations\":10,\"err\":null,\"confirmationStatus\":\"confirmed\"}]}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const seed = [_]u8{12} ** 32;
+    const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
+    const sig = try kp.sign("tx-for-sig-status");
+
+    const result = try client.getSignatureStatuses(&[_]@import("../core/signature.zig").Signature{sig});
+    switch (result) {
+        .ok => |maybe_status| {
+            try std.testing.expect(maybe_status != null);
+            var status = maybe_status.?;
+            defer status.deinit(gpa);
+            try std.testing.expectEqual(@as(u64, 72), status.slot);
+            try std.testing.expectEqual(@as(u64, 10), status.confirmations.?);
+            try std.testing.expect(status.err_json == null);
+            try std.testing.expectEqualStrings("confirmed", status.confirmation_status.?);
+        },
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getSignatureStatuses returns null for unknown signature" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":100},\"value\":[null]}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const seed = [_]u8{13} ** 32;
+    const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
+    const sig = try kp.sign("tx-unknown");
+
+    const result = try client.getSignatureStatuses(&[_]@import("../core/signature.zig").Signature{sig});
+    switch (result) {
+        .ok => |maybe_status| try std.testing.expect(maybe_status == null),
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+}
+
+test "rpc client getSignatureStatuses preserves rpc error" {
+    const gpa = std.testing.allocator;
+    var mock: MockTransport = .{
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32600,\"message\":\"invalid request\"}}",
+    };
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    const seed = [_]u8{14} ** 32;
+    const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
+    const sig = try kp.sign("tx-rpc-error");
+
+    const result = try client.getSignatureStatuses(&[_]@import("../core/signature.zig").Signature{sig});
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32600), rpc_err.code);
+        },
+    }
 }
