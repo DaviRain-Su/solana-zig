@@ -100,10 +100,9 @@
 
 > Phase 1/2 已完成；Phase 3 主体能力已落地，但仍处于 Batch 4 closeout。以下为当前最值得补齐的缺口：
 
-1. `MockExternalSigner` 当前对输入消息签名不正确，且 `pubkey mismatch` 语义仍未闭环。
-2. C ABI 虽有头文件与最小导出，但 live RPC transport / header-core-surface 对齐 / 仓内 C 集成测试仍未闭环。
-3. stake builder 已覆盖完整生命周期最小路径，但 create helper 契约与负路径测试仍需补齐。
-4. benchmark baseline 与 execution-matrix 的最终 closeout 处置仍需继续收口。
+1. strict exception model 仍存在两条未收敛路径：`requestAirdrop=partial_exception`、`getAddressLookupTable=accepted exception path`。
+2. 在上述 exception 未关闭前，Phase 3 当前批次 verdict 维持 `有条件发布`，不满足升级到 `可发布` 的条件。
+3. `docs/35` / `docs/28` 条件回写仍未触发，需后续批次提供 exception 关闭证据再评估。
 
 ## 9. 配套文档
 
@@ -183,3 +182,29 @@
 | US-026 Stake 完整生命周期 | partial | `src/solana/interfaces/stake.zig` | 四类 builder 已有；create helper 契约与负路径测试仍不足 |
 | US-027 benchmark 扩展 | done | `src/benchmark.zig` | `zig build bench` 已输出 signer/C ABI 指标 |
 | US-028 文档收口 | done | `docs/prd-phase-3-batch-3-solana-zig-sdk-signersc-abi-stake.md`, `docs/17-quickstart-and-api-examples.md`, `docs/cabi-guide.md`, `docs/06-implementation-log.md`, `docs/10-coverage-matrix.md` | 2026-04-17 已按复核结论回写 |
+
+## 15. Phase 3 Batch 4 Tracking (canonical board: #79~#82)
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `signers minimum closure` | closed | `#79` | — | `3460ac9`，`Signer` 抽象 + `InMemorySigner` + `MockExternalSigner` + `signWithSigners`，isolated canonical `205/205` | `src/solana/signers/*` + `src/solana/tx/transaction.zig` + `docs/06` + `docs/37` | `G-P3D-01` + `G-P3D-02` PASS |
+| `C ABI minimum closure` | closed | `#80` | — | `e9fd4ff`，`SOLANA_ZIG_ABI_VERSION` + `solana_zig_abi_version()` + header/export consistency + RPC 最小入口，isolated canonical `206/206` | `src/solana/cabi/*` + `include/solana_zig.h` + `docs/06` + `docs/37` | `G-P3D-01` + `G-P3D-03` PASS |
+| `benchmark + verdict-upgrade input` | closed | `#81` | — | `bce967d`，`docs/13a` Run 2（signers/C ABI baseline）+ strict model verdict input，isolated canonical `208/208` | `docs/13a-benchmark-baseline-results.md` + `docs/15-phase1-execution-matrix.md` + `docs/37` | `G-P3D-04` PASS |
+| `batch4.docs/gate reconciliation` | closed | `#82` | — | 本轮回写 `docs/06+10+13a+15+37`；`docs/14a` 沿用既有 exception 证据链；conditional writeback 未触发 | 本矩阵 + `docs/37` | `G-P3D-05` PASS |
+
+### Phase 3 Batch 4 Exception Register
+
+- `requestAirdrop`
+  - 当前状态：`partial_exception`（public devnet rate-limit + local-live success）
+  - strict model 下未关闭，继续阻塞升级到 `可发布`
+- `getAddressLookupTable`
+  - 当前状态：`accepted exception path`（method-not-found / RPC error evidence）
+  - strict model 下未关闭，继续阻塞升级到 `可发布`
+
+### Phase 3 Batch 4 Verdict
+
+- 当前结论：`final: 有条件发布`
+- 原因：仍存在 `partial_exception` + `accepted exception path`
+- 条件回写：
+  - `docs/35-phase3-batch3-release-readiness.md`：不触发
+  - `docs/28-phase2-closeout-readiness.md`：不触发

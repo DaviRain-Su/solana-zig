@@ -278,3 +278,31 @@
 
 - `docs/28-phase2-closeout-readiness.md`：本轮**不触发回写**。  
   原因：Batch 3 结束时仍存在 partial/accepted exception，Phase 2 aggregate 升级条件不满足。
+
+## 16. Phase 3 Batch 4 Tracking (`#79~#82`)
+
+> 按 `docs/36-phase3-batch4-planning.md` 的冻结口径，Batch 4 进入实现与 docs/gate 收口阶段。  
+> 当前 canonical board：`#79`（signers） / `#80`（C ABI） / `#81`（benchmark+verdict input） / `#82`（docs/gate）。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `signers minimum closure` | closed | `#79` | — | `3460ac9`，`Signer` 抽象 + `InMemorySigner` + `MockExternalSigner` + `signWithSigners`，isolated canonical `205/205` | `src/solana/signers/*` + `src/solana/tx/transaction.zig` + `docs/06` + `docs/37` | `G-P3D-01` + `G-P3D-02` PASS |
+| `C ABI minimum closure` | closed | `#80` | — | `e9fd4ff`，`SOLANA_ZIG_ABI_VERSION` + `solana_zig_abi_version()` + header/export consistency + RPC 最小入口，isolated canonical `206/206` | `src/solana/cabi/*` + `include/solana_zig.h` + `docs/06` + `docs/37` | `G-P3D-01` + `G-P3D-03` PASS |
+| `benchmark + verdict-upgrade input` | closed | `#81` | — | `bce967d`，`docs/13a` Run 2（signers/C ABI baseline）+ strict model verdict input，isolated canonical `208/208` | `docs/13a-benchmark-baseline-results.md` + 本矩阵 + `docs/37` | `G-P3D-04` PASS |
+| `docs/gate reconciliation` | closed | `#82` | — | 本轮回写 `docs/06+10+13a+15+37`；`docs/14a` 沿用既有 exception 证据链；conditional writeback 未触发 | 本矩阵 + `docs/37` | `G-P3D-05` PASS |
+
+### Phase 3 Batch 4 Exception Register
+
+- `requestAirdrop`
+  - 当前状态：`partial_exception`（public devnet rate-limit + local-live success）
+  - strict model 下未关闭，继续阻塞升级到 `可发布`
+- `getAddressLookupTable`
+  - 当前状态：`accepted exception path`（method-not-found / RPC error evidence）
+  - strict model 下未关闭，继续阻塞升级到 `可发布`
+
+### Phase 3 Artifact Conditional Writeback
+
+- `docs/35-phase3-batch3-release-readiness.md`：本轮**不触发回写**。  
+  原因：Batch 4 未改变 Batch 3 verdict 条件。
+- `docs/28-phase2-closeout-readiness.md`：本轮**不触发回写**。  
+  原因：Phase 2 aggregate 升级前提（无 partial/accepted exception）仍不满足。

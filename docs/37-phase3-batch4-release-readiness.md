@@ -1,8 +1,8 @@
 # Phase 3 Batch 4 Release Readiness
 
 **Date**: 2026-04-17
-**Status**: Draft
-**Owner**: `#78`
+**Status**: Final
+**Owner**: `#82`
 **Batch**: Phase 3 Batch 4
 **Freeze point**: `e3a3794`
 
@@ -12,12 +12,11 @@
 ## 1. Checklist（最小固定项）
 
 1. Build/Test 结果（canonical）
-2. signers 最小闭环证据
-3. C ABI 最小闭环证据
-4. benchmark 扩展结果（signers + C ABI）
-5. exception convergence 与 verdict-upgrade 判定输入
-6. 文档一致性（`docs/06` / `docs/10` / `docs/13a` / `docs/14a` / `docs/15`）
-7. 发布判定（`可发布` / `有条件发布` / `不可发布`）
+2. signers correctness closure 证据
+3. C ABI reality alignment 证据
+4. benchmark 扩展与 verdict-upgrade 判定输入
+5. 文档一致性（`docs/06` / `docs/10` / `docs/13a` / `docs/14a` / `docs/15` / `docs/37`）
+6. 发布判定（`可发布` / `有条件发布` / `不可发布`）
 
 ## 2. Frozen Exception Rule（Batch 4）
 
@@ -42,12 +41,15 @@
 
 ## 4. Current Snapshot
 
-- Canonical（G-P3D-01）：`pending`
-- Signers minimum（G-P3D-02）：`pending`
-- C ABI minimum（G-P3D-03）：`pending`
-- Benchmark + verdict input（G-P3D-04）：`pending`
-- Docs/gate（G-P3D-05）：`pending`
-- Batch 4 verdict：`pending`
+- Canonical（G-P3D-01）：`PASS`
+  - `#79`: `3460ac9`（isolated clean，`205/205 PASS`）
+  - `#80`: `e9fd4ff`（isolated clean，`206/206 PASS`）
+  - `#81`: `bce967d`（isolated clean，`208/208 PASS`）
+- Signers correctness closure（G-P3D-02）：`PASS`（`#79`）
+- C ABI reality alignment（G-P3D-03）：`PASS`（`#80`）
+- benchmark + verdict-upgrade input（G-P3D-04）：`PASS`（`#81`）
+- Docs/gate（G-P3D-05）：`PASS`（`#82`）
+- Batch 4 verdict：`final: 有条件发布`
 
 ## 5. Upgrade Rule
 
@@ -58,15 +60,27 @@
 
 若任一条件不满足，Batch 4 verdict 只能是 `有条件发布` 或 `不可发布`。
 
+## 5.1 Final Verdict Rationale
+
+Batch 4 最终保持 `有条件发布`，原因：
+1. `requestAirdrop` 仍为 `partial_exception`（public devnet rate-limit + local-live success）。
+2. `getAddressLookupTable` 仍为 `accepted exception path`（method-not-found / RPC error evidence）。
+
+上述两项均符合 strict exception model，但尚未满足升级到 `可发布` 的条件。
+
 ## 6. Evidence Landing
 
 - 运行证据：`docs/14a-devnet-e2e-run-log.md`
 - benchmark 结果：`docs/13a-benchmark-baseline-results.md`
 - exception 登记：`docs/15-phase1-execution-matrix.md`
-- implementation/gate 汇总：`docs/06-implementation-log.md`, `docs/10-coverage-matrix.md`
+- implementation/gate 汇总：`docs/06-implementation-log.md`, `docs/10-coverage-matrix.md`, `docs/37-phase3-batch4-release-readiness.md`
 
 ## 7. Conditional Writeback
 
 若 Batch 4 对上游 verdict 产生影响，需条件回写：
 - `docs/35-phase3-batch3-release-readiness.md`
 - `docs/28-phase2-closeout-readiness.md`
+
+本轮处置：
+- `docs/35`：不触发回写（Batch 3 verdict 口径未变）
+- `docs/28`：不触发回写（Phase 2 aggregate 升级条件仍不满足）

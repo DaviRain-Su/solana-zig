@@ -72,3 +72,40 @@
 - Rust command / harness
 - 方法一致性说明
 - 差异解释
+
+---
+
+## Run 2 — Phase 3 Batch 4 (Signers + C ABI Baseline)
+
+### 1. Run Record
+
+- Run ID: `2026-04-17/bce967d/small`
+- Commit: `bce967d`
+- Date: `2026-04-17`
+- Operator: `@codex_5_3`
+- Host / CPU: Apple Silicon (arm64)
+- OS: Darwin 25.3.0
+- Zig Version: `0.16.0`
+- Target Triple: `aarch64-macos` (native)
+- Optimize Mode: `ReleaseFast`
+- Notes: 基于 Batch 4 canonical 输入，扩展 signers / C ABI 两项基线。
+
+### 2. Result Table
+
+| op | profile | iterations | total time | avg/op | throughput | notes |
+|---|---|---:|---:|---:|---:|---|
+| signer_in_memory_sign | `small` | 10,000 | 362,831 us | 36,283 ns | 27,561 ops/s | 对应 `BENCH|signer_in_memory_sign|small|10000|362831|36283|27561` |
+| cabi_pubkey_to_base58 | `small` | 10,000 | 12,138 us | 1,213 ns | 823,858 ops/s | 对应 `BENCH|cabi_pubkey_to_base58|small|10000|12138|1213|823858` |
+
+### 3. Canonical
+
+- isolated worktree: `/tmp/solana-zig-p3d81-2c8eca2`
+- commit: `bce967d`
+- `git status --short`: clean
+- `zig build test --summary all`: `208/208 tests passed`
+
+### 4. Verdict Input Mapping
+
+- Batch 4 benchmark 扩展输入：已满足 `G-P3D-04`。
+- strict exception model 输入：仍存在 `partial_exception` + `accepted exception path`。
+- 当前结论：Batch 4 维持 `final: 有条件发布`，不可升级到 `可发布`。

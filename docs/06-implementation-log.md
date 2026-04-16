@@ -1390,3 +1390,55 @@
 - `zig build test`
 - `zig build bench`
 - `clang -I /Users/davirian/dev/active/solana-zig/include -fsyntax-only <temp>.c`
+
+## 2026-04-17 第四十六次增量记录（Phase 3 Batch 4：#79/#80/#81 闭环 + #82 docs/gate final closeout）
+
+### 输入
+- `#78`（Batch 4 planning / DoD）已在 `16abccd` 通过结构审并关闭。
+- `#79`（Signers）/`#80`（C ABI）/`#81`（Benchmark + verdict-upgrade 输入）均已完成 reviewer PASS。
+- `#82` 作为本批唯一收口线，执行 `docs/06/10/13a/14a/15/37` 对账与发布判定固化。
+
+### 输出
+- `#79` 在 `3460ac9` 完成 signers 最小闭环：
+  - `Signer` 抽象 + `InMemorySigner` + `MockExternalSigner`
+  - `VersionedTransaction.signWithSigners(...)` 接入
+  - 补件后 reviewer：`G-P3D-01 PASS` + `G-P3D-02 PASS`
+- `#80` 在 `e9fd4ff` 完成 C ABI 最小闭环：
+  - `include/solana_zig.h` 最小导出
+  - `SOLANA_ZIG_ABI_VERSION` + `solana_zig_abi_version()`
+  - header/export consistency 与 RPC 最小入口对齐
+  - reviewer：`G-P3D-01 PASS` + `G-P3D-03 PASS`
+- `#81` 在 `bce967d` 完成 benchmark 扩展与 verdict-upgrade 输入：
+  - `docs/13a` Run 2 写入 signers / C ABI baseline
+  - strict model 判定输入固化到 `docs/15` 与 `docs/37`
+  - reviewer：`G-P3D-04 PASS`
+- `#82` 完成最终 docs/gate reconciliation：
+  - 回写 `docs/06/10/13a/15/37`（`docs/14a` 本轮无新增 run，沿用既有 exception 证据链）
+  - `G-P3D-05` PASS（本次 closeout）
+
+### 风险
+- Batch 4 仍存在 strict model 下的两条未收敛 exception：
+  - `requestAirdrop`: `partial_exception`
+  - `getAddressLookupTable`: `accepted exception path`
+- 因此 Batch 4 verdict 继续锁定为 `final: 有条件发布`，本轮不满足升级到 `可发布` 的条件。
+- 条件回写不触发：`docs/35` / `docs/28` 判定前提未变化。
+
+### 验证
+- `#79` canonical（isolated）：
+  - commit `3460ac9`
+  - clean status
+  - `zig build test --summary all` -> `205/205 tests passed`
+- `#80` canonical（isolated）：
+  - commit `e9fd4ff`
+  - clean status
+  - `zig build test --summary all` -> `206/206 tests passed`
+- `#81` canonical（isolated）：
+  - commit `bce967d`
+  - clean status
+  - `zig build test --summary all` -> `208/208 tests passed`
+- Batch 4 gate 收敛结论：
+  - `G-P3D-01` ✅
+  - `G-P3D-02` ✅
+  - `G-P3D-03` ✅
+  - `G-P3D-04` ✅
+  - `G-P3D-05` ✅
