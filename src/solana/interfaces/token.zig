@@ -525,31 +525,40 @@ const FlowMockTransport = struct {
         allocator: std.mem.Allocator,
         url: []const u8,
         payload: []const u8,
-    ) rpc_transport_mod.PostJsonError![]u8 {
+    ) rpc_transport_mod.PostJsonError!rpc_transport_mod.PostJsonResponse {
         _ = url;
         const self: *FlowMockTransport = @ptrCast(@alignCast(ctx));
 
         if (std.mem.indexOf(u8, payload, "\"sendTransaction\"") != null) {
             if (self.mode == .fail_mismatch) {
-                return allocator.dupe(
-                    u8,
-                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32002,\"message\":\"Transaction simulation failed: invalid account metas\"}}",
-                );
+                return .{
+                    .status = .ok,
+                    .body = try allocator.dupe(
+                        u8,
+                        "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32002,\"message\":\"Transaction simulation failed: invalid account metas\"}}",
+                    ),
+                };
             }
             // 64 bytes of zero encoded in base58.
             const sig = "1111111111111111111111111111111111111111111111111111111111111111";
-            return std.fmt.allocPrint(
-                allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"{s}\"}}",
-                .{sig},
-            );
+            return .{
+                .status = .ok,
+                .body = try std.fmt.allocPrint(
+                    allocator,
+                    "{{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"{s}\"}}",
+                    .{sig},
+                ),
+            };
         }
 
         if (std.mem.indexOf(u8, payload, "\"getSignatureStatuses\"") != null) {
-            return allocator.dupe(
-                u8,
-                "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":[{\"slot\":1,\"confirmations\":null,\"err\":null,\"confirmationStatus\":\"confirmed\"}]}}",
-            );
+            return .{
+                .status = .ok,
+                .body = try allocator.dupe(
+                    u8,
+                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":[{\"slot\":1,\"confirmations\":null,\"err\":null,\"confirmationStatus\":\"confirmed\"}]}}",
+                ),
+            };
         }
 
         return error.RpcTransport;

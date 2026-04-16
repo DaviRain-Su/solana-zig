@@ -36,6 +36,7 @@ pub const rpc = struct {
     pub const ws_client = @import("rpc/ws_client.zig");
 
     pub const RpcClient = client.RpcClient;
+    pub const RpcRetryConfig = types.RpcRetryConfig;
     pub const Transport = transport.Transport;
     pub const Commitment = types.Commitment;
     pub const OwnedJson = types.OwnedJson;

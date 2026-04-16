@@ -1,5 +1,14 @@
 const std = @import("std");
 
+pub const PostJsonResponse = struct {
+    status: std.http.Status,
+    body: []u8,
+
+    pub fn deinit(self: PostJsonResponse, allocator: std.mem.Allocator) void {
+        allocator.free(self.body);
+    }
+};
+
 pub const HttpTransport = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -20,8 +29,8 @@ pub const HttpTransport = struct {
         self.client.deinit();
     }
 
-    pub fn postJson(self: *HttpTransport, url: []const u8, payload: []const u8) ![]u8 {
-        var out: std.Io.Writer.Allocating = .init(self.allocator);
+    pub fn postJson(self: *HttpTransport, allocator: std.mem.Allocator, url: []const u8, payload: []const u8) !PostJsonResponse {
+        var out: std.Io.Writer.Allocating = .init(allocator);
         defer out.deinit();
 
         const headers = [_]std.http.Header{
@@ -37,8 +46,9 @@ pub const HttpTransport = struct {
             .response_writer = &out.writer,
         }) catch return error.RpcTransport;
 
-        if (result.status != .ok) return error.RpcTransport;
-
-        return self.allocator.dupe(u8, out.written());
+        return .{
+            .status = result.status,
+            .body = try allocator.dupe(u8, out.written()),
+        };
     }
 };

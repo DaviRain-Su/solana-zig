@@ -9,6 +9,7 @@ pub const RpcClient = struct {
     allocator: std.mem.Allocator,
     transport: transport_mod.Transport,
     endpoint: []const u8,
+    retry_config: types.RpcRetryConfig = .{},
     next_id: u64 = 1,
 
     pub fn init(allocator: std.mem.Allocator, io: std.Io, endpoint: []const u8) !RpcClient {
@@ -33,6 +34,10 @@ pub const RpcClient = struct {
     pub fn deinit(self: *RpcClient) void {
         self.transport.deinit(self.allocator);
         self.allocator.free(self.endpoint);
+    }
+
+    pub fn setRetryConfig(self: *RpcClient, retry_config: types.RpcRetryConfig) void {
+        self.retry_config = retry_config;
     }
 
     pub fn getLatestBlockhash(self: *RpcClient) !types.RpcResult(types.LatestBlockhash) {
@@ -866,19 +871,79 @@ pub const RpcClient = struct {
     };
 
     fn callAndParse(self: *RpcClient, payload: []const u8) !ParsedEnvelope {
-        const response_body = try self.transport.postJson(self.allocator, self.endpoint, payload);
-        defer self.allocator.free(response_body);
+        var attempt: u32 = 0;
+        while (true) : (attempt += 1) {
+            var response = self.transport.postJson(self.allocator, self.endpoint, payload) catch |err| switch (err) {
+                error.RpcTransport, error.RpcTimeout => {
+                    if (self.hasRetryBudget(attempt)) {
+                        self.sleepBeforeRetry(attempt);
+                        continue;
+                    }
+                    return err;
+                },
+                else => return err,
+            };
+            defer response.deinit(self.allocator);
 
-        var parsed = std.json.parseFromSlice(std.json.Value, self.allocator, response_body, .{}) catch {
-            return error.RpcParse;
+            const status_code = @intFromEnum(response.status);
+            if (status_code != 200 and isRetryableHttpStatus(response.status) and self.hasRetryBudget(attempt)) {
+                self.sleepBeforeRetry(attempt);
+                continue;
+            }
+
+            var parsed = std.json.parseFromSlice(std.json.Value, self.allocator, response.body, .{}) catch {
+                return if (status_code == 200) error.RpcParse else error.RpcTransport;
+            };
+
+            if (parsed.value != .object) {
+                parsed.deinit();
+                return if (status_code == 200) error.InvalidRpcResponse else error.RpcTransport;
+            }
+
+            if (peekRpcError(&parsed.value)) |rpc_err| {
+                if (isRetryableRpcError(rpc_err.code, rpc_err.message) and self.hasRetryBudget(attempt)) {
+                    parsed.deinit();
+                    self.sleepBeforeRetry(attempt);
+                    continue;
+                }
+            }
+
+            if (status_code != 200 and getObjectField(&parsed.value, "error") == null) {
+                parsed.deinit();
+                return error.RpcTransport;
+            }
+
+            return .{ .parsed = parsed };
+        }
+    }
+
+    fn hasRetryBudget(self: *const RpcClient, attempt: u32) bool {
+        return attempt < self.retry_config.max_retries;
+    }
+
+    fn sleepBeforeRetry(self: *const RpcClient, attempt: u32) void {
+        const delay_ms = self.retryDelayMs(attempt);
+        if (delay_ms == 0) return;
+
+        const delay_ns = std.math.mul(u64, delay_ms, std.time.ns_per_ms) catch std.math.maxInt(u64);
+        var req = std.c.timespec{
+            .sec = @intCast(delay_ns / std.time.ns_per_s),
+            .nsec = @intCast(delay_ns % std.time.ns_per_s),
         };
+        _ = std.c.nanosleep(&req, null);
+    }
 
-        if (parsed.value != .object) {
-            parsed.deinit();
-            return error.InvalidRpcResponse;
+    fn retryDelayMs(self: *const RpcClient, attempt: u32) u64 {
+        if (self.retry_config.base_delay_ms == 0 or self.retry_config.max_delay_ms == 0) return 0;
+
+        var delay_ms = @min(self.retry_config.base_delay_ms, self.retry_config.max_delay_ms);
+        var step: u32 = 0;
+        while (step < attempt and delay_ms < self.retry_config.max_delay_ms) : (step += 1) {
+            const doubled = std.math.mul(u64, delay_ms, 2) catch self.retry_config.max_delay_ms;
+            delay_ms = @min(doubled, self.retry_config.max_delay_ms);
         }
 
-        return .{ .parsed = parsed };
+        return delay_ms;
     }
 };
 
@@ -899,6 +964,27 @@ fn extractRpcError(allocator: std.mem.Allocator, root: std.json.Value) !?types.R
         .code = code,
         .message = try allocator.dupe(u8, message),
         .data_json = data_json,
+    };
+}
+
+const RpcErrorSummary = struct {
+    code: i64,
+    message: []const u8,
+};
+
+fn peekRpcError(root: *const std.json.Value) ?RpcErrorSummary {
+    const rpc_error_value = getObjectField(root, "error") orelse return null;
+    if (rpc_error_value.* != .object) return null;
+
+    const code = getI64Field(rpc_error_value, "code") orelse return null;
+    const message = getStringField(rpc_error_value, "message") orelse return null;
+    return .{ .code = code, .message = message };
+}
+
+fn isRetryableHttpStatus(status: std.http.Status) bool {
+    return switch (@intFromEnum(status)) {
+        429, 500, 502, 503, 504 => true,
+        else => false,
     };
 }
 
@@ -1106,6 +1192,7 @@ fn parseStringArray(allocator: std.mem.Allocator, value: *const std.json.Value, 
 }
 
 const MockTransport = struct {
+    response_status: std.http.Status = .ok,
     response_body: []const u8 = "",
     should_fail: bool = false,
     capture_payload: bool = false,
@@ -1116,7 +1203,7 @@ const MockTransport = struct {
         allocator: std.mem.Allocator,
         url: []const u8,
         payload: []const u8,
-    ) transport_mod.PostJsonError![]u8 {
+    ) transport_mod.PostJsonError!transport_mod.PostJsonResponse {
         _ = url;
 
         const self: *MockTransport = @ptrCast(@alignCast(ctx));
@@ -1124,7 +1211,52 @@ const MockTransport = struct {
         if (self.capture_payload) {
             self.captured_payload = try allocator.dupe(u8, payload);
         }
-        return allocator.dupe(u8, self.response_body);
+        return .{
+            .status = self.response_status,
+            .body = try allocator.dupe(u8, self.response_body),
+        };
+    }
+};
+
+const RetryMockTransport = struct {
+    steps: []const Step,
+    call_count: usize = 0,
+    first_payload: ?[]u8 = null,
+    identical_payloads: bool = true,
+
+    const Step = struct {
+        status: std.http.Status = .ok,
+        body: []const u8 = "",
+        fail_transport: bool = false,
+    };
+
+    fn postJson(
+        ctx: *anyopaque,
+        allocator: std.mem.Allocator,
+        url: []const u8,
+        payload: []const u8,
+    ) transport_mod.PostJsonError!transport_mod.PostJsonResponse {
+        _ = url;
+
+        const self: *RetryMockTransport = @ptrCast(@alignCast(ctx));
+        if (self.first_payload) |first_payload| {
+            if (!std.mem.eql(u8, first_payload, payload)) {
+                self.identical_payloads = false;
+            }
+        } else {
+            self.first_payload = try allocator.dupe(u8, payload);
+        }
+
+        if (self.call_count >= self.steps.len) return error.RpcTransport;
+
+        const step = self.steps[self.call_count];
+        self.call_count += 1;
+        if (step.fail_transport) return error.RpcTransport;
+
+        return .{
+            .status = step.status,
+            .body = try allocator.dupe(u8, step.body),
+        };
     }
 };
 
@@ -1152,6 +1284,169 @@ fn makeTestTransaction(allocator: std.mem.Allocator) !transaction_mod.VersionedT
 
     try tx.sign(&[_]@import("../core/keypair.zig").Keypair{keypair});
     return tx;
+}
+
+test "rpc client retryDelayMs uses exponential backoff with cap" {
+    const gpa = std.testing.allocator;
+
+    var mock: MockTransport = .{};
+    const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+
+    client.setRetryConfig(.{
+        .max_retries = 5,
+        .base_delay_ms = 25,
+        .max_delay_ms = 80,
+    });
+
+    try std.testing.expectEqual(@as(u64, 25), client.retryDelayMs(0));
+    try std.testing.expectEqual(@as(u64, 50), client.retryDelayMs(1));
+    try std.testing.expectEqual(@as(u64, 80), client.retryDelayMs(2));
+    try std.testing.expectEqual(@as(u64, 80), client.retryDelayMs(4));
+}
+
+test "rpc client retries transient transport errors and reuses identical payload" {
+    const gpa = std.testing.allocator;
+
+    var steps = [_]RetryMockTransport.Step{
+        .{ .fail_transport = true },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":4242}}" },
+    };
+    var mock = RetryMockTransport{ .steps = &steps };
+    defer if (mock.first_payload) |payload| gpa.free(payload);
+
+    const transport = transport_mod.Transport.init(&mock, RetryMockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+    client.setRetryConfig(.{
+        .max_retries = 1,
+        .base_delay_ms = 0,
+        .max_delay_ms = 0,
+    });
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{41} ** 32);
+    const result = try client.getBalance(pubkey);
+
+    switch (result) {
+        .ok => |lamports| try std.testing.expectEqual(@as(u64, 4242), lamports),
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    try std.testing.expectEqual(@as(usize, 2), mock.call_count);
+    try std.testing.expect(mock.identical_payloads);
+}
+
+test "rpc client retries HTTP 429 until success" {
+    const gpa = std.testing.allocator;
+
+    var steps = [_]RetryMockTransport.Step{
+        .{
+            .status = @enumFromInt(429),
+            .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32005,\"message\":\"Too Many Requests\"}}",
+        },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":99}}" },
+    };
+    var mock = RetryMockTransport{ .steps = &steps };
+    defer if (mock.first_payload) |payload| gpa.free(payload);
+
+    const transport = transport_mod.Transport.init(&mock, RetryMockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+    client.setRetryConfig(.{
+        .max_retries = 1,
+        .base_delay_ms = 0,
+        .max_delay_ms = 0,
+    });
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{42} ** 32);
+    const result = try client.getBalance(pubkey);
+
+    switch (result) {
+        .ok => |lamports| try std.testing.expectEqual(@as(u64, 99), lamports),
+        .rpc_error => return error.UnexpectedRpcError,
+    }
+
+    try std.testing.expectEqual(@as(usize, 2), mock.call_count);
+    try std.testing.expect(mock.identical_payloads);
+}
+
+test "rpc client stops retrying after retry budget is exhausted" {
+    const gpa = std.testing.allocator;
+
+    var steps = [_]RetryMockTransport.Step{
+        .{
+            .status = @enumFromInt(429),
+            .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32005,\"message\":\"Too Many Requests\"}}",
+        },
+        .{
+            .status = @enumFromInt(429),
+            .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32005,\"message\":\"Too Many Requests\"}}",
+        },
+    };
+    var mock = RetryMockTransport{ .steps = &steps };
+    defer if (mock.first_payload) |payload| gpa.free(payload);
+
+    const transport = transport_mod.Transport.init(&mock, RetryMockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+    client.setRetryConfig(.{
+        .max_retries = 1,
+        .base_delay_ms = 0,
+        .max_delay_ms = 0,
+    });
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{43} ** 32);
+    const result = try client.getBalance(pubkey);
+
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32005), rpc_err.code);
+            try std.testing.expectEqualStrings("Too Many Requests", rpc_err.message);
+        },
+    }
+
+    try std.testing.expectEqual(@as(usize, 2), mock.call_count);
+    try std.testing.expect(mock.identical_payloads);
+}
+
+test "rpc client does not retry non-retryable HTTP 400 responses" {
+    const gpa = std.testing.allocator;
+
+    var steps = [_]RetryMockTransport.Step{
+        .{
+            .status = @enumFromInt(400),
+            .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"Invalid params\"}}",
+        },
+        .{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":1},\"value\":777}}" },
+    };
+    var mock = RetryMockTransport{ .steps = &steps };
+    defer if (mock.first_payload) |payload| gpa.free(payload);
+
+    const transport = transport_mod.Transport.init(&mock, RetryMockTransport.postJson, transport_mod.noopDeinit);
+    var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
+    defer client.deinit();
+    client.setRetryConfig(.{
+        .max_retries = 3,
+        .base_delay_ms = 0,
+        .max_delay_ms = 0,
+    });
+
+    const pubkey = pubkey_mod.Pubkey.init([_]u8{44} ** 32);
+    const result = try client.getBalance(pubkey);
+
+    switch (result) {
+        .ok => return error.ExpectedRpcError,
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            try std.testing.expectEqual(@as(i64, -32602), rpc_err.code);
+            try std.testing.expectEqualStrings("Invalid params", rpc_err.message);
+        },
+    }
+
+    try std.testing.expectEqual(@as(usize, 1), mock.call_count);
 }
 
 test "rpc client supports injected transport for happy path" {
@@ -2714,6 +3009,10 @@ fn isRateLimitedRpcError(code: i64, message: []const u8) bool {
     if (std.mem.indexOf(u8, message, "Rate limit") != null) return true;
     if (std.mem.indexOf(u8, message, "Too Many Requests") != null) return true;
     return false;
+}
+
+fn isRetryableRpcError(code: i64, message: []const u8) bool {
+    return isRateLimitedRpcError(code, message);
 }
 
 fn isMethodNotFoundRpcError(code: i64, message: []const u8) bool {

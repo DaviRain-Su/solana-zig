@@ -62,14 +62,17 @@ const ScriptedMock = struct {
         allocator: std.mem.Allocator,
         url: []const u8,
         payload: []const u8,
-    ) transport_mod.PostJsonError![]u8 {
+    ) transport_mod.PostJsonError!transport_mod.PostJsonResponse {
         _ = url;
         _ = payload;
         const self: *ScriptedMock = @ptrCast(@alignCast(ctx));
         if (self.call_index >= self.responses.len) return error.RpcTransport;
         const response = self.responses[self.call_index];
         self.call_index += 1;
-        return allocator.dupe(u8, response);
+        return .{
+            .status = .ok,
+            .body = try allocator.dupe(u8, response),
+        };
     }
 };
 
@@ -290,7 +293,7 @@ fn requestAirdrop(client: *RpcClient, pubkey_str: []const u8, lamports: u64) !vo
     defer gpa.free(payload);
 
     const raw = try client.transport.postJson(gpa, client.endpoint, payload);
-    defer gpa.free(raw);
+    defer raw.deinit(gpa);
     // We don't parse — just fire and forget. The validator will fund the account.
 }
 
@@ -312,9 +315,9 @@ fn postJsonAndParse(
     payload: []const u8,
 ) !std.json.Parsed(std.json.Value) {
     const raw = try client.transport.postJson(allocator, client.endpoint, payload);
-    defer allocator.free(raw);
+    defer raw.deinit(allocator);
 
-    var parsed = std.json.parseFromSlice(std.json.Value, allocator, raw, .{}) catch {
+    var parsed = std.json.parseFromSlice(std.json.Value, allocator, raw.body, .{}) catch {
         return error.RpcParse;
     };
     if (parsed.value != .object) {

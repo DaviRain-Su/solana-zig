@@ -1,14 +1,15 @@
 const std = @import("std");
 const http_transport = @import("http_transport.zig");
 
-pub const PostJsonError = std.mem.Allocator.Error || error{RpcTransport};
+pub const PostJsonResponse = http_transport.PostJsonResponse;
+pub const PostJsonError = std.mem.Allocator.Error || error{ RpcTransport, RpcTimeout };
 
 pub const PostJsonFn = *const fn (
     ctx: *anyopaque,
     allocator: std.mem.Allocator,
     url: []const u8,
     payload: []const u8,
-) PostJsonError![]u8;
+) PostJsonError!PostJsonResponse;
 
 pub const DeinitFn = *const fn (ctx: *anyopaque, allocator: std.mem.Allocator) void;
 
@@ -25,7 +26,7 @@ pub const Transport = struct {
         };
     }
 
-    pub fn postJson(self: Transport, allocator: std.mem.Allocator, url: []const u8, payload: []const u8) PostJsonError![]u8 {
+    pub fn postJson(self: Transport, allocator: std.mem.Allocator, url: []const u8, payload: []const u8) PostJsonError!PostJsonResponse {
         return self.post_json_fn(self.ctx, allocator, url, payload);
     }
 
@@ -40,10 +41,9 @@ pub fn initHttpTransport(allocator: std.mem.Allocator, io: std.Io) !Transport {
     return Transport.init(ptr, postJsonHttp, deinitHttp);
 }
 
-fn postJsonHttp(ctx: *anyopaque, allocator: std.mem.Allocator, url: []const u8, payload: []const u8) PostJsonError![]u8 {
-    _ = allocator;
+fn postJsonHttp(ctx: *anyopaque, allocator: std.mem.Allocator, url: []const u8, payload: []const u8) PostJsonError!PostJsonResponse {
     const transport: *http_transport.HttpTransport = @ptrCast(@alignCast(ctx));
-    return transport.postJson(url, payload) catch |err| switch (err) {
+    return transport.postJson(allocator, url, payload) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
         else => return error.RpcTransport,
     };

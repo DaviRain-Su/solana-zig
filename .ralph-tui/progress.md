@@ -16,6 +16,7 @@ after each iteration and it's included in prompts for context.
 - For live Devnet acceptance that needs a non-ephemeral on-chain artifact (for example an ALT account), prefer a discovery helper that scans recent blocks via raw JSON-RPC and reuses the discovered key in the typed client assertion; this avoids hardcoding addresses that may disappear while still validating the real parser.
 - For token-account live acceptance, prefer discovering a sample token account via raw helper RPCs (for example `getTokenLargestAccounts`), then decode the canonical SPL Token account layout through the typed `getAccountInfo` path to derive a reusable owner/mint fixture before asserting higher-level typed RPC filters.
 - For token-amount live acceptance, reuse a discovery flow that starts from a stable mint (for example wrapped SOL), derives a current token account via `getTokenLargestAccounts`, and then validates both `getTokenAccountBalance` and `getTokenSupply` against the same mint/account pair; this avoids brittle hardcoded fixtures while keeping decimal assertions stable.
+- Retry-aware RPC tests fit this codebase best when they drive `RpcClient` through a staged mock transport that returns `{ status, body }` responses, sets retry delays to zero, and asserts both call counts and identical payload replay across attempts.
 
 ---
 
@@ -152,5 +153,21 @@ after each iteration and it's included in prompts for context.
     - Token amount live acceptance is easiest to keep stable by reusing the wrapped-SOL discovery flow from `getTokenLargestAccounts`, then asserting both token-account balance and mint supply from the same discovered fixture.
   - Gotchas encountered
     - The wrapped-SOL/native mint can legitimately report `getTokenSupply.amount == 0` on Devnet, so the live assertion should focus on typed field presence and stable decimals instead of assuming a positive total supply.
+---
+
+## 2026-04-16 - US-010
+- Completed the unified RPC retry story by validating the existing configurable retry plumbing, fixing all mock/scripted transports to the new `{ status, body }` response contract, and adding explicit unit coverage for exponential backoff capping, transient transport retry success, HTTP 429 retry success, retry exhaustion, and non-retryable HTTP 400 direct failure.
+- Files changed:
+  - `src/solana/rpc/client.zig`
+  - `src/solana/interfaces/token.zig`
+  - `src/e2e/devnet_e2e.zig`
+  - `src/e2e/nonce_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - `RetryMockTransport` style staged responses are enough to verify retry classification, payload replay stability, and retry-budget behavior without introducing sleeps into unit tests.
+  - Gotchas encountered
+    - After the transport abstraction started returning `PostJsonResponse`, every scripted/mock transport and raw helper needed to wrap JSON bodies with an HTTP status and call `response.deinit(...)`; otherwise unrelated test/E2E targets fail at compile time.
+    - Zig 0.16 in this repo does not expose a stdlib sleep helper on `std.Thread`, so the blocking backoff path needs to use libc `nanosleep` in this `-lc` build configuration.
 ---
 

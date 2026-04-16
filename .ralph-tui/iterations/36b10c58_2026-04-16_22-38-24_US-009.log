@@ -1,0 +1,38 @@
+# Iteration 11 Log
+
+## Metadata
+
+- **Task ID**: US-009
+- **Task Title**: getTokenAccountBalance / getTokenSupply RPC 方法
+- **Description**: As a Zig 开发者, I want 调用 getTokenAccountBalance 和 getTokenSupply so that 我可以查询 Token 余额与总供应量。
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T14:38:24.589Z
+- **Ended At**: 2026-04-16T14:43:35.371Z
+- **Duration**: 5m 10s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# US-009 Complete
+
+Implemented and verified `getTokenAccountBalance` / `getTokenSupply` story coverage by:
+
+- adding payload-capture unit assertions for both RPC methods in `src/solana/rpc/client.zig`
+- tightening mock error coverage with explicit account/mint-not-found RPC fixtures
+- adding gated Devnet E2E coverage in `src/e2e/devnet_e2e.zig` using a discovered wrapped-SOL token account/mint pair
+- appending the required US-009 entry and reusable pattern to `.ralph-tui/progress.md`
+
+## Validation
+
+Passed:
+
+- `zig build test`
+- `zig build bench`
+- `zig build devnet-e2e`
+
+Note: live Devnet execution was **environment-gated and skipped as expected** because `SOLANA_RPC_URL` is not set in this session, but the US-009 live harness is now present and wired into `zig build devnet-e2e`.
+
+<promise>COMPLETE</promise>
+]9;4;0;

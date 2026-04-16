@@ -53,14 +53,17 @@ const ScriptedMock = struct {
         allocator: std.mem.Allocator,
         url: []const u8,
         payload: []const u8,
-    ) transport_mod.PostJsonError![]u8 {
+    ) transport_mod.PostJsonError!transport_mod.PostJsonResponse {
         _ = url;
         _ = payload;
         const self: *ScriptedMock = @ptrCast(@alignCast(ctx));
         if (self.call_index >= self.responses.len) return error.RpcTransport;
         const response = self.responses[self.call_index];
         self.call_index += 1;
-        return allocator.dupe(u8, response);
+        return .{
+            .status = .ok,
+            .body = try allocator.dupe(u8, response),
+        };
     }
 };
 
@@ -188,7 +191,7 @@ fn requestAirdrop(client: *RpcClient, pubkey_str: []const u8, lamports: u64) !vo
     );
     defer a.free(payload);
     const raw = try client.transport.postJson(a, client.endpoint, payload);
-    defer a.free(raw);
+    defer raw.deinit(a);
 }
 
 // --- Helper: raw getMinimumBalanceForRentExemption ---
@@ -202,9 +205,9 @@ fn getMinimumBalanceForRentExemption(client: *RpcClient, data_len: u64) !u64 {
     );
     defer a.free(payload);
     const raw = try client.transport.postJson(a, client.endpoint, payload);
-    defer a.free(raw);
+    defer raw.deinit(a);
 
-    const parsed = try std.json.parseFromSlice(std.json.Value, a, raw, .{});
+    const parsed = try std.json.parseFromSlice(std.json.Value, a, raw.body, .{});
     defer parsed.deinit();
     const result = parsed.value.object.get("result") orelse return error.InvalidRpcResponse;
     return @intCast(result.integer);

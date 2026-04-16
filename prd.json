@@ -162,9 +162,10 @@
         "Mock 测试覆盖重试成功、重试耗尽、非重试错误路径"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "labels": [],
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-011",
@@ -298,6 +299,6 @@
     "createdAt": "2026-04-16T13:19:37.279Z",
     "version": "1.0.0",
     "sourcePrd": "tasks/prd-phase-2-solana-zig-sdk-rpcwebsocket.md",
-    "updatedAt": "2026-04-16T14:43:35.375Z"
+    "updatedAt": "2026-04-16T15:08:01.343Z"
   }
 }

@@ -27,6 +27,12 @@ pub const Commitment = enum {
     }
 };
 
+pub const RpcRetryConfig = struct {
+    max_retries: u32 = 3,
+    base_delay_ms: u64 = 100,
+    max_delay_ms: u64 = 1_000,
+};
+
 pub const SendTransactionOptions = struct {
     skip_preflight: bool = false,
     preflight_commitment: Commitment = .confirmed,
