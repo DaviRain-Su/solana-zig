@@ -22,6 +22,7 @@ after each iteration and it's included in prompts for context.
 - Live websocket recovery acceptance is easiest to keep deterministic with `slotSubscribe`: read one slot notification, send a close frame to trigger the automatic reconnect path, then assert the next slot notification arrives after resubscribe without needing funded Devnet state changes.
 - Websocket observability additions fit this client best when runtime health is exposed through a single `snapshot()` value object and all wire-message accounting flows through tracked send/read helpers; that keeps counters correct across subscribe acks, queued notifications, manual disconnects, and reconnect-driven resubscribe.
 - Benchmark extensions fit this repo best when large RPC fixtures are generated once up front and replayed through a tiny static transport into the real typed `RpcClient` methods; this keeps benchmark coverage aligned with production parsers while avoiding live network variance.
+- Websocket codec benchmarks stay trustworthy when they invoke the exported `serialize*SubscribeRequest` / `parse*NotificationMessage` helpers directly and generate full Solana JSON-RPC notification envelopes, including `params.result` plus `params.subscription`, instead of benchmarking partial inner fragments.
 
 ---
 
@@ -231,5 +232,18 @@ after each iteration and it's included in prompts for context.
     - RPC parsing benchmarks stay representative when they exercise the real typed `RpcClient` parse path with deterministic fixture payloads and a static in-memory transport, instead of benchmarking standalone JSON helpers in isolation.
   - Gotchas encountered
     - Large JSON fixtures are much easier to keep valid in Zig by building them with `std.Io.Writer.Allocating`; embedding deeply nested JSON inside `allocPrint` quickly becomes error-prone because of format-brace escaping.
+---
+
+## 2026-04-17 - US-015
+- Verified the websocket codec benchmark coverage was already present in `src/benchmark.zig` for subscription request serialization and account/program/logs notification parsing, then fixed the `logsNotification` fixture so the benchmark target completes successfully end-to-end.
+- Confirmed `zig build bench` now prints `BENCH|...|ns_op|ops_sec` metrics for `ws_*Subscribe_serialize` and `ws_*Notification_parse`.
+- Files changed:
+  - `src/benchmark.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Websocket codec benchmarking in this repo is most reliable when the harness calls the public websocket JSON helpers directly, so benchmark coverage stays locked to the production wire format.
+  - Gotchas encountered
+    - The generated `logsNotification` benchmark fixture had one extra closing brace before `subscription`, which made the JSON invalid and surfaced as `error.InvalidSubscriptionResponse` only when `zig build bench` exercised the logs parser.
 ---
 

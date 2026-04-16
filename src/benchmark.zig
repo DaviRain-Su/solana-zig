@@ -5,7 +5,8 @@
 //           legacy/v0 message serialize/deserialize,
 //           versioned transaction serialize/deserialize,
 //           sign/verify operations,
-//           RPC response parsing for extended methods.
+//           RPC response parsing for extended methods,
+//           WebSocket subscribe serialization and notification parsing.
 //
 // Build & run: zig build bench
 
@@ -13,6 +14,7 @@ const builtin = @import("builtin");
 const std = @import("std");
 const solana = @import("solana/mod.zig");
 const transport_mod = @import("solana/rpc/transport.zig");
+const ws_rpc = solana.rpc.ws_client;
 
 const shortvec = solana.core.shortvec;
 const Pubkey = solana.core.Pubkey;
@@ -37,12 +39,20 @@ const RPC_ACCOUNT_DATA_BYTES: usize = 8 * 1024;
 const RPC_TRANSACTION_LOG_COUNT: usize = 24;
 const RPC_TRANSACTION_INNER_INSTRUCTION_COUNT: usize = 8;
 const RPC_SIGNATURE_STATUSES_BATCH_SIZE: usize = 64;
+const WS_CODEC_WARMUP_ITERS: usize = 50;
+const WS_CODEC_BENCH_ITERS: usize = 2_500;
+const WS_NOTIFICATION_DATA_BYTES: usize = 4 * 1024;
+const WS_NOTIFICATION_LOG_COUNT: usize = 12;
 
 const PROFILE_SMALL = "small";
 const PROFILE_PHASE1_REALISTIC = "phase1-realistic";
 const PROFILE_RPC_LARGE_DATA = "rpc-large-data";
 const PROFILE_RPC_COMPLEX_META = "rpc-complex-meta";
 const PROFILE_RPC_BATCH = "rpc-batch";
+const PROFILE_WS_SUBSCRIBE = "ws-subscribe";
+const PROFILE_WS_ACCOUNT_NOTIFICATION = "ws-account-notification";
+const PROFILE_WS_PROGRAM_NOTIFICATION = "ws-program-notification";
+const PROFILE_WS_LOGS_NOTIFICATION = "ws-logs-notification";
 
 // --- Timing ---
 
@@ -259,6 +269,62 @@ fn buildSignatureStatusesResponse(allocator: std.mem.Allocator, count: usize) ![
     return try allocator.dupe(u8, out.written());
 }
 
+fn buildWsAccountNotificationMessage(allocator: std.mem.Allocator) ![]u8 {
+    const bytes = try allocator.alloc(u8, WS_NOTIFICATION_DATA_BYTES);
+    defer allocator.free(bytes);
+
+    for (bytes, 0..) |*byte, i| {
+        byte.* = @intCast((i * 19 + 5) % 251);
+    }
+
+    const encoded = try encodeBase64(allocator, bytes);
+    defer allocator.free(encoded);
+
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    defer out.deinit();
+
+    try out.writer.writeAll("{\"jsonrpc\":\"2.0\",\"method\":\"accountNotification\",\"params\":{\"result\":{\"context\":{\"slot\":42424242},\"value\":{\"lamports\":123456789,\"owner\":\"11111111111111111111111111111111\",\"executable\":false,\"rentEpoch\":18446744073709551615,\"data\":[\"");
+    try out.writer.writeAll(encoded);
+    try out.writer.writeAll("\",\"base64\"]}},\"subscription\":91}}");
+
+    return try allocator.dupe(u8, out.written());
+}
+
+fn buildWsProgramNotificationMessage(allocator: std.mem.Allocator) ![]u8 {
+    const bytes = try allocator.alloc(u8, WS_NOTIFICATION_DATA_BYTES);
+    defer allocator.free(bytes);
+
+    for (bytes, 0..) |*byte, i| {
+        byte.* = @intCast((i * 23 + 11) % 251);
+    }
+
+    const encoded = try encodeBase64(allocator, bytes);
+    defer allocator.free(encoded);
+
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    defer out.deinit();
+
+    try out.writer.writeAll("{\"jsonrpc\":\"2.0\",\"method\":\"programNotification\",\"params\":{\"result\":{\"context\":{\"slot\":42424243},\"value\":{\"pubkey\":\"ProgramDerived1111111111111111111111111111\",\"account\":{\"lamports\":987654321,\"owner\":\"BPFLoaderUpgradeab1e11111111111111111111111\",\"executable\":false,\"rentEpoch\":23,\"data\":[\"");
+    try out.writer.writeAll(encoded);
+    try out.writer.writeAll("\",\"base64\"]}}},\"subscription\":92}}");
+
+    return try allocator.dupe(u8, out.written());
+}
+
+fn buildWsLogsNotificationMessage(allocator: std.mem.Allocator) ![]u8 {
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    defer out.deinit();
+
+    try out.writer.writeAll("{\"jsonrpc\":\"2.0\",\"method\":\"logsNotification\",\"params\":{\"result\":{\"context\":{\"slot\":42424244},\"value\":{\"signature\":\"5h6xBEauJ3PK6SWtSj71G1tQJZD2JQQn4tR6N9Vf6hLJx6X8M9cL6N9WQ2V4NqRj5L1m7s2V4Q8Vf1aB6P7\",\"err\":{\"InstructionError\":[1,{\"Custom\":17}]},\"logs\":[");
+    for (0..WS_NOTIFICATION_LOG_COUNT) |i| {
+        if (i > 0) try out.writer.writeByte(',');
+        try out.writer.print("\"Program benchmark log {d}: processed account {d} and emitted compute trace\"", .{ i, i % 5 });
+    }
+    try out.writer.writeAll("]}},\"subscription\":93}}");
+
+    return try allocator.dupe(u8, out.written());
+}
+
 fn runGetAccountInfoParseBenchmark(
     allocator: std.mem.Allocator,
     response_body: []const u8,
@@ -389,6 +455,100 @@ fn runGetSignatureStatusesParseBenchmark(
     printResult("rpc_getSignatureStatuses_parse", PROFILE_RPC_BATCH, RPC_PARSE_BENCH_ITERS, nowNs() - start);
 }
 
+fn runWsSubscribeSerializeBenchmark(
+    comptime name: []const u8,
+    allocator: std.mem.Allocator,
+    value: []const u8,
+    serializer: *const fn (std.mem.Allocator, u64, []const u8) std.mem.Allocator.Error![]u8,
+) !void {
+    var total_payload_bytes: usize = 0;
+    var rpc_id: u64 = 1;
+
+    for (0..WS_CODEC_WARMUP_ITERS) |_| {
+        const payload = try serializer(allocator, rpc_id, value);
+        rpc_id += 1;
+        total_payload_bytes += payload.len;
+        allocator.free(payload);
+    }
+
+    const start = nowNs();
+    for (0..WS_CODEC_BENCH_ITERS) |_| {
+        const payload = try serializer(allocator, rpc_id, value);
+        rpc_id += 1;
+        total_payload_bytes += payload.len;
+        allocator.free(payload);
+    }
+    std.mem.doNotOptimizeAway(&total_payload_bytes);
+    printResult(name, PROFILE_WS_SUBSCRIBE, WS_CODEC_BENCH_ITERS, nowNs() - start);
+}
+
+fn runWsAccountNotificationParseBenchmark(allocator: std.mem.Allocator, raw_message: []const u8) !void {
+    var total_account_bytes: usize = 0;
+
+    for (0..WS_CODEC_WARMUP_ITERS) |_| {
+        var notification = try ws_rpc.parseAccountNotificationMessage(allocator, raw_message);
+        total_account_bytes += @as(usize, @intCast(notification.context_slot)) + notification.account.owner.len;
+        if (notification.account.data_encoding) |encoding| total_account_bytes += encoding.len;
+        notification.deinit(allocator);
+    }
+
+    const start = nowNs();
+    for (0..WS_CODEC_BENCH_ITERS) |_| {
+        var notification = try ws_rpc.parseAccountNotificationMessage(allocator, raw_message);
+        total_account_bytes += @as(usize, @intCast(notification.context_slot)) + notification.account.owner.len;
+        if (notification.account.data_encoding) |encoding| total_account_bytes += encoding.len;
+        notification.deinit(allocator);
+    }
+    std.mem.doNotOptimizeAway(&total_account_bytes);
+    printResult("ws_accountNotification_parse", PROFILE_WS_ACCOUNT_NOTIFICATION, WS_CODEC_BENCH_ITERS, nowNs() - start);
+}
+
+fn runWsProgramNotificationParseBenchmark(allocator: std.mem.Allocator, raw_message: []const u8) !void {
+    var total_program_bytes: usize = 0;
+
+    for (0..WS_CODEC_WARMUP_ITERS) |_| {
+        var notification = try ws_rpc.parseProgramNotificationMessage(allocator, raw_message);
+        total_program_bytes += @as(usize, @intCast(notification.context_slot)) + notification.pubkey.len + notification.account.owner.len;
+        if (notification.account.data_encoding) |encoding| total_program_bytes += encoding.len;
+        notification.deinit(allocator);
+    }
+
+    const start = nowNs();
+    for (0..WS_CODEC_BENCH_ITERS) |_| {
+        var notification = try ws_rpc.parseProgramNotificationMessage(allocator, raw_message);
+        total_program_bytes += @as(usize, @intCast(notification.context_slot)) + notification.pubkey.len + notification.account.owner.len;
+        if (notification.account.data_encoding) |encoding| total_program_bytes += encoding.len;
+        notification.deinit(allocator);
+    }
+    std.mem.doNotOptimizeAway(&total_program_bytes);
+    printResult("ws_programNotification_parse", PROFILE_WS_PROGRAM_NOTIFICATION, WS_CODEC_BENCH_ITERS, nowNs() - start);
+}
+
+fn runWsLogsNotificationParseBenchmark(allocator: std.mem.Allocator, raw_message: []const u8) !void {
+    var total_log_bytes: usize = 0;
+
+    for (0..WS_CODEC_WARMUP_ITERS) |_| {
+        var notification = try ws_rpc.parseLogsNotificationMessage(allocator, raw_message);
+        total_log_bytes += @as(usize, @intCast(notification.context_slot));
+        if (notification.signature) |signature| total_log_bytes += signature.len;
+        if (notification.err_json) |err_json| total_log_bytes += err_json.len;
+        for (notification.logs) |log| total_log_bytes += log.len;
+        notification.deinit(allocator);
+    }
+
+    const start = nowNs();
+    for (0..WS_CODEC_BENCH_ITERS) |_| {
+        var notification = try ws_rpc.parseLogsNotificationMessage(allocator, raw_message);
+        total_log_bytes += @as(usize, @intCast(notification.context_slot));
+        if (notification.signature) |signature| total_log_bytes += signature.len;
+        if (notification.err_json) |err_json| total_log_bytes += err_json.len;
+        for (notification.logs) |log| total_log_bytes += log.len;
+        notification.deinit(allocator);
+    }
+    std.mem.doNotOptimizeAway(&total_log_bytes);
+    printResult("ws_logsNotification_parse", PROFILE_WS_LOGS_NOTIFICATION, WS_CODEC_BENCH_ITERS, nowNs() - start);
+}
+
 // --- Benchmark Runner ---
 
 fn printResult(comptime name: []const u8, comptime profile: []const u8, iters: usize, elapsed_ns: u64) void {
@@ -425,10 +585,20 @@ pub fn main() !void {
     defer allocator.free(signature_statuses);
     const signature_statuses_response = try buildSignatureStatusesResponse(allocator, signature_statuses.len);
     defer allocator.free(signature_statuses_response);
+    const ws_account_notification = try buildWsAccountNotificationMessage(allocator);
+    defer allocator.free(ws_account_notification);
+    const ws_program_notification = try buildWsProgramNotificationMessage(allocator);
+    defer allocator.free(ws_program_notification);
+    const ws_logs_notification = try buildWsLogsNotificationMessage(allocator);
+    defer allocator.free(ws_logs_notification);
+    const ws_account_pubkey = "11111111111111111111111111111111";
+    const ws_program_id = "BPFLoaderUpgradeab1e11111111111111111111111";
+    const ws_logs_filter = "all";
 
     std.debug.print("=== solana-zig Benchmark Harness ===\n", .{});
     std.debug.print("iterations: {d} (warmup: {d})\n", .{ BENCH_ITERS, WARMUP_ITERS });
     std.debug.print("rpc parse iterations: {d} (warmup: {d})\n", .{ RPC_PARSE_BENCH_ITERS, RPC_PARSE_WARMUP_ITERS });
+    std.debug.print("ws codec iterations: {d} (warmup: {d})\n", .{ WS_CODEC_BENCH_ITERS, WS_CODEC_WARMUP_ITERS });
     std.debug.print("target: {s}\n", .{benchmark_target});
     std.debug.print("zig: {d}.{d}.{d}\n", .{
         builtin.zig_version.major,
@@ -649,6 +819,15 @@ pub fn main() !void {
     try runGetAccountInfoParseBenchmark(allocator, large_account_info_response, rpc_account_pubkey);
     try runGetTransactionParseBenchmark(allocator, complex_transaction_response, rpc_transaction_signature);
     try runGetSignatureStatusesParseBenchmark(allocator, signature_statuses_response, signature_statuses);
+
+    // --- websocket message codec ---
+    std.debug.print("\n--- websocket message codec ---\n", .{});
+    try runWsSubscribeSerializeBenchmark("ws_accountSubscribe_serialize", allocator, ws_account_pubkey, ws_rpc.serializeAccountSubscribeRequest);
+    try runWsSubscribeSerializeBenchmark("ws_programSubscribe_serialize", allocator, ws_program_id, ws_rpc.serializeProgramSubscribeRequest);
+    try runWsSubscribeSerializeBenchmark("ws_logsSubscribe_serialize", allocator, ws_logs_filter, ws_rpc.serializeLogsSubscribeRequest);
+    try runWsAccountNotificationParseBenchmark(allocator, ws_account_notification);
+    try runWsProgramNotificationParseBenchmark(allocator, ws_program_notification);
+    try runWsLogsNotificationParseBenchmark(allocator, ws_logs_notification);
 
     std.debug.print("\n=== benchmark complete ===\n", .{});
 }

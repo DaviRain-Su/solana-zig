@@ -723,33 +723,7 @@ pub const WsRpcClient = struct {
             }
             self.recordNotificationHash(h);
 
-            const raw_message = msg.data;
-            var parsed = std.json.parseFromSlice(std.json.Value, self.ws.allocator, raw_message, .{}) catch {
-                self.ws.allocator.free(raw_message);
-                return error.InvalidSubscriptionResponse;
-            };
-            errdefer {
-                parsed.deinit();
-                self.ws.allocator.free(raw_message);
-            }
-
-            const root = parsed.value;
-            const method_val = root.object.get("method") orelse return error.InvalidSubscriptionResponse;
-            const method = try self.ws.allocator.dupe(u8, method_val.string);
-            errdefer self.ws.allocator.free(method);
-
-            const params = root.object.get("params") orelse return error.InvalidSubscriptionResponse;
-            const subscription_id = @as(u64, @intCast(params.object.get("subscription").?.integer));
-            const result = params.object.get("result").?;
-
-            return .{
-                .allocator = self.ws.allocator,
-                .raw_message = raw_message,
-                .method = method,
-                .subscription_id = subscription_id,
-                .parsed = parsed,
-                .result = result,
-            };
+            return try parseNotificationEnvelopeOwned(self.ws.allocator, msg.data);
         }
     }
 
@@ -895,41 +869,13 @@ pub const WsRpcClient = struct {
 
     fn buildSubscribePayload(self: *WsRpcClient, kind: SubscriptionKind, value: []const u8) std.mem.Allocator.Error![]u8 {
         return switch (kind) {
-            .account => std.fmt.allocPrint(
-                self.ws.allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"accountSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
-                .{ self.nextRpcId(), value },
-            ),
-            .program => std.fmt.allocPrint(
-                self.ws.allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"programSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
-                .{ self.nextRpcId(), value },
-            ),
-            .logs => std.fmt.allocPrint(
-                self.ws.allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"logsSubscribe\",\"params\":[\"{s}\"]}}",
-                .{ self.nextRpcId(), value },
-            ),
-            .signature => std.fmt.allocPrint(
-                self.ws.allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"signatureSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
-                .{ self.nextRpcId(), value },
-            ),
-            .slot => std.fmt.allocPrint(
-                self.ws.allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"slotSubscribe\",\"params\":[]}}",
-                .{self.nextRpcId()},
-            ),
-            .root => std.fmt.allocPrint(
-                self.ws.allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"rootSubscribe\",\"params\":[]}}",
-                .{self.nextRpcId()},
-            ),
-            .block => std.fmt.allocPrint(
-                self.ws.allocator,
-                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"blockSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
-                .{ self.nextRpcId(), value },
-            ),
+            .account => serializeAccountSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
+            .program => serializeProgramSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
+            .logs => serializeLogsSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
+            .signature => serializeSignatureSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
+            .slot => serializeSlotSubscribeRequest(self.ws.allocator, self.nextRpcId()),
+            .root => serializeRootSubscribeRequest(self.ws.allocator, self.nextRpcId()),
+            .block => serializeBlockSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
         };
     }
 
@@ -1036,6 +982,132 @@ pub const WsRpcClient = struct {
         }
     }
 };
+
+pub fn serializeAccountSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, pubkey_base58: []const u8) std.mem.Allocator.Error![]u8 {
+    return std.fmt.allocPrint(
+        allocator,
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"accountSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
+        .{ rpc_id, pubkey_base58 },
+    );
+}
+
+pub fn serializeProgramSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, program_id_base58: []const u8) std.mem.Allocator.Error![]u8 {
+    return std.fmt.allocPrint(
+        allocator,
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"programSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
+        .{ rpc_id, program_id_base58 },
+    );
+}
+
+pub fn serializeLogsSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, filter: []const u8) std.mem.Allocator.Error![]u8 {
+    return std.fmt.allocPrint(
+        allocator,
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"logsSubscribe\",\"params\":[\"{s}\"]}}",
+        .{ rpc_id, filter },
+    );
+}
+
+fn serializeSignatureSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, signature_base58: []const u8) std.mem.Allocator.Error![]u8 {
+    return std.fmt.allocPrint(
+        allocator,
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"signatureSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+        .{ rpc_id, signature_base58 },
+    );
+}
+
+fn serializeSlotSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64) std.mem.Allocator.Error![]u8 {
+    return std.fmt.allocPrint(
+        allocator,
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"slotSubscribe\",\"params\":[]}}",
+        .{rpc_id},
+    );
+}
+
+fn serializeRootSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64) std.mem.Allocator.Error![]u8 {
+    return std.fmt.allocPrint(
+        allocator,
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"rootSubscribe\",\"params\":[]}}",
+        .{rpc_id},
+    );
+}
+
+fn serializeBlockSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, filter: []const u8) std.mem.Allocator.Error![]u8 {
+    return std.fmt.allocPrint(
+        allocator,
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"blockSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+        .{ rpc_id, filter },
+    );
+}
+
+fn parseNotificationEnvelopeOwned(allocator: std.mem.Allocator, raw_message: []const u8) !WsRpcClient.Notification {
+    var parsed = std.json.parseFromSlice(std.json.Value, allocator, raw_message, .{}) catch {
+        allocator.free(raw_message);
+        return error.InvalidSubscriptionResponse;
+    };
+    errdefer {
+        parsed.deinit();
+        allocator.free(raw_message);
+    }
+
+    if (parsed.value != .object) return error.InvalidSubscriptionResponse;
+
+    const root_obj: *std.json.ObjectMap = @constCast(&parsed.value.object);
+    const method_value = root_obj.getPtr("method") orelse return error.InvalidSubscriptionResponse;
+    if (method_value.* != .string) return error.InvalidSubscriptionResponse;
+    const method = try allocator.dupe(u8, method_value.string);
+    errdefer allocator.free(method);
+
+    const params = root_obj.getPtr("params") orelse return error.InvalidSubscriptionResponse;
+    if (params.* != .object) return error.InvalidSubscriptionResponse;
+
+    const params_obj: *std.json.ObjectMap = @constCast(&params.object);
+    const subscription_value = params_obj.getPtr("subscription") orelse return error.InvalidSubscriptionResponse;
+    const subscription_id = parseIntegerAsU64(subscription_value) orelse return error.InvalidSubscriptionResponse;
+    const result = params_obj.get("result") orelse return error.InvalidSubscriptionResponse;
+
+    return .{
+        .allocator = allocator,
+        .raw_message = raw_message,
+        .method = method,
+        .subscription_id = subscription_id,
+        .parsed = parsed,
+        .result = result,
+    };
+}
+
+fn parseNotificationEnvelope(allocator: std.mem.Allocator, raw_message: []const u8) !WsRpcClient.Notification {
+    return parseNotificationEnvelopeOwned(allocator, try allocator.dupe(u8, raw_message));
+}
+
+pub fn parseAccountNotificationMessage(allocator: std.mem.Allocator, raw_message: []const u8) !WsRpcClient.AccountNotification {
+    var notification = try parseNotificationEnvelope(allocator, raw_message);
+    defer notification.deinit();
+
+    if (!std.mem.eql(u8, notification.method, "accountNotification")) {
+        return error.InvalidSubscriptionResponse;
+    }
+    return try parseAccountNotification(allocator, notification.subscription_id, &notification.result);
+}
+
+pub fn parseProgramNotificationMessage(allocator: std.mem.Allocator, raw_message: []const u8) !WsRpcClient.ProgramNotification {
+    var notification = try parseNotificationEnvelope(allocator, raw_message);
+    defer notification.deinit();
+
+    if (!std.mem.eql(u8, notification.method, "programNotification")) {
+        return error.InvalidSubscriptionResponse;
+    }
+    return try parseProgramNotification(allocator, notification.subscription_id, &notification.result);
+}
+
+pub fn parseLogsNotificationMessage(allocator: std.mem.Allocator, raw_message: []const u8) !WsRpcClient.LogsNotification {
+    var notification = try parseNotificationEnvelope(allocator, raw_message);
+    defer notification.deinit();
+
+    if (!std.mem.eql(u8, notification.method, "logsNotification")) {
+        return error.InvalidSubscriptionResponse;
+    }
+    return try parseLogsNotification(allocator, notification.subscription_id, &notification.result);
+}
 
 fn stringifyValue(allocator: std.mem.Allocator, value: std.json.Value) ![]u8 {
     var out: std.Io.Writer.Allocating = .init(allocator);

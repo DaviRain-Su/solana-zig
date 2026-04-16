@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T16:02:00.285Z",
-  "currentIteration": 20,
+  "updatedAt": "2026-04-16T16:14:42.588Z",
+  "currentIteration": 22,
   "maxIterations": 0,
-  "tasksCompleted": 13,
+  "tasksCompleted": 14,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -214,6 +214,26 @@
       "durationMs": 365509,
       "startedAt": "2026-04-16T15:48:46.473Z",
       "endedAt": "2026-04-16T15:54:51.982Z"
+    },
+    {
+      "iteration": 21,
+      "status": "completed",
+      "taskId": "US-014",
+      "taskTitle": "RPC 响应解析 benchmark",
+      "taskCompleted": true,
+      "durationMs": 427208,
+      "startedAt": "2026-04-16T15:54:53.072Z",
+      "endedAt": "2026-04-16T16:02:00.280Z"
+    },
+    {
+      "iteration": 22,
+      "status": "failed",
+      "taskId": "US-015",
+      "taskTitle": "Websocket 消息编解码 benchmark",
+      "taskCompleted": false,
+      "durationMs": 600017,
+      "startedAt": "2026-04-16T16:02:01.373Z",
+      "endedAt": "2026-04-16T16:12:01.390Z"
     }
   ],
   "skippedTaskIds": [],
