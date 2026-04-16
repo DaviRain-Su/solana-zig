@@ -23,6 +23,7 @@ after each iteration and it's included in prompts for context.
 - For execution-style RPCs like `simulateTransaction`, preserve transport / top-level JSON-RPC failures as `.rpc_error`, but keep runtime simulation failures carried in `result.value.err` inside the typed `.ok` payload so callers can inspect logs, units, and structured failure details together.
 - For transaction-submitting RPCs, keep the ergonomic default helper as a thin wrapper over a typed options variant so serialized/base64 request construction stays shared while tests can assert optional flags like `skipPreflight` and preflight commitment overrides.
 - For environment-gated live harnesses, keep `zig build <target>` useful offline by pairing a scripted mock happy-path flow with a `SOLANA_RPC_URL`-guarded live flow, and centralize shared build/sign/confirm helpers so mock and live coverage exercise the same transaction steps.
+- For baseline benchmarks, build owned fixture values once outside the timed loop and only allocate/free per-iteration codec outputs inside the loop, so reported serialize/deserialize numbers are comparable without compile/sign setup noise.
 
 ---
 
@@ -265,5 +266,20 @@ after each iteration and it's included in prompts for context.
     - A single self-transfer builder helper is enough to keep mock and live E2E paths aligned while still exercising the real `VersionedTransaction` signing and RPC submission pipeline.
   - Gotchas encountered
     - `getSignatureStatuses` can return `null` or a status object with `confirmationStatus = null` before the network finalizes indexing, so the confirm loop must treat both as "not ready yet" rather than as hard failures.
+---
+
+## 2026-04-16 - US-018
+- What was implemented
+  - Updated `src/benchmark.zig` so `zig build bench` now benchmarks the story-specific API surfaces directly: `Pubkey.toBase58Alloc` / `Pubkey.fromBase58`, legacy and v0 `Message.serialize` / `Message.deserialize`, and `VersionedTransaction.serialize` / `VersionedTransaction.deserialize`.
+  - Refined the timed sections to prebuild reusable message/transaction fixtures outside the hot loop, which isolates serialization/deserialization costs from compile/sign setup while keeping the existing benchmark step and extra shortvec/signature baselines intact.
+  - Made the benchmark output easier to record for future comparisons by printing stable metadata plus structured quantitative result lines with `profile`, `iters`, `total_us`, `ns_op`, and `ops_sec`.
+- Files changed
+  - `src/benchmark.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Benchmark output becomes easier to archive and diff when each result line uses a stable delimiter-oriented schema (`BENCH|...`) instead of prose-only text.
+  - Gotchas encountered
+    - The original harness already had a working `zig build bench` target, but some timings mixed in message compilation and transaction signing work; to satisfy the serialization baseline story, the timed region had to move to the codec calls themselves.
 ---
 

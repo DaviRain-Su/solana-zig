@@ -542,3 +542,62 @@ verdict: 可发布
 - 本次运行的关键目标不是新增 Batch 6 能力，而是升级 Batch 5 的 release verdict。
 - `SURFPOOL_RPC_URL` 本次指向可用 smoke endpoint，满足 Batch 5 对 local-live 侧最小 smoke 证据的冻结口径。
 - 至此，Batch 5 先前在 `docs/15` / `docs/25` 中登记的 smoke exception 已具备解除条件。
+
+---
+
+## Run 11 — Batch 7 Smoke Revalidation (Public Devnet + Local-Live, #56 P2-33)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/release/batch7-smoke-revalidation`
+- Commit: `21656d3`
+- Date: `2026-04-16`
+- Run Type: `release-smoke-revalidation`
+- Operator: `@CC-Opus (coordinated)` / `@CC (executed)`
+- RPC Endpoints:
+  - public devnet: `https://api.devnet.solana.com`
+  - local-live: `http://127.0.0.1:8899`
+- Entry:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all`
+  - `SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes:
+  - public devnet smoke: `7/7 PASS`
+  - local-live smoke: `2/2 PASS`
+  - 全量基线：`zig build test --summary all` → `152/152 tests passed`
+
+### 3. Evidence Checklist
+
+- [x] current baseline commit = `21656d3`
+- [x] `zig build test --summary all` 通过（`152/152 tests passed`）
+- [x] public devnet smoke 通过（`7/7`）
+- [x] local-live smoke 通过（`2/2`）
+- [x] Batch 5 / Batch 6 的双侧 smoke 缺口均已收敛
+- [x] 可作为 `#56 / G-P2G-03` 的最终 smoke 收口证据
+
+### 4. Console / Run Evidence
+
+```
+SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all
+7/7 steps succeeded
+
+SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all
+2/2 steps succeeded
+
+zig build test --summary all
+5/5 steps succeeded
+152/152 tests passed
+```
+
+### 5. Notes
+
+- 本次运行的关键目标是：
+  - 收敛 Batch 5 / Batch 6 的双侧 smoke 缺口
+  - 为 `#55` Batch B landing 提供最新主线下的 public devnet / local-live 辅助证据
+- `requestAirdrop` 的成功侧按 Batch 7 固定口径继续以 local-live 为主；public devnet 侧仍可能受 rate-limit 影响，因此不把这次 smoke 误写成“public devnet airdrop 稳定成功”的新承诺。
+- `getAddressLookupTable` 不在 smoke harness 的成功路径中；其 Batch 7 处理继续按 `RPC error evidence + exception register` 口径落到 `docs/15`。

@@ -1193,3 +1193,41 @@
   - `G-P2G-01` ✅
   - `G-P2G-02`：`landing/canonical` 已到位，`integration/exception` 仍 pending
   - `G-P2G-05`：本轮仅完成 provisional 对账，不做 final PASS
+
+## 2026-04-16 第四十一次增量记录（#56 / #55 Batch 7 final closeout）
+
+### 输入
+- `#56` 已在当前主线基线 `be31510` 上重跑双侧 smoke，并回传 clean-canonical 补件包。
+- `#55` 已基于 `#56` 的结果回补最终 closeout 申请，等待 `#58` 做 final docs/gate 判定。
+
+### 输出
+- `#56` 已形成 Batch 7 smoke closure 最终证据：
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all` → `7/7`
+  - `SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all` → `2/2`
+  - `zig build test --summary all` → `152/152 tests passed`
+- `docs/14a` 已新增 Run 11，承载 Batch 7 的 public devnet + local-live smoke revalidation。
+- `docs/25` / `docs/27` 已与 Run 11 对齐：
+  - Batch 5 维持 `final: 可发布`
+  - Batch 6 已由 `#56` 从 `有条件发布` 升级到 `可发布`
+- `#55` 现按 Batch 7 最终口径收口：
+  - `getEpochInfo` / `getMinimumBalanceForRentExemption`：public devnet integration 已由 `#56` 证据链补齐
+  - `requestAirdrop`：按 local-live 成功侧 + public devnet rate-limit 例外收口
+  - `getAddressLookupTable`：按 RPC error evidence 例外路径收口
+
+### 风险
+- `#55` 的 final closeout 不是“无例外”收口，而是**带 Batch 7 exception**收口。
+- 因此本轮只代表：
+  - `#55 / G-P2G-02` 已满足机械规则
+  - `#56 / G-P2G-03` 已满足双侧 smoke closure
+- 不代表 Phase 2 aggregate verdict 已自动升级；Phase 2 总收口仍由 `#57` / `docs/28` 继续汇总判定。
+
+### 验证
+- `#56` clean-canonical 基线：`be31510`
+- smoke:
+  - public devnet: `7/7 PASS`
+  - local-live: `2/2 PASS`
+- full test:
+  - `152/152 tests passed`
+- 当前 docs/gate 口径：
+  - `#56 / G-P2G-05`：可进入 final PASS
+  - `#55 / G-P2G-05`：可进入 final PASS（带 Batch 7 exception）

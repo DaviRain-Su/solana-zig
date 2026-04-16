@@ -1,15 +1,17 @@
 // Phase 1 Benchmark Baseline Harness
 // Spec: docs/13-benchmark-baseline-spec.md
 //
-// Measures: base58, shortvec, legacy/v0 message, versioned transaction,
+// Measures: Pubkey base58 encode/decode, shortvec encode/decode,
+//           legacy/v0 message serialize/deserialize,
+//           versioned transaction serialize/deserialize,
 //           sign/verify operations.
 //
 // Build & run: zig build bench
 
+const builtin = @import("builtin");
 const std = @import("std");
 const solana = @import("solana/mod.zig");
 
-const base58 = solana.core.base58;
 const shortvec = solana.core.shortvec;
 const Pubkey = solana.core.Pubkey;
 const Hash = solana.core.Hash;
@@ -25,6 +27,9 @@ const LookupEntry = solana.tx.address_lookup_table.LookupEntry;
 
 const WARMUP_ITERS: usize = 100;
 const BENCH_ITERS: usize = 10_000;
+
+const PROFILE_SMALL = "small";
+const PROFILE_PHASE1_REALISTIC = "phase1-realistic";
 
 // --- Timing ---
 
@@ -95,13 +100,17 @@ fn buildV0Message(allocator: std.mem.Allocator, payer: Keypair) !Message {
 
 // --- Benchmark Runner ---
 
-fn printResult(comptime name: []const u8, iters: usize, elapsed_ns: u64) void {
-    const avg_ns = elapsed_ns / iters;
-    std.debug.print("{s}: {d} iters, avg {d} ns/op, total {d} us\n", .{
+fn printResult(comptime name: []const u8, comptime profile: []const u8, iters: usize, elapsed_ns: u64) void {
+    const safe_elapsed_ns = if (elapsed_ns == 0) 1 else elapsed_ns;
+    const avg_ns = safe_elapsed_ns / iters;
+    const ops_per_sec: u64 = @intCast((@as(u128, iters) * std.time.ns_per_s) / safe_elapsed_ns);
+    std.debug.print("BENCH|{s}|{s}|{d}|{d}|{d}|{d}\n", .{
         name,
+        profile,
         iters,
+        safe_elapsed_ns / std.time.ns_per_us,
         avg_ns,
-        elapsed_ns / 1000,
+        ops_per_sec,
     });
 }
 
@@ -110,42 +119,53 @@ fn printResult(comptime name: []const u8, iters: usize, elapsed_ns: u64) void {
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
     const payer = try Keypair.fromSeed(SEED_BYTES);
+    const benchmark_target = comptime std.fmt.comptimePrint("{s}-{s}", .{
+        @tagName(builtin.target.cpu.arch),
+        @tagName(builtin.target.os.tag),
+    });
+    const pubkey = Pubkey.init(PUBKEY_BYTES);
 
     std.debug.print("=== solana-zig Phase 1 Benchmark Baseline ===\n", .{});
     std.debug.print("iterations: {d} (warmup: {d})\n", .{ BENCH_ITERS, WARMUP_ITERS });
-    std.debug.print("optimize: ReleaseFast (expected)\n", .{});
+    std.debug.print("target: {s}\n", .{benchmark_target});
+    std.debug.print("zig: {d}.{d}.{d}\n", .{
+        builtin.zig_version.major,
+        builtin.zig_version.minor,
+        builtin.zig_version.patch,
+    });
+    std.debug.print("optimize: ReleaseFast\n", .{});
+    std.debug.print("columns: BENCH|op|profile|iters|total_us|ns_op|ops_sec\n", .{});
     std.debug.print("\n", .{});
 
-    // --- base58 encode ---
-    std.debug.print("--- base58 ---\n", .{});
+    // --- Pubkey base58 encode/decode ---
+    std.debug.print("--- pubkey base58 ---\n", .{});
     {
         for (0..WARMUP_ITERS) |_| {
-            const e = base58.encodeAlloc(allocator, &PUBKEY_BYTES) catch continue;
+            const e = pubkey.toBase58Alloc(allocator) catch continue;
             allocator.free(e);
         }
         const start = nowNs();
         for (0..BENCH_ITERS) |_| {
-            const e = base58.encodeAlloc(allocator, &PUBKEY_BYTES) catch continue;
+            const e = pubkey.toBase58Alloc(allocator) catch continue;
             allocator.free(e);
         }
-        printResult("base58_encode", BENCH_ITERS, nowNs() - start);
+        printResult("pubkey_base58_encode", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
 
-    // --- base58 decode ---
     {
-        const encoded = try base58.encodeAlloc(allocator, &PUBKEY_BYTES);
+        const encoded = try pubkey.toBase58Alloc(allocator);
         defer allocator.free(encoded);
 
         for (0..WARMUP_ITERS) |_| {
-            const d = base58.decodeAlloc(allocator, encoded) catch continue;
-            allocator.free(d);
+            var d = Pubkey.fromBase58(encoded) catch continue;
+            std.mem.doNotOptimizeAway(&d);
         }
         const start = nowNs();
         for (0..BENCH_ITERS) |_| {
-            const d = base58.decodeAlloc(allocator, encoded) catch continue;
-            allocator.free(d);
+            var d = Pubkey.fromBase58(encoded) catch continue;
+            std.mem.doNotOptimizeAway(&d);
         }
-        printResult("base58_decode", BENCH_ITERS, nowNs() - start);
+        printResult("pubkey_base58_decode", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
 
     // --- shortvec ---
@@ -160,7 +180,7 @@ pub fn main() !void {
             const e = shortvec.encodeAlloc(allocator, 12345) catch continue;
             allocator.free(e);
         }
-        printResult("shortvec_encode", BENCH_ITERS, nowNs() - start);
+        printResult("shortvec_encode", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
     {
         const input = [_]u8{ 0xB9, 0x60 };
@@ -173,32 +193,25 @@ pub fn main() !void {
             const r = shortvec.decode(&input) catch continue;
             std.mem.doNotOptimizeAway(&r);
         }
-        printResult("shortvec_decode", BENCH_ITERS, nowNs() - start);
+        printResult("shortvec_decode", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
 
     // --- legacy message ---
     std.debug.print("\n--- legacy message ---\n", .{});
     {
+        var message = try buildLegacyMessage(allocator, payer);
+        defer message.deinit();
+
         for (0..WARMUP_ITERS) |_| {
-            var m = buildLegacyMessage(allocator, payer) catch continue;
-            const s = m.serialize(allocator) catch {
-                m.deinit();
-                continue;
-            };
+            const s = message.serialize(allocator) catch continue;
             allocator.free(s);
-            m.deinit();
         }
         const start = nowNs();
         for (0..BENCH_ITERS) |_| {
-            var m = buildLegacyMessage(allocator, payer) catch continue;
-            const s = m.serialize(allocator) catch {
-                m.deinit();
-                continue;
-            };
+            const s = message.serialize(allocator) catch continue;
             allocator.free(s);
-            m.deinit();
         }
-        printResult("legacy_msg_compile_serialize", BENCH_ITERS, nowNs() - start);
+        printResult("legacy_message_serialize", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
     {
         var setup_msg = try buildLegacyMessage(allocator, payer);
@@ -215,32 +228,25 @@ pub fn main() !void {
             var d = Message.deserialize(allocator, serialized) catch continue;
             d.message.deinit();
         }
-        printResult("legacy_msg_deserialize", BENCH_ITERS, nowNs() - start);
+        printResult("legacy_message_deserialize", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
 
     // --- v0 message ---
     std.debug.print("\n--- v0 message ---\n", .{});
     {
+        var message = try buildV0Message(allocator, payer);
+        defer message.deinit();
+
         for (0..WARMUP_ITERS) |_| {
-            var m = buildV0Message(allocator, payer) catch continue;
-            const s = m.serialize(allocator) catch {
-                m.deinit();
-                continue;
-            };
+            const s = message.serialize(allocator) catch continue;
             allocator.free(s);
-            m.deinit();
         }
         const start = nowNs();
         for (0..BENCH_ITERS) |_| {
-            var m = buildV0Message(allocator, payer) catch continue;
-            const s = m.serialize(allocator) catch {
-                m.deinit();
-                continue;
-            };
+            const s = message.serialize(allocator) catch continue;
             allocator.free(s);
-            m.deinit();
         }
-        printResult("v0_msg_compile_serialize", BENCH_ITERS, nowNs() - start);
+        printResult("v0_message_serialize", PROFILE_PHASE1_REALISTIC, BENCH_ITERS, nowNs() - start);
     }
     {
         var setup_msg = try buildV0Message(allocator, payer);
@@ -257,51 +263,30 @@ pub fn main() !void {
             var d = Message.deserialize(allocator, serialized) catch continue;
             d.message.deinit();
         }
-        printResult("v0_msg_deserialize", BENCH_ITERS, nowNs() - start);
+        printResult("v0_message_deserialize", PROFILE_PHASE1_REALISTIC, BENCH_ITERS, nowNs() - start);
     }
 
     // --- versioned transaction ---
     std.debug.print("\n--- versioned transaction ---\n", .{});
     {
+        const setup_msg = try buildV0Message(allocator, payer);
+        var tx = try VersionedTransaction.initUnsigned(allocator, setup_msg);
+        defer tx.deinit();
+        try tx.sign(&[_]Keypair{payer});
+
         for (0..WARMUP_ITERS) |_| {
-            var m = buildLegacyMessage(allocator, payer) catch continue;
-            var tx = VersionedTransaction.initUnsigned(allocator, m) catch {
-                m.deinit();
-                continue;
-            };
-            tx.sign(&[_]Keypair{payer}) catch {
-                tx.deinit();
-                continue;
-            };
-            const s = tx.serialize(allocator) catch {
-                tx.deinit();
-                continue;
-            };
+            const s = tx.serialize(allocator) catch continue;
             allocator.free(s);
-            tx.deinit();
         }
         const start = nowNs();
         for (0..BENCH_ITERS) |_| {
-            var m = buildLegacyMessage(allocator, payer) catch continue;
-            var tx = VersionedTransaction.initUnsigned(allocator, m) catch {
-                m.deinit();
-                continue;
-            };
-            tx.sign(&[_]Keypair{payer}) catch {
-                tx.deinit();
-                continue;
-            };
-            const s = tx.serialize(allocator) catch {
-                tx.deinit();
-                continue;
-            };
+            const s = tx.serialize(allocator) catch continue;
             allocator.free(s);
-            tx.deinit();
         }
-        printResult("tx_compile_sign_serialize", BENCH_ITERS, nowNs() - start);
+        printResult("transaction_serialize", PROFILE_PHASE1_REALISTIC, BENCH_ITERS, nowNs() - start);
     }
     {
-        const setup_msg = try buildLegacyMessage(allocator, payer);
+        const setup_msg = try buildV0Message(allocator, payer);
         var tx = try VersionedTransaction.initUnsigned(allocator, setup_msg);
         try tx.sign(&[_]Keypair{payer});
         const serialized = try tx.serialize(allocator);
@@ -317,7 +302,7 @@ pub fn main() !void {
             var d = VersionedTransaction.deserialize(allocator, serialized) catch continue;
             d.deinit();
         }
-        printResult("tx_deserialize", BENCH_ITERS, nowNs() - start);
+        printResult("transaction_deserialize", PROFILE_PHASE1_REALISTIC, BENCH_ITERS, nowNs() - start);
     }
 
     // --- sign / verify ---
@@ -337,7 +322,7 @@ pub fn main() !void {
             const sig = payer.sign(msg_bytes) catch continue;
             std.mem.doNotOptimizeAway(&sig);
         }
-        printResult("ed25519_sign", BENCH_ITERS, nowNs() - start);
+        printResult("ed25519_sign", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
     {
         var verify_msg = try buildLegacyMessage(allocator, payer);
@@ -354,7 +339,7 @@ pub fn main() !void {
         for (0..BENCH_ITERS) |_| {
             sig.verify(verify_bytes, payer.pubkey()) catch {};
         }
-        printResult("ed25519_verify", BENCH_ITERS, nowNs() - start);
+        printResult("ed25519_verify", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
 
     std.debug.print("\n=== benchmark complete ===\n", .{});
