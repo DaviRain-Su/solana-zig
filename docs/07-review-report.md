@@ -78,7 +78,7 @@
 | G-CLOSE-03 RPC Gate | pass | `#7` (`892cfd8`): `getAccountInfo`/`simulateTransaction` typed 收敛 + happy/rpc_error/malformed 覆盖 |
 | G-CLOSE-04 v0/Tx Gate | pass | `#8` (`d905ca2` + `f546b03`): v0/ALT 与 versioned tx 失败路径补齐，泄漏修复 |
 | G-CLOSE-05 Devnet Gate | pass | `#10/#17`: 已有 `construct -> sign -> simulate` 与 `sendTransaction/confirm` 的 live 证据（见 `docs/14a` Run 2~5） |
-| G-CLOSE-06 Documentation Gate | in-progress | 主文档需继续与最新 send/confirm 证据状态完全对齐；同时 `docs/15` 仍有若干条目未完成最终 closeout 处置 |
+| G-CLOSE-06 Documentation Gate | in-progress | 当前主要残项已收敛为：oracle 相关 closeout 文档状态仍需完全统一，以及 `docs/15` 中若干条目尚未完成最终 `closed / documented exception` 处置 |
 
 ### 7.2 当前结论
 

@@ -6,27 +6,28 @@
 
 ## 1. Goal
 
-把当前偏小的 `testdata/oracle_vectors.json` 扩充为可以支撑以下声明的最小证据集：
+把 `testdata/oracle_vectors.json` 维护为可支撑以下声明的最小证据集，并在此基础上继续扩样本：
 - 核心固定长度类型兼容
 - 签名行为兼容
 - legacy / v0 message 字节兼容
 - versioned transaction 字节兼容
 
-## 2. Current Gap
+> 当前状态：**Phase 1 最低集合已满足**；本文后续更侧重“如何继续扩样本与维护流程”，而不是继续把最低集本身视为 blocker。
 
-当前内置向量文件已升级到 `v2` 结构，并覆盖 core 子集：
-- `pubkey_zero`
-- `pubkey_nonzero`
-- `pubkey_leading_zero_bytes`
-- `hash_nonzero`
-- `shortvec_0/127/128/300/16384`
+## 2. Current Status / Remaining Gap
 
-但仍未覆盖：
-- keypair/signature
-- legacy/v0 message
-- versioned transaction
+当前内置向量文件已升级到 `v2` 结构，且 **Phase 1 最低集合已覆盖到**：
+- core：`pubkey_*` / `hash_nonzero` / `shortvec_*`
+- keypair/signature：固定 seed 签名样本
+- message：legacy / v0 最低集合
+- transaction：legacy / v0 signed 最低集合
 
-这不足以支撑 PRD 中的最低 oracle 指标。
+因此：
+- **已满足** PRD 中的最低 oracle 指标
+- 当前剩余 gap 不再是“最低集合缺失”，而是：
+  - 更多边界样本
+  - 更多多消息/多 lookup 组合
+  - 后续 Rust 基线升级后的 diff 审查与再生成
 
 ## 3. Minimum Vector Set for Phase 1
 
@@ -110,6 +111,11 @@
 - Zig 测试可消费上述最小集合
 - 至少覆盖 1 组 legacy tx 和 1 组 v0 tx
 - 向量增量变更能通过 git diff 清晰审查
+
+### 8.1 Phase 1 Gate Status Snapshot
+
+- Phase 1 最低集合：**已满足**
+- 当前后续工作：**非阻塞扩样本与维护流程持续化**
 
 ## 9. Open Decisions
 
