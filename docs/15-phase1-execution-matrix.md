@@ -206,3 +206,24 @@
   - `getAddressLookupTable`：不在 smoke harness 成功路径中；按 Batch 7 口径登记为 **Batch 7 exception**（RPC error evidence + 后续收敛阶段为 Phase 3）
 - `#56 release.Batch 5/6 smoke closure`
   - 当前口径：**无例外**（双侧 smoke 均 PASS）
+
+## 13. Phase 3 Batch 1 Tracking (`#60~#63`)
+
+> 按 `docs/30-phase3-batch1-planning.md` 的冻结口径，Phase 3 Batch 1 的实现 / 例外 / gate 统一继续落在本矩阵中留痕。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `interfaces.System builders` | closed | `#60` | — | commit `35a731f`，`transfer/createAccount` byte layout + account metas + compile/sign 证据，`162/162 tests passed` | `src/solana/interfaces/system.zig` + `docs/06` + `docs/31` | `G-P3A-01` + `G-P3A-02` PASS |
+| `interfaces.Token builders` | closed | `#61` | — | commit `b840f75`，`mint/approve/burn` byte layout + account metas + compile/sign 证据；ATA 未触碰（Batch 1 out-of-scope） | `src/solana/interfaces/token.zig` + `docs/06` + `docs/10` + `docs/31` | `G-P3A-01` + `G-P3A-03` PASS |
+| `rpc.Exception convergence` | closed | `#62` | — | commits `f54dbe5` + `7aa4aab`，`requestAirdrop` tri-state + `getAddressLookupTable` success-or-exception path，双 env 全量 `163/163 tests passed` | `src/solana/rpc/client.zig` + `docs/14a` Run 12 + `docs/31` | `G-P3A-01` + `G-P3A-04` PASS |
+| `batch1.docs/gate reconciliation` | in-progress | `#63` | 待最终 docs writeback commit/hash | `docs/06+10+14a+15+31` 对账 | 本矩阵 + `docs/31` | `G-P3A-05` PASS |
+
+### Phase 3 Batch 1 Exception Register
+
+- `#61 interfaces.Token builders`
+  - 当前口径：**无例外**
+  - 说明：ATA 明确 out-of-scope，不构成 exception，按 freeze 规则正常延后到 Batch 2。
+- `#62 rpc.Exception convergence`
+  - `requestAirdrop`：允许 partial exception（public devnet rate-limit / local-live success）
+  - `getAddressLookupTable`：accepted exception path（method-not-found/RPC error evidence）
+  - 后续收敛：Phase 3 后续批次继续推动 ALT 成功路径证据

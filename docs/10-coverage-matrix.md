@@ -79,8 +79,8 @@
 
 | 目标能力 | 计划 Zig 模块/文件 | 状态 | 文档映射 | 备注 |
 |---|---|---|---|---|
-| system interface | `src/solana/interfaces/system/*` | planned | `docs/00` Phase 3 / `docs/04` T4-23 / `docs/03a-interfaces-spec.md` | 先做 transfer/create |
-| token / token-2022 / ATA | `src/solana/interfaces/token*/*` | planned | `docs/00` Phase 3 / `docs/04` T4-24~T4-25 / `docs/03a-interfaces-spec.md` | 与 ATA helper 一起定义 |
+| system interface | `src/solana/interfaces/system/*` | partial | `docs/00` Phase 3 / `docs/30` P3-02 / `docs/03a-interfaces-spec.md` | Batch 1 `#60` 已完成 `transfer/createAccount` builders（`35a731f`）；后续批次继续补其它 system 指令 |
+| token / token-2022 / ATA | `src/solana/interfaces/token*/*` | partial | `docs/00` Phase 3 / `docs/30` P3-03 / `docs/03a-interfaces-spec.md` | Batch 1 `#61` 已完成 `mint/approve/burn` builders（`b840f75`）；ATA 明确延后，不在 Batch 1 |
 | memo / stake | `src/solana/interfaces/memo|stake/*` | planned | `docs/00` Phase 3 / `docs/03a-interfaces-spec.md` | 第二批接口层能力 |
 | signer abstraction | `src/solana/signers/*` | planned | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/03b-signers-spec.md` | 先抽象接口，再接入 tx |
 | external signer adapter | `src/solana/signers/external_*` | planned | `docs/00` Phase 3 / `docs/04` T4-26 / `docs/05` 5.2 | mock/KMS/HSM stub |
@@ -118,3 +118,11 @@
 - 每新增一个公共能力，至少同步更新：`docs/03`, `docs/05`, `docs/10`。
 - 每变更一个 Product Phase 的范围，至少同步更新：`docs/00`, `docs/01`, `docs/04`, `docs/08`, `docs/10`。
 - `docs/10` 只记录“能力与状态”，不替代任务文档和技术规格。
+
+## 11. Phase 3 Batch 1 Tracking (canonical board: #60~#63)
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `interfaces.System builders` | closed | `#60` | — | `35a731f`，`transfer/createAccount` byte layout + account metas + compile/sign，`162/162 tests passed` | `src/solana/interfaces/system.zig` + `docs/06` + `docs/31` | `G-P3A-01` + `G-P3A-02` PASS |
+| `interfaces.Token builders` | closed | `#61` | — | `b840f75`，`mint/approve/burn` byte layout + account metas + compile/sign，ATA 未触碰 | `src/solana/interfaces/token.zig` + `docs/06` + `docs/31` | `G-P3A-01` + `G-P3A-03` PASS |
+| `rpc.Exception convergence` | closed | `#62` | — | `f54dbe5` + `7aa4aab`，tri-state + success-or-exception 路径，双 env 全量 `163/163 tests passed` | `src/solana/rpc/client.zig` + `docs/14a` + `docs/15` + `docs/31` | `G-P3A-01` + `G-P3A-04` PASS |

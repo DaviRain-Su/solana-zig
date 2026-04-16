@@ -601,3 +601,50 @@ zig build test --summary all
   - 为 `#55` Batch B landing 提供最新主线下的 public devnet / local-live 辅助证据
 - `requestAirdrop` 的成功侧按 Batch 7 固定口径继续以 local-live 为主；public devnet 侧仍可能受 rate-limit 影响，因此不把这次 smoke 误写成“public devnet airdrop 稳定成功”的新承诺。
 - `getAddressLookupTable` 不在 smoke harness 的成功路径中；其 Batch 7 处理继续按 `RPC error evidence + exception register` 口径落到 `docs/15`。
+
+---
+
+## Run 12 — Phase 3 Batch 1 Exception Convergence Evidence (`#62`)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/phase3-batch1/exception-convergence`
+- Commits: `f54dbe5` + `7aa4aab`
+- Date: `2026-04-16`
+- Run Type: `gate-evidence`（方法级 tri-state / exception path 证据）
+- Operator: `@codex_5_3`
+- Env:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com`
+  - `SURFPOOL_RPC_URL=http://127.0.0.1:8899`
+- Entry:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes:
+  - 全量测试：`163/163 tests passed`
+  - `requestAirdrop` tri-state 与 `getAddressLookupTable` success-or-exception path 均可复现
+
+### 3. Evidence Checklist
+
+- [x] `requestAirdrop(local-live) success` 证据可复现（success state）
+- [x] `requestAirdrop(public devnet)` 在受限场景可按 partial exception 规则处理
+- [x] `getAddressLookupTable(devnet)` method-not-found path 证据可复现
+- [x] `getAddressLookupTable(local-live)` method-not-found accepted exception path 可复现
+- [x] 双 env 全量基线通过（`163/163`）
+
+### 4. Console / Run Evidence
+
+```
+SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all
+5/5 steps succeeded
+163/163 tests passed
+```
+
+### 5. Notes
+
+- 本次 run 的目的不是新增接口能力，而是为 `G-P3A-04` 提供方法级机械证据。
+- `getAddressLookupTable` 在 Batch 1 仍允许走 accepted exception path；后续收敛目标保留在 Phase 3 后续批次。

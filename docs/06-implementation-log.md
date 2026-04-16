@@ -1231,3 +1231,31 @@
 - 当前 docs/gate 口径：
   - `#56 / G-P2G-05`：可进入 final PASS
   - `#55 / G-P2G-05`：可进入 final PASS（带 Batch 7 exception）
+
+## 2026-04-16 第四十二次增量记录（Phase 3 Batch 1：#60/#61/#62 + #63 收口输入）
+
+### 输入
+- `#59` 已通过结构审并放行 Batch 1 实现，执行板面固定为 `#60~#63`。
+- `#60`（System）、`#61`（Token）、`#62`（Exception convergence）已进入提审并获得 reviewer 线最终 PASS 结论。
+
+### 输出
+- `#60`（`35a731f`）完成 `transfer/createAccount` builders，`G-P3A-01/G-P3A-02` PASS，并已关单。
+- `#61`（`b840f75`）完成 `mint/approve/burn` builders 与 byte layout/account metas/compile-sign 证据，ATA 未触碰（保持 Batch 1 out-of-scope），`G-P3A-01/G-P3A-03` PASS。
+- `#62`（`f54dbe5` + `7aa4aab`）完成：
+  - `requestAirdrop` tri-state（success / partial exception / not converged）收敛规则测试化
+  - `getAddressLookupTable` success-or-exception path（含 method-not-found/RPC transport path）测试化
+  - 双 env 全量：`SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all` → `163/163 tests passed`
+  - `G-P3A-01/G-P3A-04` PASS。
+- `#63` docs/gate 线开始基于上述结论执行最终 reconciliation（`docs/06/10/14a/15/31`）。
+
+### 风险
+- Batch 1 的 gate 已闭环，但 exception 语义并非“零例外”：
+  - `requestAirdrop` public devnet 可能受 rate-limit 影响，当前按 partial exception 规则收敛
+  - `getAddressLookupTable` 仍可能落在 RPC error evidence exception path，需要在 execution matrix 中保持可追踪。
+
+### 验证
+- reviewer 最终结论（canonical board `#60~#63`）：
+  - `#61 / G-P3A-01`：PASS
+  - `#61 / G-P3A-03`：PASS
+  - `#62 / G-P3A-01`：PASS
+  - `#62 / G-P3A-04`：PASS
