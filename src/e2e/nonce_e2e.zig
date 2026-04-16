@@ -149,10 +149,12 @@ test "P2-14 mock: query nonce -> build advance -> compile/sign -> send -> confir
                     const sigs = [_]root.core.Signature{result.signature};
                     const status_result = try client.getSignatureStatuses(&sigs);
                     switch (status_result) {
-                        .ok => |maybe_status| {
-                            try std.testing.expect(maybe_status != null);
-                            var status = maybe_status.?;
-                            defer status.deinit(gpa);
+                        .ok => |statuses_val| {
+                            var statuses = statuses_val;
+                            defer statuses.deinit(gpa);
+                            try std.testing.expectEqual(@as(usize, 1), statuses.items.len);
+                            try std.testing.expect(statuses.items[0] != null);
+                            const status = statuses.items[0].?;
                             try std.testing.expectEqualStrings("confirmed", status.confirmation_status.?);
                             try std.testing.expect(status.err_json == null);
                         },
@@ -369,19 +371,20 @@ test "P2-14 live: create nonce -> query -> advance -> send -> confirm" {
                         while (confirm_attempts < 30) : (confirm_attempts += 1) {
                             const status_result = try client.getSignatureStatuses(&sigs);
                             switch (status_result) {
-                                .ok => |maybe_status| {
-                                    if (maybe_status) |status_val| {
-                                        var status = status_val;
-                                        defer status.deinit(gpa);
-                                        if (status.confirmation_status) |cs| {
-                                            if (std.mem.eql(u8, cs, "confirmed") or std.mem.eql(u8, cs, "finalized")) {
-                                                if (status.err_json) |tx_err| {
-                                                    std.debug.print("[nonce E2E] create tx error: {s}\n", .{tx_err});
-                                                    return error.NonceCreateFailed;
-                                                }
-                                                std.debug.print("[nonce E2E] create tx confirmed (poll {d})\n", .{confirm_attempts});
-                                                break;
+                                .ok => |statuses_val| {
+                                    var statuses = statuses_val;
+                                    defer statuses.deinit(gpa);
+                                    if (statuses.items.len == 0 or statuses.items[0] == null) continue;
+
+                                    const status = statuses.items[0].?;
+                                    if (status.confirmation_status) |cs| {
+                                        if (std.mem.eql(u8, cs, "confirmed") or std.mem.eql(u8, cs, "finalized")) {
+                                            if (status.err_json) |tx_err| {
+                                                std.debug.print("[nonce E2E] create tx error: {s}\n", .{tx_err});
+                                                return error.NonceCreateFailed;
                                             }
+                                            std.debug.print("[nonce E2E] create tx confirmed (poll {d})\n", .{confirm_attempts});
+                                            break;
                                         }
                                     }
                                 },
@@ -476,20 +479,21 @@ test "P2-14 live: create nonce -> query -> advance -> send -> confirm" {
                             while (confirm_attempts < 30) : (confirm_attempts += 1) {
                                 const status_result = try client.getSignatureStatuses(&sigs);
                                 switch (status_result) {
-                                    .ok => |maybe_status| {
-                                        if (maybe_status) |status_val| {
-                                            var status = status_val;
-                                            defer status.deinit(gpa);
-                                            if (status.confirmation_status) |cs| {
-                                                std.debug.print("[nonce E2E] confirm poll {d}: {s}\n", .{ confirm_attempts, cs });
-                                                if (std.mem.eql(u8, cs, "confirmed") or std.mem.eql(u8, cs, "finalized")) {
-                                                    if (status.err_json) |tx_err| {
-                                                        std.debug.print("[nonce E2E] advance tx error: {s}\n", .{tx_err});
-                                                    } else {
-                                                        confirmed = true;
-                                                    }
-                                                    break;
+                                    .ok => |statuses_val| {
+                                        var statuses = statuses_val;
+                                        defer statuses.deinit(gpa);
+                                        if (statuses.items.len == 0 or statuses.items[0] == null) continue;
+
+                                        const status = statuses.items[0].?;
+                                        if (status.confirmation_status) |cs| {
+                                            std.debug.print("[nonce E2E] confirm poll {d}: {s}\n", .{ confirm_attempts, cs });
+                                            if (std.mem.eql(u8, cs, "confirmed") or std.mem.eql(u8, cs, "finalized")) {
+                                                if (status.err_json) |tx_err| {
+                                                    std.debug.print("[nonce E2E] advance tx error: {s}\n", .{tx_err});
+                                                } else {
+                                                    confirmed = true;
                                                 }
+                                                break;
                                             }
                                         }
                                     },

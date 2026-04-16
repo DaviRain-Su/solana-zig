@@ -9,6 +9,7 @@ after each iteration and it's included in prompts for context.
 
 - Extended RPC methods follow a consistent pattern in `src/solana/rpc/client.zig`: expose a default convenience method plus `WithOptions`, build the JSON-RPC payload manually, return `types.RpcResult(?T)` for nullable RPC results, parse a minimal typed subset, and preserve the full server payload via `raw_json` / `err_json` for forward-compatible inspection.
 - When an RPC method grows multiple optional request parameters, assemble the JSON payload with `std.Io.Writer.Allocating` instead of branching `allocPrint` permutations; keep a deterministic field order so payload-capture unit tests can assert on the wire shape.
+- Batch-style RPC lookups should preserve Solana’s positional response semantics with `[]?T` result items; single-signature confirmation helpers can still layer on top by reading `items[0]`, while tests assert both payload shape and null-slot mapping.
 
 ---
 
@@ -40,5 +41,23 @@ after each iteration and it's included in prompts for context.
     - For multi-optional JSON-RPC params, `std.Io.Writer.Allocating` keeps payload construction readable and avoids combinatorial `allocPrint` branches.
   - Gotchas encountered
     - The live Devnet harness can validate this story without funding by querying a stable active address (`SYSTEM_PROGRAM`), which is safer than coupling the acceptance path to airdrop availability.
+---
+
+## 2026-04-16 - US-003
+- Implemented batch-aware `getSignatureStatusesWithOptions` plus the default convenience wrapper, returning positional status items for every input signature and supporting configurable `searchTransactionHistory`.
+- Added mock coverage for batched happy-path parsing, partial-missing/null entries, request payload shape, and kept RPC error preservation; updated Devnet/mock confirmation helpers to consume the batch result while still polling the first signature after send.
+- Files changed:
+  - `src/solana/rpc/types.zig`
+  - `src/solana/rpc/client.zig`
+  - `src/e2e/devnet_e2e.zig`
+  - `src/e2e/nonce_e2e.zig`
+  - `src/solana/interfaces/token.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Batch RPC methods fit the repo’s typed-RPC pattern best when the result keeps Solana’s positional null semantics (`[]?T`) instead of collapsing to a single optional item.
+    - Existing single-signature confirmation loops can adopt batch-capable APIs cheaply by asserting `items.len == 1` and reading `items[0]`, which keeps E2E helpers reusable.
+  - Gotchas encountered
+    - `getSignatureStatuses` was already serializing multiple signatures on the wire, so the real gap was response typing: callers and tests had to be updated together to avoid silently discarding non-first entries.
 ---
 

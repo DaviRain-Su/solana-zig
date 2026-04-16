@@ -1,0 +1,32 @@
+# Iteration 3 Log
+
+## Metadata
+
+- **Task ID**: US-002
+- **Task Title**: getSignaturesForAddress RPC 方法
+- **Description**: As a Zig 开发者, I want 调用 getSignaturesForAddress so that 我可以获取某地址的历史交易签名列表。
+- **Status**: completed
+- **Task Completed**: Yes
+- **Promise Detected**: Yes
+- **Started At**: 2026-04-16T13:33:50.868Z
+- **Ended At**: 2026-04-16T13:43:27.600Z
+- **Duration**: 9m 36s
+- **Agent**: droid
+- **Sandbox Mode**: auto
+- **Sandbox Network**: Enabled
+--- RAW OUTPUT ---
+^D]9;4;0;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;3;]9;4;0;# Done
+
+- Implemented `getSignaturesForAddressWithOptions` with `before` / `until` / `limit`, while keeping the existing limit-only convenience API.
+- Added mock coverage for success payload shape, empty list handling, and kept error-path coverage.
+- Added Devnet E2E coverage for querying signature history from an active address.
+- Appended the required US-002 entry to `.ralph-tui/progress.md` and added a reusable payload-construction pattern.
+
+## Validation
+
+- `zig build test`
+- `zig build bench`
+- `zig build devnet-e2e` — live Devnet branches skipped as expected because `SOLANA_RPC_URL` was not set
+
+<promise>COMPLETE</promise>
+]9;4;0;

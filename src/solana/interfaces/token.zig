@@ -605,9 +605,11 @@ test "token flow build -> compile/sign -> send/confirm (mock transport)" {
 
     const status_res = try client.getSignatureStatuses(&[_]@import("../core/signature.zig").Signature{send_res.ok.signature});
     try std.testing.expect(status_res == .ok);
-    try std.testing.expect(status_res.ok != null);
-    var status = status_res.ok.?;
-    defer status.deinit(allocator);
+    var statuses = status_res.ok;
+    defer statuses.deinit(allocator);
+    try std.testing.expectEqual(@as(usize, 1), statuses.items.len);
+    try std.testing.expect(statuses.items[0] != null);
+    const status = statuses.items[0].?;
     try std.testing.expect(status.err_json == null);
     try std.testing.expect(status.confirmation_status != null);
     try std.testing.expectEqualStrings("confirmed", status.confirmation_status.?);

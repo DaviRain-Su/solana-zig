@@ -328,25 +328,28 @@ fn waitForConfirmedSignature(
     while (confirm_attempts < MAX_CONFIRM_POLLS) : (confirm_attempts += 1) {
         const status_result = try client.getSignatureStatuses(&sigs);
         switch (status_result) {
-            .ok => |maybe_status| {
-                if (maybe_status) |status_val| {
-                    var status = status_val;
-                    defer status.deinit(allocator);
+            .ok => |statuses_val| {
+                var statuses = statuses_val;
+                defer statuses.deinit(allocator);
 
-                    if (status.confirmation_status) |cs| {
-                        std.debug.print("[{s}] confirm poll {d}: status={s}, slot={d}\n", .{ log_prefix, confirm_attempts, cs, status.slot });
-                        if (std.mem.eql(u8, cs, "confirmed") or std.mem.eql(u8, cs, "finalized")) {
-                            if (status.err_json) |err| {
-                                std.debug.print("[{s}] tx confirmed but has error: {s}\n", .{ log_prefix, err });
-                                return error.TransactionConfirmedWithError;
-                            }
-                            return true;
+                if (statuses.items.len == 0 or statuses.items[0] == null) {
+                    std.debug.print("[{s}] confirm poll {d}: not found yet\n", .{ log_prefix, confirm_attempts });
+                    continue;
+                }
+
+                const status = statuses.items[0].?;
+                if (status.slot == 0) return error.InvalidRpcResponse;
+                if (status.confirmation_status) |cs| {
+                    std.debug.print("[{s}] confirm poll {d}: status={s}, slot={d}\n", .{ log_prefix, confirm_attempts, cs, status.slot });
+                    if (std.mem.eql(u8, cs, "confirmed") or std.mem.eql(u8, cs, "finalized")) {
+                        if (status.err_json) |err| {
+                            std.debug.print("[{s}] tx confirmed but has error: {s}\n", .{ log_prefix, err });
+                            return error.TransactionConfirmedWithError;
                         }
-                    } else {
-                        std.debug.print("[{s}] confirm poll {d}: status present but no confirmationStatus yet\n", .{ log_prefix, confirm_attempts });
+                        return true;
                     }
                 } else {
-                    std.debug.print("[{s}] confirm poll {d}: not found yet\n", .{ log_prefix, confirm_attempts });
+                    std.debug.print("[{s}] confirm poll {d}: status present but no confirmationStatus yet\n", .{ log_prefix, confirm_attempts });
                 }
             },
             .rpc_error => |rpc_err| {
@@ -519,10 +522,12 @@ test "P2-2 mock: confirm failure path (tx confirmed with error)" {
     const sigs = [_]@import("solana_zig").core.Signature{dummy_sig};
     const status_result = try client.getSignatureStatuses(&sigs);
     switch (status_result) {
-        .ok => |maybe_status| {
-            try std.testing.expect(maybe_status != null);
-            var status = maybe_status.?;
-            defer status.deinit(gpa);
+        .ok => |statuses_val| {
+            var statuses = statuses_val;
+            defer statuses.deinit(gpa);
+            try std.testing.expectEqual(@as(usize, 1), statuses.items.len);
+            try std.testing.expect(statuses.items[0] != null);
+            const status = statuses.items[0].?;
             // A-CONFIRM-F1: status is confirmed but has transaction error
             try std.testing.expectEqualStrings("confirmed", status.confirmation_status.?);
             try std.testing.expect(status.err_json != null);

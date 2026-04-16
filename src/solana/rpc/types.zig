@@ -43,6 +43,10 @@ pub const GetSignaturesForAddressOptions = struct {
     limit: ?u32 = null,
 };
 
+pub const GetSignatureStatusesOptions = struct {
+    search_transaction_history: bool = true,
+};
+
 pub const AccountInfo = struct {
     lamports: u64,
     owner: pubkey_mod.Pubkey,
@@ -126,6 +130,20 @@ pub const SignatureStatus = struct {
     pub fn deinit(self: *SignatureStatus, allocator: std.mem.Allocator) void {
         if (self.err_json) |err| allocator.free(err);
         if (self.confirmation_status) |cs| allocator.free(cs);
+    }
+};
+
+pub const SignatureStatusesResult = struct {
+    items: []?SignatureStatus,
+
+    pub fn deinit(self: *SignatureStatusesResult, allocator: std.mem.Allocator) void {
+        for (self.items) |maybe_status| {
+            if (maybe_status) |status_val| {
+                var status = status_val;
+                status.deinit(allocator);
+            }
+        }
+        allocator.free(self.items);
     }
 };
 

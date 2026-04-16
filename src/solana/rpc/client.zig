@@ -688,7 +688,15 @@ pub const RpcClient = struct {
         } };
     }
 
-    pub fn getSignatureStatuses(self: *RpcClient, signatures: []const @import("../core/signature.zig").Signature) !types.RpcResult(?types.SignatureStatus) {
+    pub fn getSignatureStatuses(self: *RpcClient, signatures: []const @import("../core/signature.zig").Signature) !types.RpcResult(types.SignatureStatusesResult) {
+        return self.getSignatureStatusesWithOptions(signatures, .{});
+    }
+
+    pub fn getSignatureStatusesWithOptions(
+        self: *RpcClient,
+        signatures: []const @import("../core/signature.zig").Signature,
+        options: types.GetSignatureStatusesOptions,
+    ) !types.RpcResult(types.SignatureStatusesResult) {
         // Build JSON array of signature strings
         var sig_array: std.Io.Writer.Allocating = .init(self.allocator);
         defer sig_array.deinit();
@@ -705,8 +713,8 @@ pub const RpcClient = struct {
 
         const payload = try std.fmt.allocPrint(
             self.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSignatureStatuses\",\"params\":[{s},{{\"searchTransactionHistory\":true}}]}}",
-            .{ self.nextRpcId(), sig_array.written() },
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSignatureStatuses\",\"params\":[{s},{{\"searchTransactionHistory\":{s}}}]}}",
+            .{ self.nextRpcId(), sig_array.written(), if (options.search_transaction_history) "true" else "false" },
         );
         defer self.allocator.free(payload);
 
@@ -723,32 +731,30 @@ pub const RpcClient = struct {
         const value = getObjectField(result, "value") orelse return error.InvalidRpcResponse;
         if (value.* != .array) return error.InvalidRpcResponse;
 
-        // Return first status (or null if not found yet)
-        if (value.array.items.len == 0 or value.array.items[0] == .null) {
-            response.parsed.deinit();
-            return .{ .ok = null };
+        const items = try self.allocator.alloc(?types.SignatureStatus, value.array.items.len);
+        errdefer self.allocator.free(items);
+
+        var initialized: usize = 0;
+        errdefer {
+            for (items[0..initialized]) |maybe_status| {
+                if (maybe_status) |status_val| {
+                    var status = status_val;
+                    status.deinit(self.allocator);
+                }
+            }
         }
 
-        const item = &value.array.items[0];
-        if (item.* != .object) return error.InvalidRpcResponse;
-
-        const slot = getU64Field(item, "slot") orelse return error.InvalidRpcResponse;
-        const confirmations = getU64Field(item, "confirmations");
-        const err_json = try extractOptionalFieldJson(self.allocator, item, "err");
-        errdefer if (err_json) |err| self.allocator.free(err);
-        const confirmation_status = if (getStringField(item, "confirmationStatus")) |cs|
-            try self.allocator.dupe(u8, cs)
-        else
-            null;
-        errdefer if (confirmation_status) |cs| self.allocator.free(cs);
+        for (value.array.items, 0..) |item, i| {
+            if (item == .null) {
+                items[i] = null;
+            } else {
+                items[i] = try parseSignatureStatus(self.allocator, &item);
+            }
+            initialized += 1;
+        }
 
         response.parsed.deinit();
-        return .{ .ok = .{
-            .slot = slot,
-            .confirmations = confirmations,
-            .err_json = err_json,
-            .confirmation_status = confirmation_status,
-        } };
+        return .{ .ok = .{ .items = items } };
     }
 
     pub fn sendTransaction(self: *RpcClient, tx: transaction_mod.VersionedTransaction) !types.RpcResult(types.SendTransactionResult) {
@@ -910,6 +916,28 @@ fn extractOptionalString(allocator: std.mem.Allocator, root: *const std.json.Val
     if (value.* == .null) return null;
     if (value.* != .string) return error.InvalidRpcResponse;
     return try allocator.dupe(u8, value.string);
+}
+
+fn parseSignatureStatus(allocator: std.mem.Allocator, item: *const std.json.Value) !types.SignatureStatus {
+    if (item.* != .object) return error.InvalidRpcResponse;
+
+    const slot = getU64Field(item, "slot") orelse return error.InvalidRpcResponse;
+    const confirmations = getU64Field(item, "confirmations");
+    const err_json = try extractOptionalFieldJson(allocator, item, "err");
+    errdefer if (err_json) |err| allocator.free(err);
+
+    const confirmation_status = if (getStringField(item, "confirmationStatus")) |cs|
+        try allocator.dupe(u8, cs)
+    else
+        null;
+    errdefer if (confirmation_status) |cs| allocator.free(cs);
+
+    return .{
+        .slot = slot,
+        .confirmations = confirmations,
+        .err_json = err_json,
+        .confirmation_status = confirmation_status,
+    };
 }
 
 fn parseTransactionMeta(allocator: std.mem.Allocator, result: *const std.json.Value) !?types.TransactionMeta {
@@ -1908,49 +1936,93 @@ test "rpc client getTransaction returns InvalidRpcResponse on malformed success"
 test "rpc client getSignatureStatuses typed parse happy path" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
-        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":100},\"value\":[{\"slot\":72,\"confirmations\":10,\"err\":null,\"confirmationStatus\":\"confirmed\"}]}}",
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":100},\"value\":[{\"slot\":72,\"confirmations\":10,\"err\":null,\"confirmationStatus\":\"confirmed\"},{\"slot\":73,\"confirmations\":null,\"err\":null,\"confirmationStatus\":\"finalized\"}]}}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
 
     const seed = [_]u8{12} ** 32;
     const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
-    const sig = try kp.sign("tx-for-sig-status");
+    const sig_a = try kp.sign("tx-for-sig-status-a");
+    const sig_b = try kp.sign("tx-for-sig-status-b");
 
-    const result = try client.getSignatureStatuses(&[_]@import("../core/signature.zig").Signature{sig});
+    const result = try client.getSignatureStatuses(&[_]@import("../core/signature.zig").Signature{ sig_a, sig_b });
     switch (result) {
-        .ok => |maybe_status| {
-            try std.testing.expect(maybe_status != null);
-            var status = maybe_status.?;
-            defer status.deinit(gpa);
-            try std.testing.expectEqual(@as(u64, 72), status.slot);
-            try std.testing.expectEqual(@as(u64, 10), status.confirmations.?);
-            try std.testing.expect(status.err_json == null);
-            try std.testing.expectEqualStrings("confirmed", status.confirmation_status.?);
+        .ok => |statuses_val| {
+            var statuses = statuses_val;
+            defer statuses.deinit(gpa);
+
+            try std.testing.expectEqual(@as(usize, 2), statuses.items.len);
+            try std.testing.expect(statuses.items[0] != null);
+            try std.testing.expect(statuses.items[1] != null);
+
+            const first = statuses.items[0].?;
+            try std.testing.expectEqual(@as(u64, 72), first.slot);
+            try std.testing.expectEqual(@as(u64, 10), first.confirmations.?);
+            try std.testing.expect(first.err_json == null);
+            try std.testing.expectEqualStrings("confirmed", first.confirmation_status.?);
+
+            const second = statuses.items[1].?;
+            try std.testing.expectEqual(@as(u64, 73), second.slot);
+            try std.testing.expect(second.confirmations == null);
+            try std.testing.expect(second.err_json == null);
+            try std.testing.expectEqualStrings("finalized", second.confirmation_status.?);
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    const sig_a_b58 = try sig_a.toBase58Alloc(gpa);
+    defer gpa.free(sig_a_b58);
+    const sig_b_b58 = try sig_b.toBase58Alloc(gpa);
+    defer gpa.free(sig_b_b58);
+    try std.testing.expect(std.mem.indexOf(u8, payload, sig_a_b58) != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, sig_b_b58) != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"searchTransactionHistory\":true") != null);
 }
 
-test "rpc client getSignatureStatuses returns null for unknown signature" {
+test "rpc client getSignatureStatuses preserves partial null entries and custom options" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
-        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":100},\"value\":[null]}}",
+        .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"context\":{\"slot\":100},\"value\":[null,{\"slot\":91,\"confirmations\":1,\"err\":null,\"confirmationStatus\":\"processed\"}]}}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
 
     const seed = [_]u8{13} ** 32;
     const kp = try @import("../core/keypair.zig").Keypair.fromSeed(seed);
-    const sig = try kp.sign("tx-unknown");
+    const sig_missing = try kp.sign("tx-missing");
+    const sig_found = try kp.sign("tx-found");
 
-    const result = try client.getSignatureStatuses(&[_]@import("../core/signature.zig").Signature{sig});
+    const result = try client.getSignatureStatusesWithOptions(&[_]@import("../core/signature.zig").Signature{ sig_missing, sig_found }, .{
+        .search_transaction_history = false,
+    });
     switch (result) {
-        .ok => |maybe_status| try std.testing.expect(maybe_status == null),
+        .ok => |statuses_val| {
+            var statuses = statuses_val;
+            defer statuses.deinit(gpa);
+
+            try std.testing.expectEqual(@as(usize, 2), statuses.items.len);
+            try std.testing.expect(statuses.items[0] == null);
+            try std.testing.expect(statuses.items[1] != null);
+
+            const found = statuses.items[1].?;
+            try std.testing.expectEqual(@as(u64, 91), found.slot);
+            try std.testing.expectEqual(@as(u64, 1), found.confirmations.?);
+            try std.testing.expect(found.err_json == null);
+            try std.testing.expectEqualStrings("processed", found.confirmation_status.?);
+        },
         .rpc_error => return error.UnexpectedRpcError,
     }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"searchTransactionHistory\":false") != null);
 }
 
 test "rpc client getSignatureStatuses preserves rpc error" {
