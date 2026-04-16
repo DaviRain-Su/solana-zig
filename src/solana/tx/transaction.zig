@@ -13,7 +13,7 @@ pub const VersionedTransaction = struct {
         try message.validateHeader();
         const sig_count = message.header.num_required_signatures;
         const signatures = try allocator.alloc(signature_mod.Signature, sig_count);
-        for (signatures) |*sig| sig.* = .{ .bytes = [_]u8{0} ** signature_mod.Signature.LENGTH };
+        for (signatures) |*sig| sig.* = signature_mod.Signature.zero();
 
         return .{
             .allocator = allocator,
@@ -206,7 +206,7 @@ test "verify signatures rejects malformed message header before indexing account
 
     const signatures = try gpa.alloc(signature_mod.Signature, 2);
     errdefer gpa.free(signatures);
-    for (signatures) |*sig| sig.* = .{ .bytes = [_]u8{0} ** signature_mod.Signature.LENGTH };
+    for (signatures) |*sig| sig.* = signature_mod.Signature.zero();
 
     var tx = VersionedTransaction{
         .allocator = gpa,
@@ -232,7 +232,7 @@ test "versioned_deserialize_rejects_truncated_signature_bytes" {
 test "versioned_deserialize_rejects_unsupported_message_version" {
     const gpa = std.testing.allocator;
 
-    const sig = [_]u8{0} ** signature_mod.Signature.LENGTH;
+    const sig = signature_mod.Signature.zero().bytes;
     const bytes = [_]u8{
         1, // signature vector len
     } ++ sig ++ [_]u8{

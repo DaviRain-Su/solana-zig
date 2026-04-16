@@ -3,7 +3,7 @@
 **Date**: 2026-04-16  
 **Status**: Planning draft（`#36 P2-16`）  
 **Owner**: `#36`  
-**Depends on**: `docs/00-roadmap.md`, `docs/03c-rpc-extended-spec.md`, `docs/21-phase2-batch3-planning.md`, `docs/10-coverage-matrix.md`
+**Depends on**: `docs/00-roadmap.md`, `docs/03c-rpc-extended-spec.md`, `docs/21-phase2-batch3-planning.md`, `docs/10-coverage-matrix.md`, `docs/14a-devnet-e2e-run-log.md`
 
 > 本文用于冻结 Product Phase 2 第四批范围、DoD、执行顺序与 gate。  
 > 在本文过审前，第四批实现任务保持冻结，不进入实现提交。
@@ -36,7 +36,7 @@ integration 口径（Batch 4 固定模型）：
 
 最小交付：
 - 连接健康管理：heartbeat（ping/pong）与读写超时策略
-- reconnect/backoff 的上限与抖动（或明确固定退避模型）
+- reconnect/backoff 采用**固定 deterministic 退避模型**（无 jitter），并冻结最大重试上限
 - subscription cleanup 与 reconnect 后状态一致性验证
 - 在现有 dedup 基础上增加窗口/缓存边界测试（防止无限增长）
 
@@ -45,7 +45,7 @@ integration 口径（Batch 4 固定模型）：
 ### 2.3 P2-19：发布前技术清单（release readiness）
 
 最小交付：
-- 建立 Batch 4 发布前清单文档条目（测试、性能、内存、文档一致性）
+- 建立 Batch 4 发布前技术清单文档条目（最小项固定为：测试结果、内存检查、文档一致性、发布判定）
 - 至少 1 次 local-live + 1 次 public devnet 的 smoke 证据（若 devnet 不稳定按 exception 规则登记）
 - 输出“可发布/不可发布”判定条件
 
@@ -72,6 +72,12 @@ integration 口径（Batch 4 固定模型）：
 2. `P2-18`（并行推进生产硬化）
 3. `P2-19`（汇总发布前技术判定）
 
+### 4.3 写集归属（冻结）
+
+- `P2-17`：`src/solana/rpc/client.zig` + `src/solana/rpc/types.zig`
+- `P2-18`：`src/solana/rpc/ws_client.zig`
+- `P2-19`：docs-only（`docs/06` / `docs/10` / `docs/14a` / `docs/15`）
+
 ## 5. Gate / DoD
 
 ### G-P2D-01 Test Gate（canonical）
@@ -96,15 +102,19 @@ integration 口径（Batch 4 固定模型）：
 ### G-P2D-03 WS Production Gate（P2-18）
 
 - heartbeat + timeout 行为可验证
-- reconnect/backoff 在连接波动场景可验证
+- reconnect/backoff 按固定 deterministic 模型可验证（无 jitter，且最大重试上限可验证）
 - cleanup + state consistency 有测试证据
 - dedup/cache 边界有至少 1 条可复现证据
 
 ### G-P2D-04 Release Readiness Gate（P2-19）
 
-- 发布前技术清单落盘并与当前实现状态一致
+- 发布前技术清单落盘并与当前实现状态一致（最小项必须覆盖：测试结果、内存检查、文档一致性、发布判定）
 - smoke 证据完整（local-live + public devnet；若 devnet 不稳定按 exception 规则）
 - 给出明确“可发布/不可发布”判定
+- exception 与发布判定关系冻结：
+  - 允许在登记 `Batch 4 exception` 的情况下通过本批 gate（PASS-with-exception）
+  - 但若存在未收敛 exception，`P2-19` 的 release verdict 必须为 `不可发布` 或 `有条件发布（需明确例外项）`
+  - 仅当无未收敛 exception 时，才允许给出 `可发布`
 
 ### G-P2D-05 Docs Gate（持续对账）
 

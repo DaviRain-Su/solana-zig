@@ -3,10 +3,10 @@
   "sessionId": "027af6bc-c65b-4dae-a41e-8d23cea60fdc",
   "status": "running",
   "startedAt": "2026-04-16T11:09:00.649Z",
-  "updatedAt": "2026-04-16T11:12:51.949Z",
-  "currentIteration": 0,
+  "updatedAt": "2026-04-16T11:15:41.707Z",
+  "currentIteration": 1,
   "maxIterations": 10,
-  "tasksCompleted": 0,
+  "tasksCompleted": 1,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -14,7 +14,18 @@
     "totalTasks": 0,
     "tasks": []
   },
-  "iterations": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Pubkey type with base58 encoding/decoding",
+      "taskCompleted": true,
+      "durationMs": 217484,
+      "startedAt": "2026-04-16T11:09:14.464Z",
+      "endedAt": "2026-04-16T11:12:51.948Z"
+    }
+  ],
   "skippedTaskIds": [],
   "cwd": "/Users/davirian/dev/active/solana-zig",
   "activeTaskIds": [],
