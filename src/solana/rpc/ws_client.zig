@@ -8,6 +8,7 @@ pub const WsClient = struct {
     io: std.Io,
     stream: std.Io.net.Stream,
     fd: std.posix.fd_t,
+    closed: bool = false,
     next_id: u64 = 1,
 
     pub const ConnectError = std.mem.Allocator.Error || std.Io.net.IpAddress.ConnectError || std.Io.net.Ip6Address.ResolveError || error{
@@ -52,6 +53,7 @@ pub const WsClient = struct {
             .io = io,
             .stream = stream,
             .fd = stream.socket.handle,
+            .closed = false,
         };
 
         try client.performHandshake(parsed.host, parsed.port, parsed.path);
@@ -59,6 +61,8 @@ pub const WsClient = struct {
     }
 
     pub fn deinit(self: *WsClient) void {
+        if (self.closed) return;
+        self.closed = true;
         self.stream.close(self.io);
     }
 
@@ -354,6 +358,7 @@ pub const WsRpcClient = struct {
     last_reconnect_attempts: u8 = 0,
 
     pub const SubscribeError = WsClient.SendError || WsClient.ReadError || error{InvalidSubscriptionResponse};
+    pub const ReconnectError = WsClient.ConnectError || SubscribeError;
     pub const Notification = struct {
         allocator: std.mem.Allocator,
         method: []const u8,
@@ -391,6 +396,10 @@ pub const WsRpcClient = struct {
     }
 
     pub fn deinit(self: *WsRpcClient) void {
+        for (self.subscriptions.items) |sub| {
+            self.ws.allocator.free(sub.value);
+        }
+        self.subscriptions.deinit(self.ws.allocator);
         self.ws.deinit();
         self.ws.allocator.free(self.url);
     }
@@ -405,37 +414,33 @@ pub const WsRpcClient = struct {
         self.ws = try WsClient.connect(self.ws.allocator, self.ws.io, self.url);
     }
 
+    pub fn reconnectWithBackoff(self: *WsRpcClient, retries: u8, base_delay_ms: u64) ReconnectError!void {
+        var attempt: u8 = 0;
+        self.last_reconnect_attempts = 0;
+        while (attempt < retries) : (attempt += 1) {
+            self.last_reconnect_attempts = attempt + 1;
+            if (self.reconnectAndResubscribe()) |_| return else |err| {
+                if (attempt + 1 == retries) return err;
+                const delay_ms = base_delay_ms << @intCast(attempt);
+                var spins: u64 = delay_ms * 10_000;
+                while (spins > 0) : (spins -= 1) {
+                    std.atomic.spinLoopHint();
+                }
+            }
+        }
+        return error.HandshakeFailed;
+    }
+
     pub fn accountSubscribe(self: *WsRpcClient, pubkey_base58: []const u8) SubscribeError!u64 {
-        const payload = try std.fmt.allocPrint(
-            self.ws.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"accountSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
-            .{ self.nextRpcId(), pubkey_base58 },
-        );
-        defer self.ws.allocator.free(payload);
-        try self.ws.sendText(payload);
-        return try self.readSubscriptionResult();
+        return try self.ensureSubscribed(.account, pubkey_base58);
     }
 
     pub fn logsSubscribe(self: *WsRpcClient, filter: []const u8) SubscribeError!u64 {
-        const payload = try std.fmt.allocPrint(
-            self.ws.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"logsSubscribe\",\"params\":[\"{s}\"]}}",
-            .{ self.nextRpcId(), filter },
-        );
-        defer self.ws.allocator.free(payload);
-        try self.ws.sendText(payload);
-        return try self.readSubscriptionResult();
+        return try self.ensureSubscribed(.logs, filter);
     }
 
     pub fn signatureSubscribe(self: *WsRpcClient, signature_base58: []const u8) SubscribeError!u64 {
-        const payload = try std.fmt.allocPrint(
-            self.ws.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"signatureSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
-            .{ self.nextRpcId(), signature_base58 },
-        );
-        defer self.ws.allocator.free(payload);
-        try self.ws.sendText(payload);
-        return try self.readSubscriptionResult();
+        return try self.ensureSubscribed(.signature, signature_base58);
     }
 
     pub fn unsubscribe(self: *WsRpcClient, subscription_id: u64, method: []const u8) SubscribeError!void {
@@ -447,33 +452,42 @@ pub const WsRpcClient = struct {
         defer self.ws.allocator.free(payload);
         try self.ws.sendText(payload);
         _ = try self.readSubscriptionResult();
+        self.removeSubscription(subscription_id);
     }
 
     pub fn readNotification(self: *WsRpcClient) (SubscribeError || WsClient.ReadError || error{OutOfMemory})!Notification {
-        const msg = try self.ws.readMessage();
-        defer self.ws.allocator.free(msg.data);
-        if (msg.opcode != .text and msg.opcode != .binary) {
-            return error.WsProtocolError;
+        while (true) {
+            const msg = try self.ws.readMessage();
+            defer self.ws.allocator.free(msg.data);
+            if (msg.opcode != .text and msg.opcode != .binary) {
+                return error.WsProtocolError;
+            }
+
+            const h = std.hash.Wyhash.hash(0, msg.data);
+            if (self.last_notification_hash) |last| {
+                if (last == h) continue;
+            }
+            self.last_notification_hash = h;
+
+            var parsed = std.json.parseFromSlice(std.json.Value, self.ws.allocator, msg.data, .{}) catch return error.InvalidSubscriptionResponse;
+            defer parsed.deinit();
+
+            const root = parsed.value;
+            const method_val = root.object.get("method") orelse return error.InvalidSubscriptionResponse;
+            const method = try self.ws.allocator.dupe(u8, method_val.string);
+            errdefer self.ws.allocator.free(method);
+
+            const params = root.object.get("params") orelse return error.InvalidSubscriptionResponse;
+            const subscription_id = @as(u64, @intCast(params.object.get("subscription").?.integer));
+            const result = std.json.parseFromValue(std.json.Value, self.ws.allocator, params.object.get("result").?, .{}) catch return error.InvalidSubscriptionResponse;
+
+            return .{
+                .allocator = self.ws.allocator,
+                .method = method,
+                .subscription_id = subscription_id,
+                .result = result,
+            };
         }
-
-        var parsed = std.json.parseFromSlice(std.json.Value, self.ws.allocator, msg.data, .{}) catch return error.InvalidSubscriptionResponse;
-        defer parsed.deinit();
-
-        const root = parsed.value;
-        const method_val = root.object.get("method") orelse return error.InvalidSubscriptionResponse;
-        const method = try self.ws.allocator.dupe(u8, method_val.string);
-        errdefer self.ws.allocator.free(method);
-
-        const params = root.object.get("params") orelse return error.InvalidSubscriptionResponse;
-        const subscription_id = @as(u64, @intCast(params.object.get("subscription").?.integer));
-        const result = std.json.parseFromValue(std.json.Value, self.ws.allocator, params.object.get("result").?, .{}) catch return error.InvalidSubscriptionResponse;
-
-        return .{
-            .allocator = self.ws.allocator,
-            .method = method,
-            .subscription_id = subscription_id,
-            .result = result,
-        };
     }
 
     fn nextRpcId(self: *WsRpcClient) u64 {
@@ -489,6 +503,71 @@ pub const WsRpcClient = struct {
         defer parsed.deinit();
         const result = parsed.value.object.get("result") orelse return error.InvalidSubscriptionResponse;
         return @intCast(result.integer);
+    }
+
+    fn ensureSubscribed(self: *WsRpcClient, kind: SubscriptionKind, value: []const u8) SubscribeError!u64 {
+        for (self.subscriptions.items) |sub| {
+            if (sub.kind == kind and std.mem.eql(u8, sub.value, value)) {
+                return sub.id;
+            }
+        }
+
+        const payload = try self.buildSubscribePayload(kind, value);
+        defer self.ws.allocator.free(payload);
+        try self.ws.sendText(payload);
+        const id = try self.readSubscriptionResult();
+
+        try self.subscriptions.append(self.ws.allocator, .{
+            .kind = kind,
+            .value = try self.ws.allocator.dupe(u8, value),
+            .id = id,
+        });
+        return id;
+    }
+
+    fn buildSubscribePayload(self: *WsRpcClient, kind: SubscriptionKind, value: []const u8) std.mem.Allocator.Error![]u8 {
+        return switch (kind) {
+            .account => std.fmt.allocPrint(
+                self.ws.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"accountSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
+                .{ self.nextRpcId(), value },
+            ),
+            .logs => std.fmt.allocPrint(
+                self.ws.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"logsSubscribe\",\"params\":[\"{s}\"]}}",
+                .{ self.nextRpcId(), value },
+            ),
+            .signature => std.fmt.allocPrint(
+                self.ws.allocator,
+                "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"signatureSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
+                .{ self.nextRpcId(), value },
+            ),
+        };
+    }
+
+    fn resubscribeAll(self: *WsRpcClient) SubscribeError!void {
+        for (self.subscriptions.items) |*sub| {
+            const payload = try self.buildSubscribePayload(sub.kind, sub.value);
+            defer self.ws.allocator.free(payload);
+            try self.ws.sendText(payload);
+            sub.id = try self.readSubscriptionResult();
+        }
+    }
+
+    fn reconnectAndResubscribe(self: *WsRpcClient) ReconnectError!void {
+        try self.reconnect();
+        try self.resubscribeAll();
+    }
+
+    fn removeSubscription(self: *WsRpcClient, subscription_id: u64) void {
+        var i: usize = 0;
+        while (i < self.subscriptions.items.len) : (i += 1) {
+            if (self.subscriptions.items[i].id == subscription_id) {
+                self.ws.allocator.free(self.subscriptions.items[i].value);
+                _ = self.subscriptions.swapRemove(i);
+                return;
+            }
+        }
     }
 };
 
@@ -677,6 +756,7 @@ const MockWsServer = struct {
             const is_subscribe = std.mem.endsWith(u8, method.string, "Subscribe");
             const force_disconnect_after_notify = std.mem.indexOf(u8, frame.payload, "force_disconnect_after_notify") != null;
             const malformed_subscribe_response = std.mem.indexOf(u8, frame.payload, "malformed_sub_reply") != null;
+            const duplicate_notifications = std.mem.indexOf(u8, frame.payload, "duplicate_notify") != null;
             const sub_id = next_sub;
             next_sub += 1;
 
@@ -702,6 +782,11 @@ const MockWsServer = struct {
                 ) catch break;
                 defer allocator.free(notif);
                 sendFrameRaw(fd, .text, notif) catch break;
+
+                if (duplicate_notifications) {
+                    sendFrameRaw(fd, .text, notif) catch break;
+                    break;
+                }
 
                 if (force_disconnect_after_notify) {
                     break;
@@ -918,6 +1003,84 @@ test "ws_reconnect_subscription_response_malformed" {
     defer client.deinit();
 
     try std.testing.expectError(error.InvalidSubscriptionResponse, client.logsSubscribe("malformed_sub_reply"));
+}
+
+test "ws_backoff_reconnect_retry_budget" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    // Force reconnect failure by shutting the server down first.
+    server.stop();
+
+    if (client.reconnectWithBackoff(3, 0)) |_| return error.TestUnexpectedResult else |_| {}
+    try std.testing.expectEqual(@as(u8, 3), client.last_reconnect_attempts);
+}
+
+test "ws_resubscribe_idempotent_same_filter_returns_same_id" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    const id1 = try client.logsSubscribe("idempotent_filter");
+    const id2 = try client.logsSubscribe("idempotent_filter");
+    try std.testing.expectEqual(id1, id2);
+}
+
+test "ws_dedup_skip_duplicate_notifications" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    _ = try client.logsSubscribe("duplicate_notify");
+    var first = try client.readNotification();
+    defer first.deinit();
+    try std.testing.expectError(error.ConnectionClosed, client.readNotification());
+}
+
+test "ws_connection_flap_reconnect_with_backoff" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    _ = try client.logsSubscribe("force_disconnect_after_notify");
+    var notif1 = try client.readNotification();
+    notif1.deinit();
+    try std.testing.expectError(error.ConnectionClosed, client.readNotification());
+
+    try client.reconnectWithBackoff(3, 0);
+    try std.testing.expect(client.last_reconnect_attempts >= 1);
 }
 
 test "parseWsUrl basic" {
