@@ -12,9 +12,9 @@
 
 ### High
 
-- H-01: Product Phase 2 / 3 范围（扩展 RPC、Websocket、interfaces、signers、C ABI）尚未进入实现阶段
-- 影响：当前仅能宣称 Product Phase 1 / M1-M3 能力，不可对外宣称“全量实现”
-- 状态：已在 `docs/04` 以 Phase 2 / Phase 3 backlog 形式重新对齐
+- H-01: Product Phase 2 / 3 范围（扩展 RPC、Websocket、interfaces、signers、C ABI）尚未形成完整可宣称能力面
+- 影响：当前仅能宣称 Product Phase 1 / M1-M3 能力，不可对外宣称“全量实现”；即使已有部分 Phase 2 bootstrap，也不等于 Phase 2 已整体可用
+- 状态：已在 `docs/04` / `docs/10` / `docs/19` 中区分“已落地 bootstrap / partial”与“仍待产品级收口”的边界
 
 ### Medium
 
@@ -57,7 +57,7 @@
 
 - 当前阶段可判定为：`Product Phase 1 路线可执行并在推进中`。
 - 当前对外表述应限定为：`Product Phase 1 / M1-M3`，即链下客户端核心与其收尾工作。
-- Product Phase 2 / 3 方向清晰，但仍属于 backlog / 设计承诺，不能视为已落地能力。
+- Product Phase 2 / 3 方向清晰；其中已有部分 Phase 2 bootstrap（如扩展 RPC 第一批、最小 websocket client），但产品级 websocket / 扩展 RPC 能力仍未最终收口，不能被写成“Phase 2 已完成”或“全量能力已落地”。
 
 ## 6. 下一步审查门槛
 
