@@ -50,11 +50,97 @@ pub fn parseNonceAccountData(data: []const u8) ParseNonceError!NonceState {
     }
 }
 
+pub const TransferParams = struct {
+    from: pubkey_mod.Pubkey,
+    to: pubkey_mod.Pubkey,
+    lamports: u64,
+};
+
+pub const CreateAccountParams = struct {
+    from: pubkey_mod.Pubkey,
+    new_account: pubkey_mod.Pubkey,
+    lamports: u64,
+    space: u64,
+    program_id: pubkey_mod.Pubkey,
+};
+
 pub const AdvanceNonceAccountParams = struct {
     nonce_account: pubkey_mod.Pubkey,
     recent_blockhashes_sysvar: pubkey_mod.Pubkey,
     nonce_authority: pubkey_mod.Pubkey,
 };
+
+/// Build System Program `Transfer` instruction.
+///
+/// Data layout: [u32=2] ++ little-endian u64 lamports.
+/// Accounts:
+/// 0. from (signer, writable)
+/// 1. to (writable)
+pub fn buildTransferInstruction(
+    allocator: std.mem.Allocator,
+    params: TransferParams,
+) !instruction_mod.Instruction {
+    var data = try allocator.alloc(u8, 12);
+    errdefer allocator.free(data);
+    std.mem.writeInt(u32, data[0..4], 2, .little);
+    std.mem.writeInt(u64, data[4..12], params.lamports, .little);
+
+    const accounts = try allocator.alloc(instruction_mod.AccountMeta, 2);
+    errdefer allocator.free(accounts);
+    accounts[0] = .{
+        .pubkey = params.from,
+        .is_signer = true,
+        .is_writable = true,
+    };
+    accounts[1] = .{
+        .pubkey = params.to,
+        .is_signer = false,
+        .is_writable = true,
+    };
+
+    return .{
+        .program_id = SYSTEM_PROGRAM_ID,
+        .accounts = accounts,
+        .data = data,
+    };
+}
+
+/// Build System Program `CreateAccount` instruction.
+///
+/// Data layout: [u32=0] ++ little-endian u64 lamports ++ little-endian u64 space ++ Pubkey owner.
+/// Accounts:
+/// 0. from (signer, writable)
+/// 1. new_account (signer, writable)
+pub fn buildCreateAccountInstruction(
+    allocator: std.mem.Allocator,
+    params: CreateAccountParams,
+) !instruction_mod.Instruction {
+    var data = try allocator.alloc(u8, 52);
+    errdefer allocator.free(data);
+    std.mem.writeInt(u32, data[0..4], 0, .little);
+    std.mem.writeInt(u64, data[4..12], params.lamports, .little);
+    std.mem.writeInt(u64, data[12..20], params.space, .little);
+    @memcpy(data[20..52], &params.program_id.bytes);
+
+    const accounts = try allocator.alloc(instruction_mod.AccountMeta, 2);
+    errdefer allocator.free(accounts);
+    accounts[0] = .{
+        .pubkey = params.from,
+        .is_signer = true,
+        .is_writable = true,
+    };
+    accounts[1] = .{
+        .pubkey = params.new_account,
+        .is_signer = true,
+        .is_writable = true,
+    };
+
+    return .{
+        .program_id = SYSTEM_PROGRAM_ID,
+        .accounts = accounts,
+        .data = data,
+    };
+}
 
 pub fn buildAdvanceNonceAccountInstruction(
     allocator: std.mem.Allocator,
@@ -185,6 +271,155 @@ test "nonce workflow minimal compileLegacy" {
     var msg = try message_mod.Message.compileLegacy(gpa, payer, &ixs, blockhash);
     defer msg.deinit();
     try std.testing.expectEqual(@as(usize, 1), msg.instructions.len);
+}
+
+test "transfer byte layout and account metas" {
+    const allocator = std.testing.allocator;
+    const from = pubkey_mod.Pubkey.init([_]u8{0x11} ** 32);
+    const to = pubkey_mod.Pubkey.init([_]u8{0x22} ** 32);
+
+    const ix = try buildTransferInstruction(allocator, .{
+        .from = from,
+        .to = to,
+        .lamports = 1_000_000,
+    });
+    defer allocator.free(ix.data);
+    defer allocator.free(ix.accounts);
+
+    try std.testing.expect(ix.program_id.eql(SYSTEM_PROGRAM_ID));
+    try std.testing.expectEqual(@as(usize, 12), ix.data.len);
+    try std.testing.expectEqual(@as(u32, 2), std.mem.readInt(u32, ix.data[0..4], .little));
+    try std.testing.expectEqual(@as(u64, 1_000_000), std.mem.readInt(u64, ix.data[4..12], .little));
+
+    try std.testing.expectEqual(@as(usize, 2), ix.accounts.len);
+    try std.testing.expect(ix.accounts[0].pubkey.eql(from));
+    try std.testing.expectEqual(true, ix.accounts[0].is_signer);
+    try std.testing.expectEqual(true, ix.accounts[0].is_writable);
+    try std.testing.expect(ix.accounts[1].pubkey.eql(to));
+    try std.testing.expectEqual(false, ix.accounts[1].is_signer);
+    try std.testing.expectEqual(true, ix.accounts[1].is_writable);
+}
+
+test "transfer boundary: zero lamports" {
+    const allocator = std.testing.allocator;
+    const key = pubkey_mod.Pubkey.init([_]u8{0x33} ** 32);
+
+    const ix = try buildTransferInstruction(allocator, .{
+        .from = key,
+        .to = key,
+        .lamports = 0,
+    });
+    defer allocator.free(ix.data);
+    defer allocator.free(ix.accounts);
+
+    try std.testing.expectEqual(@as(u32, 2), std.mem.readInt(u32, ix.data[0..4], .little));
+    try std.testing.expectEqual(@as(u64, 0), std.mem.readInt(u64, ix.data[4..12], .little));
+}
+
+test "transfer boundary: max lamports" {
+    const allocator = std.testing.allocator;
+    const key = pubkey_mod.Pubkey.init([_]u8{0x44} ** 32);
+
+    const ix = try buildTransferInstruction(allocator, .{
+        .from = key,
+        .to = key,
+        .lamports = std.math.maxInt(u64),
+    });
+    defer allocator.free(ix.data);
+    defer allocator.free(ix.accounts);
+
+    try std.testing.expectEqual(std.math.maxInt(u64), std.mem.readInt(u64, ix.data[4..12], .little));
+}
+
+test "createAccount byte layout and account metas" {
+    const allocator = std.testing.allocator;
+    const from = pubkey_mod.Pubkey.init([_]u8{0x55} ** 32);
+    const new_account = pubkey_mod.Pubkey.init([_]u8{0x66} ** 32);
+    const owner = pubkey_mod.Pubkey.init([_]u8{0x77} ** 32);
+
+    const ix = try buildCreateAccountInstruction(allocator, .{
+        .from = from,
+        .new_account = new_account,
+        .lamports = 5_000,
+        .space = 128,
+        .program_id = owner,
+    });
+    defer allocator.free(ix.data);
+    defer allocator.free(ix.accounts);
+
+    try std.testing.expect(ix.program_id.eql(SYSTEM_PROGRAM_ID));
+    try std.testing.expectEqual(@as(usize, 52), ix.data.len);
+    try std.testing.expectEqual(@as(u32, 0), std.mem.readInt(u32, ix.data[0..4], .little));
+    try std.testing.expectEqual(@as(u64, 5_000), std.mem.readInt(u64, ix.data[4..12], .little));
+    try std.testing.expectEqual(@as(u64, 128), std.mem.readInt(u64, ix.data[12..20], .little));
+    try std.testing.expect(std.mem.eql(u8, ix.data[20..52], &owner.bytes));
+
+    try std.testing.expectEqual(@as(usize, 2), ix.accounts.len);
+    try std.testing.expect(ix.accounts[0].pubkey.eql(from));
+    try std.testing.expectEqual(true, ix.accounts[0].is_signer);
+    try std.testing.expectEqual(true, ix.accounts[0].is_writable);
+    try std.testing.expect(ix.accounts[1].pubkey.eql(new_account));
+    try std.testing.expectEqual(true, ix.accounts[1].is_signer);
+    try std.testing.expectEqual(true, ix.accounts[1].is_writable);
+}
+
+test "createAccount boundary: zero lamports and zero space" {
+    const allocator = std.testing.allocator;
+    const from = pubkey_mod.Pubkey.init([_]u8{0x88} ** 32);
+    const new_account = pubkey_mod.Pubkey.init([_]u8{0x99} ** 32);
+    const owner = pubkey_mod.Pubkey.init([_]u8{0xAA} ** 32);
+
+    const ix = try buildCreateAccountInstruction(allocator, .{
+        .from = from,
+        .new_account = new_account,
+        .lamports = 0,
+        .space = 0,
+        .program_id = owner,
+    });
+    defer allocator.free(ix.data);
+    defer allocator.free(ix.accounts);
+
+    try std.testing.expectEqual(@as(u64, 0), std.mem.readInt(u64, ix.data[4..12], .little));
+    try std.testing.expectEqual(@as(u64, 0), std.mem.readInt(u64, ix.data[12..20], .little));
+}
+
+test "system builders compile into signed legacy transaction" {
+    const allocator = std.testing.allocator;
+    const keypair_mod = @import("../core/keypair.zig");
+    const message_mod = @import("../tx/message.zig");
+    const transaction_mod = @import("../tx/transaction.zig");
+
+    const payer = try keypair_mod.Keypair.fromSeed([_]u8{0x2A} ** 32);
+    const new_account_keypair = try keypair_mod.Keypair.fromSeed([_]u8{0x2B} ** 32);
+    const recipient = pubkey_mod.Pubkey.init([_]u8{0xBB} ** 32);
+    const program_owner = pubkey_mod.Pubkey.init([_]u8{0xDD} ** 32);
+
+    const transfer_ix = try buildTransferInstruction(allocator, .{
+        .from = payer.pubkey(),
+        .to = recipient,
+        .lamports = 1_000,
+    });
+    defer allocator.free(transfer_ix.data);
+    defer allocator.free(transfer_ix.accounts);
+
+    const create_ix = try buildCreateAccountInstruction(allocator, .{
+        .from = payer.pubkey(),
+        .new_account = new_account_keypair.pubkey(),
+        .lamports = 2_000,
+        .space = 64,
+        .program_id = program_owner,
+    });
+    defer allocator.free(create_ix.data);
+    defer allocator.free(create_ix.accounts);
+
+    const ixs = [_]instruction_mod.Instruction{ transfer_ix, create_ix };
+    const recent_blockhash = hash_mod.Hash.init([_]u8{0xAB} ** 32);
+    const msg = try message_mod.Message.compileLegacy(allocator, payer.pubkey(), &ixs, recent_blockhash);
+
+    var tx = try transaction_mod.VersionedTransaction.initUnsigned(allocator, msg);
+    defer tx.deinit();
+    try tx.sign(&[_]keypair_mod.Keypair{ payer, new_account_keypair });
+    try tx.verifySignatures();
 }
 
 test "nonce workflow: query -> build advance ix -> compile and sign" {
