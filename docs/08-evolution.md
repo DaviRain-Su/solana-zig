@@ -60,6 +60,9 @@
 
 ## 6. ADR 与决策记录
 
+- ADR 索引：`docs/adr/README.md`
+- ADR 模板：`docs/adr/ADR-template.md`
+
 - 需要 ADR 的变更类型：
   - 兼容策略变化
   - 公共接口破坏性变更

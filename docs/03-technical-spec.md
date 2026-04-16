@@ -211,7 +211,9 @@ pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !Rp
 
 ### 5.2 v0 lookup 注入规则
 
-- 仅 `!is_signer` 且能在 lookup 表命中的账户可走 ALT
+- 仅 `!is_signer` 且与 lookup 权限语义兼容的账户可走 ALT：
+  - `is_writable = true` 的账户只能使用 writable lookup entry
+  - `is_writable = false` 的账户只能使用 readonly lookup entry
 - 动态索引从 `account_keys.len` 开始递增
 - 若 lookup key 与静态 key 冲突，跳过 lookup 注入（静态 key 优先）
 - 若同一 pubkey 被多个 lookup 条目重复注入（动态域内重复），返回 `error.DuplicateLookupKey`
@@ -297,7 +299,7 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 5. shortvec 移位溢出 -> `error.IntegerOverflow`
 6. message 字节为空 -> `error.InvalidMessage`
 7. message 版本字节高位且版本号非 0 -> `error.UnsupportedMessageVersion`
-8. deserialize 时字段越界 -> `error.InvalidMessage`
+8. deserialize 时字段越界（含 compiled instruction 的 `program_id_index/account_indexes` 超出静态+动态账户空间） -> `error.InvalidMessage`
 9. tx 反序列化后仍有尾字节 -> `error.InvalidTransaction`
 10. required signer 未全部签名 -> `error.MissingRequiredSignature`
 11. 签名数组长度与 header 不符 -> `error.SignatureCountMismatch`
@@ -347,11 +349,13 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 - `03a-interfaces-spec.md`：system/token/token-2022/compute-budget/memo 接口层字节契约与 API 契约（主要对应 Product Phase 2-3，其中 compute-budget 可在 Phase 2 提前落地）
 - `03b-signers-spec.md`：signer 抽象、后端适配、错误语义与生命周期契约（对应 Product Phase 3）
 - `03c-rpc-extended-spec.md`：高频以外 RPC 方法扩展，以及 Phase 1 最小 typed schema 之后的 typed parse 扩展策略与兼容策略（主要对应 Product Phase 2）
+- `03d-cabi-spec.md`：C ABI 导出边界、所有权模型、错误码与稳定性契约（对应 Product Phase 3）
 
 当前已建立的子规格文件：
 - `docs/03a-interfaces-spec.md`
 - `docs/03b-signers-spec.md`
 - `docs/03c-rpc-extended-spec.md`
+- `docs/03d-cabi-spec.md`
 
 要求：
 - 每个子规格必须包含：数据结构、接口、边界条件、错误模型、测试映射。

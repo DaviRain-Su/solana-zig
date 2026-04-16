@@ -69,7 +69,8 @@ SOLANA_RPC_URL=<your-devnet-endpoint> scripts/devnet/phase1_acceptance.sh
    - 包装脚本行为与文档不一致
 4. 若需要真实 E2E 证据，使用自建 harness 直接调用 `RpcClient`
 5. 将结果摘要写入 `docs/06-implementation-log.md`
-6. 若存在系统性风险，同步写入 `docs/07-review-report.md`
+6. 将运行细节记录到 `docs/14a-devnet-e2e-run-log.md`（或等价 artifact）
+7. 若存在系统性风险，同步写入 `docs/07-review-report.md`
 
 ## 7. Failure Handling Rules
 

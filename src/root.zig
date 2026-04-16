@@ -14,3 +14,8 @@ test "core exports" {
     const parsed = try solana.core.Pubkey.fromBase58(base58);
     try std.testing.expect(pk.eql(parsed));
 }
+
+test "public Message.DecodeResult type is usable through package exports" {
+    const DecodeResult = tx.Message.DecodeResult;
+    _ = DecodeResult;
+}

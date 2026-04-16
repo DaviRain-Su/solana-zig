@@ -1,5 +1,31 @@
 {
-  "pubkey_base58": "11111111111111111111111111111111",
-  "pubkey_hex": "0000000000000000000000000000000000000000000000000000000000000000",
-  "shortvec_300_hex": "ac02"
+  "meta": {
+    "schema_version": 2,
+    "solana_sdk_version": "4.0.1",
+    "generator": "scripts/oracle/generate_vectors.rs"
+  },
+  "core": {
+    "pubkey_zero": {
+      "base58": "11111111111111111111111111111111",
+      "hex": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "pubkey_nonzero": {
+      "base58": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw",
+      "hex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+    },
+    "pubkey_leading_zero_bytes": {
+      "base58": "1111bsYnoe1B4zrjVH2FWhFC78tHKr5VCgV8xqBXR",
+      "hex": "000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c"
+    },
+    "hash_nonzero": {
+      "hex": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedecebeae9e8e7e6e5e4e3e2e1e0"
+    },
+    "shortvec": {
+      "0": "00",
+      "127": "7f",
+      "128": "8001",
+      "300": "ac02",
+      "16384": "808001"
+    }
+  }
 }

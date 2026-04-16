@@ -97,8 +97,12 @@
 - 收口判定：`docs/11-phase1-closeout-checklist.md`
 - oracle 计划：`docs/12-oracle-vector-expansion-plan.md`
 - benchmark 规范：`docs/13-benchmark-baseline-spec.md`
+- benchmark 结果模板：`docs/13a-benchmark-baseline-results.md`
 - Devnet E2E：`docs/14-devnet-e2e-acceptance.md`
+- Devnet 运行记录模板：`docs/14a-devnet-e2e-run-log.md`
 - 执行矩阵：`docs/15-phase1-execution-matrix.md`
+- 用户 / 安全说明：`docs/16-consumer-profiles-and-security-notes.md`
+- ADR 索引：`docs/adr/README.md`
 
 ## 10. 维护规则
 

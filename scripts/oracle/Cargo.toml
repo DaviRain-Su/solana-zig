@@ -3,5 +3,9 @@ name = "solana-zig-oracle"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "generate_vectors"
+path = "generate_vectors.rs"
+
 [dependencies]
 solana-sdk = "4.0.1"

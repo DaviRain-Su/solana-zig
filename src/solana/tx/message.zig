@@ -36,6 +36,8 @@ pub const CompiledAddressLookup = struct {
 };
 
 pub const Message = struct {
+    const Self = @This();
+
     allocator: std.mem.Allocator,
     version: MessageVersion,
     header: MessageHeader,
@@ -44,7 +46,7 @@ pub const Message = struct {
     instructions: []CompiledInstruction,
     address_table_lookups: []CompiledAddressLookup,
 
-    pub fn deinit(self: *@This()) void {
+    pub fn deinit(self: *Self) void {
         for (self.instructions) |*ix| ix.deinit(self.allocator);
         self.allocator.free(self.instructions);
 
@@ -54,7 +56,7 @@ pub const Message = struct {
         self.allocator.free(self.account_keys);
     }
 
-    pub fn validateHeader(self: @This()) !void {
+    pub fn validateHeader(self: Self) !void {
         try validateHeaderConsistency(self.header, self.account_keys.len);
     }
 
@@ -63,7 +65,7 @@ pub const Message = struct {
         payer: pubkey_mod.Pubkey,
         instructions: []const instruction_mod.Instruction,
         recent_blockhash: hash_mod.Hash,
-    ) !@This() {
+    ) !Self {
         return compileInternal(allocator, .legacy, payer, instructions, recent_blockhash, &.{});
     }
 
@@ -73,7 +75,7 @@ pub const Message = struct {
         instructions: []const instruction_mod.Instruction,
         recent_blockhash: hash_mod.Hash,
         lookup_tables: []const lookup_mod.AddressLookupTable,
-    ) !@This() {
+    ) !Self {
         return compileInternal(allocator, .v0, payer, instructions, recent_blockhash, lookup_tables);
     }
 
@@ -84,19 +86,29 @@ pub const Message = struct {
         instructions: []const instruction_mod.Instruction,
         recent_blockhash: hash_mod.Hash,
         lookup_tables: []const lookup_mod.AddressLookupTable,
-    ) !@This() {
-        var static_roles: std.ArrayList(AccountRole) = .empty;
-        defer static_roles.deinit(allocator);
+    ) !Self {
+        var account_roles: std.ArrayList(AccountRole) = .empty;
+        defer account_roles.deinit(allocator);
 
-        try upsertRole(&static_roles, allocator, payer, true, true);
+        try upsertRole(&account_roles, allocator, payer, true, true);
 
         for (instructions) |ix| {
             for (ix.accounts) |account| {
-                const can_use_lookup = version == .v0 and !account.is_signer and hasLookupKey(lookup_tables, account.pubkey);
-                if (!can_use_lookup) {
-                    try upsertRole(&static_roles, allocator, account.pubkey, account.is_signer, account.is_writable);
-                }
+                try upsertRole(&account_roles, allocator, account.pubkey, account.is_signer, account.is_writable);
             }
+        }
+
+        var static_roles: std.ArrayList(AccountRole) = .empty;
+        defer static_roles.deinit(allocator);
+
+        for (account_roles.items) |role| {
+            const can_use_lookup = version == .v0 and !role.is_signer and lookupSupportsRole(lookup_tables, role);
+            if (!can_use_lookup) {
+                try static_roles.append(allocator, role);
+            }
+        }
+
+        for (instructions) |ix| {
             try upsertRole(&static_roles, allocator, ix.program_id, false, false);
         }
 
@@ -105,6 +117,7 @@ pub const Message = struct {
         if (ordered_roles.len > std.math.maxInt(u8) + 1) return error.TooManyAccounts;
 
         const account_keys = try allocator.alloc(pubkey_mod.Pubkey, ordered_roles.len);
+        errdefer allocator.free(account_keys);
         for (ordered_roles, 0..) |role, i| account_keys[i] = role.key;
 
         var num_signers: usize = 0;
@@ -152,7 +165,11 @@ pub const Message = struct {
                 defer readonly_indexes.deinit(allocator);
 
                 for (table.writable) |entry| {
-                    if (!instructionUsesKey(instructions, entry.pubkey)) continue;
+                    const role = findLookupRole(account_roles.items, lookup_tables, entry.pubkey) orelse continue;
+                    if (!role.is_writable) {
+                        if (containsDynamicKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) return error.DuplicateLookupKey;
+                        continue;
+                    }
                     if (containsStaticKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) continue;
                     if (containsDynamicKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) return error.DuplicateLookupKey;
                     if (next_dynamic_index > std.math.maxInt(u8)) return error.TooManyAccounts;
@@ -163,7 +180,11 @@ pub const Message = struct {
                 }
 
                 for (table.readonly) |entry| {
-                    if (!instructionUsesKey(instructions, entry.pubkey)) continue;
+                    const role = findLookupRole(account_roles.items, lookup_tables, entry.pubkey) orelse continue;
+                    if (role.is_writable) {
+                        if (containsDynamicKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) return error.DuplicateLookupKey;
+                        continue;
+                    }
                     if (containsStaticKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) continue;
                     if (containsDynamicKeyIndex(key_indexes.items, static_key_count, entry.pubkey)) return error.DuplicateLookupKey;
                     if (next_dynamic_index > std.math.maxInt(u8)) return error.TooManyAccounts;
@@ -221,7 +242,7 @@ pub const Message = struct {
         };
     }
 
-    pub fn serialize(self: @This(), allocator: std.mem.Allocator) ![]u8 {
+    pub fn serialize(self: Self, allocator: std.mem.Allocator) ![]u8 {
         var out: std.ArrayList(u8) = .empty;
         defer out.deinit(allocator);
 
@@ -266,7 +287,7 @@ pub const Message = struct {
     }
 
     pub const DecodeResult = struct {
-        message: @This(),
+        message: Self,
         consumed: usize,
     };
 
@@ -342,6 +363,8 @@ pub const Message = struct {
             }
         }
 
+        try validateCompiledInstructionIndexes(instructions, account_keys.len, lookups);
+
         return .{
             .message = .{
                 .allocator = allocator,
@@ -412,11 +435,18 @@ fn orderRoles(allocator: std.mem.Allocator, roles: []const AccountRole) ![]Accou
     return try ordered.toOwnedSlice(allocator);
 }
 
-fn hasLookupKey(lookup_tables: []const lookup_mod.AddressLookupTable, key: pubkey_mod.Pubkey) bool {
+fn hasWritableLookupKey(lookup_tables: []const lookup_mod.AddressLookupTable, key: pubkey_mod.Pubkey) bool {
     for (lookup_tables) |table| {
         for (table.writable) |entry| {
             if (entry.pubkey.eql(key)) return true;
         }
+    }
+
+    return false;
+}
+
+fn hasReadonlyLookupKey(lookup_tables: []const lookup_mod.AddressLookupTable, key: pubkey_mod.Pubkey) bool {
+    for (lookup_tables) |table| {
         for (table.readonly) |entry| {
             if (entry.pubkey.eql(key)) return true;
         }
@@ -425,13 +455,26 @@ fn hasLookupKey(lookup_tables: []const lookup_mod.AddressLookupTable, key: pubke
     return false;
 }
 
-fn instructionUsesKey(instructions: []const instruction_mod.Instruction, key: pubkey_mod.Pubkey) bool {
-    for (instructions) |ix| {
-        for (ix.accounts) |account| {
-            if (account.pubkey.eql(key)) return true;
-        }
+fn lookupSupportsRole(lookup_tables: []const lookup_mod.AddressLookupTable, role: AccountRole) bool {
+    return if (role.is_writable)
+        hasWritableLookupKey(lookup_tables, role.key)
+    else
+        hasReadonlyLookupKey(lookup_tables, role.key);
+}
+
+fn findLookupRole(
+    roles: []const AccountRole,
+    lookup_tables: []const lookup_mod.AddressLookupTable,
+    key: pubkey_mod.Pubkey,
+) ?AccountRole {
+    for (roles) |role| {
+        if (!role.key.eql(key)) continue;
+        if (role.is_signer) return null;
+        if (!lookupSupportsRole(lookup_tables, role)) return null;
+        return role;
     }
-    return false;
+
+    return null;
 }
 
 fn findKeyIndex(indexes: []const KeyIndex, key: pubkey_mod.Pubkey) ?u8 {
@@ -525,6 +568,27 @@ fn decodeCompiledAddressLookup(
         .writable_indexes = writable_indexes,
         .readonly_indexes = readonly_indexes,
     };
+}
+
+fn validateCompiledInstructionIndexes(
+    instructions: []const CompiledInstruction,
+    static_account_count: usize,
+    lookups: []const CompiledAddressLookup,
+) !void {
+    var total_account_count = static_account_count;
+    for (lookups) |lookup| {
+        total_account_count = std.math.add(usize, total_account_count, lookup.writable_indexes.len) catch return error.InvalidMessage;
+        total_account_count = std.math.add(usize, total_account_count, lookup.readonly_indexes.len) catch return error.InvalidMessage;
+    }
+
+    if (total_account_count > std.math.maxInt(u8) + 1) return error.InvalidMessage;
+
+    for (instructions) |ix| {
+        if (ix.program_id_index >= total_account_count) return error.InvalidMessage;
+        for (ix.account_indexes) |account_index| {
+            if (account_index >= total_account_count) return error.InvalidMessage;
+        }
+    }
 }
 
 test "compile and serialize legacy message" {
@@ -631,7 +695,7 @@ test "compile v0 rejects duplicate dynamic lookup keys across tables" {
     const table1_writable = [_]lookup_mod.LookupEntry{
         .{ .index = 0, .pubkey = lookup_account },
     };
-    const table2_readonly = [_]lookup_mod.LookupEntry{
+    const table2_writable = [_]lookup_mod.LookupEntry{
         .{ .index = 1, .pubkey = lookup_account },
     };
     const lookups = [_]lookup_mod.AddressLookupTable{
@@ -642,8 +706,8 @@ test "compile v0 rejects duplicate dynamic lookup keys across tables" {
         },
         .{
             .account_key = pubkey_mod.Pubkey.init([_]u8{11} ** 32),
-            .writable = &.{},
-            .readonly = &table2_readonly,
+            .writable = &table2_writable,
+            .readonly = &.{},
         },
     };
 
@@ -651,6 +715,39 @@ test "compile v0 rejects duplicate dynamic lookup keys across tables" {
         error.DuplicateLookupKey,
         Message.compileV0(gpa, payer, &ixs, blockhash, &lookups),
     );
+}
+
+test "compile v0 keeps writable account static when only readonly lookup entry exists" {
+    const gpa = std.testing.allocator;
+    const payer = pubkey_mod.Pubkey.init([_]u8{12} ** 32);
+    const lookup_account = pubkey_mod.Pubkey.init([_]u8{13} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{14} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{15} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer, .is_signer = true, .is_writable = true },
+        .{ .pubkey = lookup_account, .is_signer = false, .is_writable = true },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = &accounts, .data = &.{} },
+    };
+
+    const readonly_entries = [_]lookup_mod.LookupEntry{
+        .{ .index = 0, .pubkey = lookup_account },
+    };
+    const lookups = [_]lookup_mod.AddressLookupTable{
+        .{
+            .account_key = pubkey_mod.Pubkey.init([_]u8{16} ** 32),
+            .writable = &.{},
+            .readonly = &readonly_entries,
+        },
+    };
+
+    var message = try Message.compileV0(gpa, payer, &ixs, blockhash, &lookups);
+    defer message.deinit();
+
+    try std.testing.expectEqual(@as(usize, 0), message.address_table_lookups.len);
+    try std.testing.expect(message.account_keys[1].eql(lookup_account));
 }
 
 test "compile legacy rejects too many static accounts" {
@@ -740,4 +837,36 @@ test "deserialize truncated instruction payload cleans up initialized allocation
         error.InvalidMessage,
         Message.deserialize(gpa, encoded[0 .. encoded.len - 1]),
     );
+}
+
+test "deserialize rejects compiled instruction indexes outside account space" {
+    const gpa = std.testing.allocator;
+
+    const payer = pubkey_mod.Pubkey.init([_]u8{17} ** 32);
+    const receiver = pubkey_mod.Pubkey.init([_]u8{18} ** 32);
+    const program_id = pubkey_mod.Pubkey.init([_]u8{19} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{20} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer, .is_signer = true, .is_writable = true },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program_id, .accounts = &accounts, .data = &.{} },
+    };
+
+    var message = try Message.compileLegacy(gpa, payer, &ixs, blockhash);
+    defer message.deinit();
+
+    const encoded = try message.serialize(gpa);
+    defer gpa.free(encoded);
+
+    var malformed = try gpa.dupe(u8, encoded);
+    defer gpa.free(malformed);
+
+    const key_len_offset = 3;
+    const instruction_offset = key_len_offset + 1 + (message.account_keys.len * pubkey_mod.Pubkey.LENGTH) + hash_mod.Hash.LENGTH + 1;
+    malformed[instruction_offset] = 250;
+
+    try std.testing.expectError(error.InvalidMessage, Message.deserialize(gpa, malformed));
 }

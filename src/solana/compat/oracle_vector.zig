@@ -1,11 +1,42 @@
 const std = @import("std");
+const hash_mod = @import("../core/hash.zig");
 const pubkey_mod = @import("../core/pubkey.zig");
 const shortvec = @import("../core/shortvec.zig");
 
 pub const OracleVectors = struct {
-    pubkey_base58: []const u8,
-    pubkey_hex: []const u8,
-    shortvec_300_hex: []const u8,
+    meta: Meta,
+    core: Core,
+
+    pub const Meta = struct {
+        schema_version: u32,
+        solana_sdk_version: []const u8,
+        generator: []const u8,
+    };
+
+    pub const Base58HexCase = struct {
+        base58: []const u8,
+        hex: []const u8,
+    };
+
+    pub const HexCase = struct {
+        hex: []const u8,
+    };
+
+    pub const ShortvecCases = struct {
+        @"0": []const u8,
+        @"127": []const u8,
+        @"128": []const u8,
+        @"300": []const u8,
+        @"16384": []const u8,
+    };
+
+    pub const Core = struct {
+        pubkey_zero: Base58HexCase,
+        pubkey_nonzero: Base58HexCase,
+        pubkey_leading_zero_bytes: Base58HexCase,
+        hash_nonzero: HexCase,
+        shortvec: ShortvecCases,
+    };
 };
 
 pub fn loadEmbeddedVectors() !std.json.Parsed(OracleVectors) {
@@ -44,17 +75,37 @@ fn hexToAlloc(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
     return out;
 }
 
-test "oracle vectors validate pubkey and shortvec" {
+fn expectPubkeyCase(vector: OracleVectors.Base58HexCase) !void {
+    const expected_bytes = try hexToBytes(vector.hex);
+    const pk = try pubkey_mod.Pubkey.fromBase58(vector.base58);
+    try std.testing.expectEqualSlices(u8, &expected_bytes, &pk.bytes);
+}
+
+fn expectShortvecCase(value: usize, hex: []const u8) !void {
+    const encoded = try shortvec.encodeAlloc(std.testing.allocator, value);
+    defer std.testing.allocator.free(encoded);
+    const expected = try hexToAlloc(std.testing.allocator, hex);
+    defer std.testing.allocator.free(expected);
+    try std.testing.expectEqualSlices(u8, expected, encoded);
+}
+
+test "oracle vectors validate v2 schema core cases" {
     var parsed = try loadEmbeddedVectors();
     defer parsed.deinit();
 
-    const expected_bytes = try hexToBytes(parsed.value.pubkey_hex);
-    const pk = try pubkey_mod.Pubkey.fromBase58(parsed.value.pubkey_base58);
-    try std.testing.expectEqualSlices(u8, &expected_bytes, &pk.bytes);
+    try std.testing.expectEqual(@as(u32, 2), parsed.value.meta.schema_version);
 
-    const encoded_300 = try shortvec.encodeAlloc(std.testing.allocator, 300);
-    defer std.testing.allocator.free(encoded_300);
-    const expected_300 = try hexToAlloc(std.testing.allocator, parsed.value.shortvec_300_hex);
-    defer std.testing.allocator.free(expected_300);
-    try std.testing.expectEqualSlices(u8, expected_300, encoded_300);
+    try expectPubkeyCase(parsed.value.core.pubkey_zero);
+    try expectPubkeyCase(parsed.value.core.pubkey_nonzero);
+    try expectPubkeyCase(parsed.value.core.pubkey_leading_zero_bytes);
+
+    const expected_hash_bytes = try hexToBytes(parsed.value.core.hash_nonzero.hex);
+    const hash = hash_mod.Hash.init(expected_hash_bytes);
+    try std.testing.expectEqualSlices(u8, &expected_hash_bytes, &hash.bytes);
+
+    try expectShortvecCase(0, parsed.value.core.shortvec.@"0");
+    try expectShortvecCase(127, parsed.value.core.shortvec.@"127");
+    try expectShortvecCase(128, parsed.value.core.shortvec.@"128");
+    try expectShortvecCase(300, parsed.value.core.shortvec.@"300");
+    try expectShortvecCase(16384, parsed.value.core.shortvec.@"16384");
 }

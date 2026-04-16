@@ -63,6 +63,7 @@ Phase 1 最低 benchmark 集合建议覆盖：
 如果后续建立脚本化 benchmark，可把原始数据落到：
 - `artifacts/benchmarks/*.json`
 - 汇总写入 `docs/13` 的结果节或独立结果文件
+- 当前推荐使用 `docs/13a-benchmark-baseline-results.md` 作为第一版真实结果模板
 
 ## 6. Execution Guidance
 

@@ -97,17 +97,25 @@
 
 ## 交付跟踪文档
 
+- 总索引：`docs/README.md`
 - 一致性审查：`docs/09-doc-consistency-checklist.md`
 - 能力覆盖矩阵：`docs/10-coverage-matrix.md`
 - Phase 1 收口清单：`docs/11-phase1-closeout-checklist.md`
 - Oracle 向量扩展计划：`docs/12-oracle-vector-expansion-plan.md`
 - Benchmark 基线规范：`docs/13-benchmark-baseline-spec.md`
+- Benchmark 结果模板：`docs/13a-benchmark-baseline-results.md`
 - Devnet E2E 验收说明：`docs/14-devnet-e2e-acceptance.md`
+- Devnet E2E 运行记录模板：`docs/14a-devnet-e2e-run-log.md`
 - Phase 1 执行矩阵：`docs/15-phase1-execution-matrix.md`
+- 用户 / 安全说明：`docs/16-consumer-profiles-and-security-notes.md`
 - 子规格：
   - `docs/03a-interfaces-spec.md`
   - `docs/03b-signers-spec.md`
   - `docs/03c-rpc-extended-spec.md`
+  - `docs/03d-cabi-spec.md`
+- ADR：
+  - `docs/adr/README.md`
+  - `docs/adr/ADR-template.md`
 
 ## 横切关注点（贯穿所有 Phase）
 

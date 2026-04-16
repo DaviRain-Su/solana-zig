@@ -41,6 +41,7 @@ Yes, target is to cover both off-chain and, eventually, on-chain capabilities, b
 This keeps the current client path stable while making later expansion stages explicit and traceable.
 
 ## Roadmap Documents
+- Docs Index: `docs/README.md`
 - PRD: `docs/01-prd.md`
 - Architecture: `docs/02-architecture.md`
 - Technical Spec: `docs/03-technical-spec.md`
@@ -52,12 +53,19 @@ This keeps the current client path stable while making later expansion stages ex
 - Phase 1 Closeout Checklist: `docs/11-phase1-closeout-checklist.md`
 - Oracle Vector Expansion Plan: `docs/12-oracle-vector-expansion-plan.md`
 - Benchmark Baseline Spec: `docs/13-benchmark-baseline-spec.md`
+- Benchmark Baseline Results Template: `docs/13a-benchmark-baseline-results.md`
 - Devnet E2E Acceptance Guide: `docs/14-devnet-e2e-acceptance.md`
+- Devnet E2E Run Log Template: `docs/14a-devnet-e2e-run-log.md`
 - Phase 1 Execution Matrix: `docs/15-phase1-execution-matrix.md`
+- Consumer / Security Notes: `docs/16-consumer-profiles-and-security-notes.md`
 - Future Specs:
   - Interfaces: `docs/03a-interfaces-spec.md`
   - Signers: `docs/03b-signers-spec.md`
   - RPC Extended: `docs/03c-rpc-extended-spec.md`
+  - C ABI: `docs/03d-cabi-spec.md`
+- ADR:
+  - Index: `docs/adr/README.md`
+  - Template: `docs/adr/ADR-template.md`
 
 ## Official Reference Repositories
 Aligned with Solana official Rust SDK page:

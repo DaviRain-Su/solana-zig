@@ -14,9 +14,17 @@
 
 ## 2. Current Gap
 
-当前向量文件仅覆盖：
-- 全零 pubkey
-- `shortvec(300)`
+当前内置向量文件已升级到 `v2` 结构，并覆盖 core 子集：
+- `pubkey_zero`
+- `pubkey_nonzero`
+- `pubkey_leading_zero_bytes`
+- `hash_nonzero`
+- `shortvec_0/127/128/300/16384`
+
+但仍未覆盖：
+- keypair/signature
+- legacy/v0 message
+- versioned transaction
 
 这不足以支撑 PRD 中的最低 oracle 指标。
 
@@ -73,7 +81,7 @@
 
 1. 在 `scripts/oracle/generate_vectors.rs` 中固定 Rust crate 版本
 2. 用固定 seed / 固定输入生成输出
-3. 把结果写入新的 JSON 结构
+3. 把结果写入新的 JSON 结构（当前已切到 `v2`；后续继续扩充字段）
 4. 在 Zig 侧新增解析与断言
 5. 每次 Rust 基线升级时重新生成并做 diff 审查
 
