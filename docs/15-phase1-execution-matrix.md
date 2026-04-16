@@ -113,3 +113,21 @@
   - 当前例外口径：本批 live 证据为 `local-live`（`http://127.0.0.1:8899`），尚未形成 `public devnet` 对应 run-log
   - 本批处理：以 `local-live send/confirm + docs/14a run-log` 收口
   - 后续收敛：下一阶段继续补 `public devnet` Nonce live run，并校验与当前 `recent_blockhashes sysvar` 语义的一致性
+
+## 9. Phase 2 Batch 4 Extension Tracking
+
+> 按 `docs/22-phase2-batch4-planning.md` 的冻结口径，第四批实现 / 例外 / gate 统一继续落在本矩阵中留痕。以下状态不影响 Phase 1 closeout，仅用于跟踪 Phase 2 Batch 4 的实现收口与 `Batch 4 exception`。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `rpc.Token amount queries` | closed | `#37` | ~~等待 `getTokenAccountBalance/getTokenSupply` typed parse、integration 与 canonical 三件套统一收口~~ → **已完成**：隔离 worktree 固化 canonical 三件套（`4b1f8e4`, clean status, `69/69 tests passed`），`public devnet` integration 已留档，无需 Batch 4 exception | `getTokenAccountBalance/getTokenSupply` typed parse + 每方法 `happy/rpc_error/malformed` + `public devnet` integration + isolated canonical 三件套 | `src/solana/rpc/client.zig` + `src/solana/rpc/types.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` + 本矩阵 | 已满足 `G-P2D-01` canonical 三件套；已满足 `G-P2D-02` Token Accounts gate；`G-P2D-05` 文档回写完成 |
+| `rpc.Websocket production hardening` | closed | `#38` | ~~等待 heartbeat / timeout / cleanup consistency / dedup boundary 证据与 canonical 三件套统一收口~~ → **已完成**：`6d3c58c` 已补齐 heartbeat、deterministic backoff 硬上限、cleanup/state consistency、dedup cache boundary，canonical 三件套完成（`69/69 tests passed`） | `ws_production_heartbeat_ping_pong` + `ws_production_backoff_hard_limit` + `ws_production_cleanup_state_consistency` + `ws_production_dedup_cache_boundary` + canonical 三件套 | `src/solana/rpc/ws_client.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2D-01` canonical 三件套；已满足 `G-P2D-03` websocket production gate；`G-P2D-05` 文档回写完成 |
+
+### Batch 4 Exception Register
+
+- `#37 rpc.Token amount queries`
+  - 当前口径：**无例外**
+  - 原因：已取得 `public devnet` integration 证据，不需要退回 `local-live`
+- `#38 rpc.Websocket production hardening`
+  - 当前口径：**无例外**
+  - 原因：本轮按 canonical 三件套 + websocket production hardening 测试证据收口，不涉及 live/integration 替代模型

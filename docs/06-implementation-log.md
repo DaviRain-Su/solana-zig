@@ -778,3 +778,88 @@
   - `G-P2C-01` ✅
   - `G-P2C-03` ✅
   - `G-P2C-05` ✅（本轮 `docs/06` / `docs/10` / `docs/15` 已同步，websocket 已达到 `re-expose` 条件）
+
+## 2026-04-16 第三十一次增量记录（#38 P2-18: Websocket production hardening 收口）
+
+### 输入
+- 第四批 `#36` 已通过结构审并放行实现；`#38` 按 `docs/22` §2.2 与 `G-P2D-03` 进入 websocket production hardening。
+- 本轮冻结目标固定为：
+  - heartbeat（ping/pong）
+  - deterministic backoff + 硬上限
+  - reconnect 后 cleanup / state consistency
+  - dedup cache 边界
+
+### 输出
+- `src/solana/rpc/ws_client.zig` 已在 `6d3c58c` 完成 production hardening：
+  - 新增 `sendPing()` heartbeat 方法
+  - 新增 `subscriptionCount()` 状态查询
+  - `reconnectWithBackoff` 冻结硬上限：`MAX_RECONNECT_RETRIES=5`、`MAX_BACKOFF_MS=30_000`
+  - dedup 从单 hash 升级为 ring buffer，`DEDUP_CACHE_SIZE=16`
+  - 补齐 `isDuplicateNotification` / `recordNotificationHash` 内部方法
+- websocket 生产硬化四类证据已全部到位：
+  - `ws_production_heartbeat_ping_pong`
+  - `ws_production_backoff_hard_limit`
+  - `ws_production_cleanup_state_consistency`
+  - `ws_production_dedup_cache_boundary`
+
+### 风险
+- 当前 hardening 仍限定在现有订阅能力之上，不扩新增订阅类型。
+- backoff 采用 deterministic 模型而非 jitter；这符合 `docs/22` 冻结口径，但若后续需要更贴近生产环境的随机退避，应在后续批次重新冻结范围。
+- dedup 当前采用固定 ring buffer 窗口，仅解决“无限增长”问题，不把它误写成跨连接/跨会话的全局去重语义。
+
+### 验证
+- canonical 三件套：
+  - commit `6d3c58c`
+  - websocket 写集已提交，`zig build test --summary all`：`69/69 tests passed`
+- 关键 websocket hardening 测试：
+  - `ws_production_heartbeat_ping_pong` — PASS
+  - `ws_production_backoff_hard_limit` — PASS
+  - `ws_production_cleanup_state_consistency` — PASS
+  - `ws_production_dedup_cache_boundary` — PASS
+- gate 结论：
+  - `G-P2D-01` ✅
+  - `G-P2D-03` ✅
+  - `G-P2D-05` ✅
+
+## 2026-04-16 第三十二次增量记录（#37 P2-17: Token Accounts 深化收口）
+
+### 输入
+- 第四批 `#36` 已通过结构审并放行实现；`#37` 按 `docs/22` §2.1 与 `G-P2D-02` 进入 Token Accounts 查询层收口。
+- 本轮冻结目标固定为：
+  - `getTokenAccountBalance` typed parse + 三类测试
+  - `getTokenSupply` typed parse + 三类测试
+  - `public devnet` integration 证据
+
+### 输出
+- `src/solana/rpc/types.zig` 已新增 `types.TokenAmount`。
+- `src/solana/rpc/client.zig` 已在 `4b1f8e4` 完成：
+  - `getTokenAccountBalance(token_account)`
+  - `getTokenSupply(mint)`
+  - 两个方法的 typed parse：`amount` / `decimals` / `uiAmountString` + `raw_json`
+- 两个方法均已补齐三类测试：
+  - `happy`
+  - `rpc_error`
+  - `malformed`
+
+### 风险
+- 当前查询层收口只覆盖最小 token amount 查询闭环，不进入完整 SPL Token interface。
+- 本轮 canonical 采用隔离 worktree 固化，避免并行工作树噪音影响 `#37` 的放行判定。
+- `public devnet` integration 已到位，因此本轮**不触发 Batch 4 exception**。
+
+### 验证
+- canonical 三件套（隔离 worktree）：
+  - worktree `/tmp/solana-zig-b4-37-RjLwUE`
+  - commit `4b1f8e4`
+  - `git status --short` 为空（clean）
+  - `zig build test --summary all`：`69/69 tests passed`
+- 定向单元测试：
+  - `zig build test -- --test-filter "getTokenAccountBalance|getTokenSupply"` — PASS
+- public devnet integration：
+  - endpoint `https://api.devnet.solana.com`
+  - `getTokenLargestAccounts(So111...)` 取得样本账户 `35akt5uJn73ZN9FkGgBKpRwbW5scoqV7M1N59cwb4TKV`
+  - `getTokenAccountBalance(35akt...)` 返回 `amount=11109337918819635, decimals=9, uiAmountString=11109337.918819635`
+  - `getTokenSupply(So111...)` 返回 `amount=0, decimals=9, uiAmountString=0`
+- gate 结论：
+  - `G-P2D-01` ✅
+  - `G-P2D-02` ✅
+  - `G-P2D-05` ✅

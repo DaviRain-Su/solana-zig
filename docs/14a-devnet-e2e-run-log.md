@@ -390,3 +390,50 @@ endpoint=https://api.devnet.solana.com token_accounts=0
   - 响应结构可解析
   - typed parse 在空结果场景稳定
 - 因已拿到 `public devnet` 证据，`#32` 本轮**不触发 Batch 3 exception**。
+
+---
+
+## Run 8 — Token Amount Queries Integration (Public Devnet, #37 P2-17)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/devnet/token-amount-queries`
+- Commit: `4b1f8e4`
+- Date: `2026-04-16`
+- Run Type: `integration-run` (public devnet RPC probe)
+- Operator: `@codex_5_3 (automated)`
+- RPC Endpoint: `https://api.devnet.solana.com`
+- Command / Entry: temporary runner invoking `getTokenLargestAccounts` + `getTokenAccountBalance` + `getTokenSupply`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes: 本次 integration 证明 `getTokenAccountBalance` 与 `getTokenSupply` 的请求/typed parse 链路可在 `public devnet` 正常往返；`getTokenLargestAccounts(So111...)` 仅作为样本账户选择辅助。
+
+### 3. Evidence Checklist
+
+- [x] public devnet endpoint reachable
+- [x] `getTokenLargestAccounts(So111...)` 成功返回样本 token account
+- [x] `getTokenAccountBalance` typed parse 返回有效 `amount/decimals/uiAmountString`
+- [x] `getTokenSupply` typed parse 返回有效 `amount/decimals/uiAmountString`
+- [x] 无需回退到 `local-live`
+
+### 4. Console / Run Evidence
+
+- helper account selection:
+  - `getTokenLargestAccounts(So111...)` → `35akt5uJn73ZN9FkGgBKpRwbW5scoqV7M1N59cwb4TKV`
+- token account balance:
+  - `getTokenAccountBalance(35akt...)` → `amount=11109337918819635, decimals=9, uiAmountString=11109337.918819635`
+- token supply:
+  - `getTokenSupply(So111...)` → `amount=0, decimals=9, uiAmountString=0`
+
+### 5. Notes
+
+- 这是 `#37` 对 `G-P2D-02` 的 integration 证据，不是 state-changing live run。
+- 本次结果已足以证明：
+  - 请求 payload 正常
+  - 响应结构可解析
+  - `TokenAmount` typed parse 在 `public devnet` 可用
+- 因已拿到 `public devnet` 证据，`#37` 本轮**不触发 Batch 4 exception**。
