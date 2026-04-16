@@ -437,3 +437,50 @@ endpoint=https://api.devnet.solana.com token_accounts=0
   - 响应结构可解析
   - `TokenAmount` typed parse 在 `public devnet` 可用
 - 因已拿到 `public devnet` 证据，`#37` 本轮**不触发 Batch 4 exception**。
+
+---
+
+## Run 9 — Batch 4 Release Smoke (Public Devnet, #39 P2-19)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/devnet/batch4-release-smoke`
+- Commit: `4b1f8e4`
+- Date: `2026-04-16`
+- Run Type: `smoke-run` (public devnet release readiness probe)
+- Operator: `@CC-Opus (automated)`
+- RPC Endpoint: `https://api.devnet.solana.com`
+- Command / Entry: `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes: 本次 smoke 用于 `#39` release readiness 收口；public devnet 路径 `6/6 pass`，`simulate` 正常，`sendTransaction` 在本轮因 airdrop rate limit skip，但发送链路已有 Run 4/5 历史 live 证据补足。
+
+### 3. Evidence Checklist
+
+- [x] public devnet endpoint reachable
+- [x] `zig build devnet-e2e` 通过（`6/6 pass`）
+- [x] `simulateTransaction` live path 通过
+- [x] `sendTransaction/confirmTransaction` 发送链路已有历史 live 证据（Run 4/5）
+- [x] local-live smoke 由历史 Run 4/5/6 继续承接，无需本轮重复执行
+
+### 4. Console / Run Evidence
+
+```
+SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e
+Build Summary: 6/6 steps succeeded
+```
+
+### 5. Notes
+
+- 这是 `#39` 对 `G-P2D-04` 的 smoke 证据，不新增实现能力。
+- public devnet 本轮重点证明：
+  - 当前 Batch 4 基线在真实 endpoint 上仍可完成 smoke 级探测
+  - `devnet-e2e` harness 未因 `#37/#38` 引入回归
+- local-live smoke 本轮未重跑，但已有：
+  - Run 4 / 5：`sendTransaction + confirmTransaction` live
+  - Run 6：Durable Nonce local-live
+  因此 release readiness 的 local-live 侧证据链已存在。
