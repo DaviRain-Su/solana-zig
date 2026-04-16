@@ -10,6 +10,7 @@ after each iteration and it's included in prompts for context.
 - Extended RPC methods follow a consistent pattern in `src/solana/rpc/client.zig`: expose a default convenience method plus `WithOptions`, build the JSON-RPC payload manually, return `types.RpcResult(?T)` for nullable RPC results, parse a minimal typed subset, and preserve the full server payload via `raw_json` / `err_json` for forward-compatible inspection.
 - When an RPC method grows multiple optional request parameters, assemble the JSON payload with `std.Io.Writer.Allocating` instead of branching `allocPrint` permutations; keep a deterministic field order so payload-capture unit tests can assert on the wire shape.
 - Batch-style RPC lookups should preserve Solana’s positional response semantics with `[]?T` result items; single-signature confirmation helpers can still layer on top by reading `items[0]`, while tests assert both payload shape and null-slot mapping.
+- For scalar/object read RPCs that only need a configurable `commitment`, prefer a tiny `*Options` struct plus a convenience wrapper that forwards to `WithOptions`; this keeps the public API uniform with richer RPC methods and makes payload-capture tests straightforward.
 
 ---
 
@@ -59,5 +60,21 @@ after each iteration and it's included in prompts for context.
     - Existing single-signature confirmation loops can adopt batch-capable APIs cheaply by asserting `items.len == 1` and reading `items[0]`, which keeps E2E helpers reusable.
   - Gotchas encountered
     - `getSignatureStatuses` was already serializing multiple signatures on the wire, so the real gap was response typing: callers and tests had to be updated together to avoid silently discarding non-first entries.
+---
+
+## 2026-04-16 - US-004
+- Implemented `getSlotWithOptions` and `getEpochInfoWithOptions` with configurable `commitment` while preserving the existing convenience wrappers, and added payload assertions to mock tests so the requested commitment is verified on the wire.
+- Added a gated Devnet E2E case for `getSlot` / `getEpochInfo` that checks positive slot/epoch values plus `blockHeight`, `transactionCount`, and `raw_json` structure preservation.
+- Files changed:
+  - `src/solana/rpc/types.zig`
+  - `src/solana/rpc/client.zig`
+  - `src/e2e/devnet_e2e.zig`
+  - `.ralph-tui/progress.md`
+- **Learnings:**
+  - Patterns discovered
+    - Commitment-only RPC methods fit the repo’s extended-RPC style best when they expose a no-arg wrapper and a `WithOptions` variant backed by a small typed options struct.
+    - Payload-capture unit tests are the cheapest way to verify `commitment` plumbing without needing separate mock fixtures for every enum value.
+  - Gotchas encountered
+    - `zig build devnet-e2e` remains environment-gated; with `SOLANA_RPC_URL` unset the new US-004 live branch is validated only through the expected skip path, not an actual Devnet call.
 ---
 

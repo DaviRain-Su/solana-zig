@@ -47,6 +47,14 @@ pub const GetSignatureStatusesOptions = struct {
     search_transaction_history: bool = true,
 };
 
+pub const GetSlotOptions = struct {
+    commitment: Commitment = .confirmed,
+};
+
+pub const GetEpochInfoOptions = struct {
+    commitment: Commitment = .confirmed,
+};
+
 pub const AccountInfo = struct {
     lamports: u64,
     owner: pubkey_mod.Pubkey,

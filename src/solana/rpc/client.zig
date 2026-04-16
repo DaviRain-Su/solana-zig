@@ -98,10 +98,17 @@ pub const RpcClient = struct {
     }
 
     pub fn getSlot(self: *RpcClient) !types.RpcResult(u64) {
+        return self.getSlotWithOptions(.{});
+    }
+
+    pub fn getSlotWithOptions(
+        self: *RpcClient,
+        options: types.GetSlotOptions,
+    ) !types.RpcResult(u64) {
         const payload = try std.fmt.allocPrint(
             self.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSlot\",\"params\":[{{\"commitment\":\"confirmed\"}}]}}",
-            .{self.nextRpcId()},
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getSlot\",\"params\":[{{\"commitment\":\"{s}\"}}]}}",
+            .{ self.nextRpcId(), options.commitment.jsonString() },
         );
         defer self.allocator.free(payload);
 
@@ -119,10 +126,17 @@ pub const RpcClient = struct {
     }
 
     pub fn getEpochInfo(self: *RpcClient) !types.RpcResult(types.EpochInfo) {
+        return self.getEpochInfoWithOptions(.{});
+    }
+
+    pub fn getEpochInfoWithOptions(
+        self: *RpcClient,
+        options: types.GetEpochInfoOptions,
+    ) !types.RpcResult(types.EpochInfo) {
         const payload = try std.fmt.allocPrint(
             self.allocator,
-            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getEpochInfo\",\"params\":[{{\"commitment\":\"confirmed\"}}]}}",
-            .{self.nextRpcId()},
+            "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"getEpochInfo\",\"params\":[{{\"commitment\":\"{s}\"}}]}}",
+            .{ self.nextRpcId(), options.commitment.jsonString() },
         );
         defer self.allocator.free(payload);
 
@@ -1630,17 +1644,23 @@ test "rpc client getSlot typed parse happy path" {
 
     var mock: MockTransport = .{
         .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":123456}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
 
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
 
-    const result = try client.getSlot();
+    const result = try client.getSlotWithOptions(.{ .commitment = .finalized });
     switch (result) {
         .ok => |slot| try std.testing.expectEqual(@as(u64, 123456), slot),
         .rpc_error => return error.UnexpectedRpcError,
     }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"method\":\"getSlot\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"commitment\":\"finalized\"") != null);
 }
 
 test "rpc client getSlot preserves rpc error" {
@@ -2229,12 +2249,14 @@ test "rpc client getEpochInfo typed parse happy path" {
     const gpa = std.testing.allocator;
     var mock: MockTransport = .{
         .response_body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"absoluteSlot\":1234,\"blockHeight\":1200,\"epoch\":10,\"slotIndex\":34,\"slotsInEpoch\":432000,\"transactionCount\":5678}}",
+        .capture_payload = true,
     };
+    defer if (mock.captured_payload) |payload| gpa.free(payload);
     const transport = transport_mod.Transport.init(&mock, MockTransport.postJson, transport_mod.noopDeinit);
     var client = try RpcClient.initWithTransport(gpa, "http://unit.test", transport);
     defer client.deinit();
 
-    const result = try client.getEpochInfo();
+    const result = try client.getEpochInfoWithOptions(.{ .commitment = .processed });
     switch (result) {
         .ok => |epoch_info| {
             var owned = epoch_info;
@@ -2249,6 +2271,10 @@ test "rpc client getEpochInfo typed parse happy path" {
         },
         .rpc_error => return error.UnexpectedRpcError,
     }
+
+    const payload = mock.captured_payload orelse return error.ExpectedCapturedPayload;
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"method\":\"getEpochInfo\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, payload, "\"commitment\":\"processed\"") != null);
 }
 
 test "rpc client getEpochInfo preserves rpc error" {

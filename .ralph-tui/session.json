@@ -3,10 +3,10 @@
   "sessionId": "36b10c58-c2a5-48b8-b742-f94b23fd62ae",
   "status": "running",
   "startedAt": "2026-04-16T13:20:05.649Z",
-  "updatedAt": "2026-04-16T13:53:24.874Z",
-  "currentIteration": 3,
+  "updatedAt": "2026-04-16T14:01:32.316Z",
+  "currentIteration": 4,
   "maxIterations": 0,
-  "tasksCompleted": 2,
+  "tasksCompleted": 3,
   "isPaused": false,
   "agentPlugin": "droid",
   "trackerState": {
@@ -44,6 +44,16 @@
       "durationMs": 576732,
       "startedAt": "2026-04-16T13:33:50.868Z",
       "endedAt": "2026-04-16T13:43:27.600Z"
+    },
+    {
+      "iteration": 4,
+      "status": "completed",
+      "taskId": "US-003",
+      "taskTitle": "getSignatureStatuses RPC 方法",
+      "taskCompleted": true,
+      "durationMs": 596179,
+      "startedAt": "2026-04-16T13:43:28.688Z",
+      "endedAt": "2026-04-16T13:53:24.867Z"
     }
   ],
   "skippedTaskIds": [],

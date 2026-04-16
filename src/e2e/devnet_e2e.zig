@@ -711,3 +711,68 @@ test "US-002 live: getSignaturesForAddress returns history for an active address
         },
     }
 }
+
+test "US-004 live: getSlot and getEpochInfo return positive values and structure" {
+    const gpa = std.testing.allocator;
+
+    const endpoint = std.process.Environ.getAlloc(std.testing.environ, gpa, "SOLANA_RPC_URL") catch |err| switch (err) {
+        error.EnvironmentVariableMissing => {
+            std.debug.print("[skip] SOLANA_RPC_URL not set, skipping US-004 live devnet E2E\n", .{});
+            return;
+        },
+        else => return err,
+    };
+    defer gpa.free(endpoint);
+
+    std.debug.print("[US-004 live] endpoint: {s}\n", .{endpoint});
+
+    var client = try RpcClient.init(gpa, std.testing.io, endpoint);
+    defer client.deinit();
+
+    const slot_result = try client.getSlotWithOptions(.{ .commitment = .finalized });
+    switch (slot_result) {
+        .ok => |slot| {
+            try std.testing.expect(slot > 0);
+            std.debug.print("[US-004 live] getSlot .ok — slot={d}\n", .{slot});
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-004 live] getSlot rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
+
+    const epoch_info_result = try client.getEpochInfoWithOptions(.{ .commitment = .confirmed });
+    switch (epoch_info_result) {
+        .ok => |epoch_info| {
+            var owned = epoch_info;
+            defer owned.deinit(gpa);
+
+            try std.testing.expect(owned.absolute_slot > 0);
+            try std.testing.expect(owned.epoch > 0);
+            try std.testing.expect(owned.slots_in_epoch > 0);
+            try std.testing.expect(owned.block_height != null);
+            try std.testing.expect(owned.block_height.? > 0);
+            try std.testing.expect(owned.transaction_count != null);
+            try std.testing.expect(owned.transaction_count.? > 0);
+            try std.testing.expect(owned.raw_json != null);
+
+            std.debug.print(
+                "[US-004 live] getEpochInfo .ok — epoch={d}, slotIndex={d}, slotsInEpoch={d}, absoluteSlot={d}, blockHeight={d}, transactionCount={d}\n",
+                .{
+                    owned.epoch,
+                    owned.slot_index,
+                    owned.slots_in_epoch,
+                    owned.absolute_slot,
+                    owned.block_height.?,
+                    owned.transaction_count.?,
+                },
+            );
+        },
+        .rpc_error => |rpc_err| {
+            defer rpc_err.deinit(gpa);
+            std.debug.print("[US-004 live] getEpochInfo rpc_error: {s}\n", .{rpc_err.message});
+            return error.DevnetRpcError;
+        },
+    }
+}
