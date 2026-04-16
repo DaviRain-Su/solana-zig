@@ -62,3 +62,5 @@
 - `33-phase3-batch2-release-readiness.md`：Phase 3 Batch 2 专属发布就绪清单
 - `34-phase3-batch3-planning.md`：Product Phase 3 第三批规划（token-2022 + stake delegate + exception 收敛与判定升级评估）
 - `35-phase3-batch3-release-readiness.md`：Phase 3 Batch 3 专属发布就绪清单
+- `36-phase3-batch4-planning.md`：Product Phase 3 第四批规划（signers 抽象 + C ABI 最小闭环 + benchmark 扩展 + verdict 升级评估）
+- `37-phase3-batch4-release-readiness.md`：Phase 3 Batch 4 专属发布就绪清单
