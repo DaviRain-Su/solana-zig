@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-16
 **Last reviewed**: 2026-04-16
-**Last synced docs commit**: `1469ef0`
+**Last synced docs commit**: `3db9939`
 
 > 注：本矩阵按最近一次文档同步基线维护；若工作区存在未提交代码改动，实际实现状态可能先于本文。
 
@@ -62,7 +62,8 @@
 
 | 目标能力 | 计划 Zig 模块/文件 | 状态 | 文档映射 | 备注 |
 |---|---|---|---|---|
-| 扩展 RPC methods | `rpc/client.zig` 扩展或拆分 typed 子层 | partial | `docs/00` Phase 2 / `docs/04` T4-17~T4-19 / `docs/03c-rpc-extended-spec.md` | Batch A 已完成 `getTransaction / getSignaturesForAddress / getSlot`（`#18`）；`getSignatureStatuses` 作为 `send/confirm` 支撑方法也已落地；Batch B 的 `getEpochInfo / getMinimumBalanceForRentExemption / requestAirdrop / getAddressLookupTable` 已在 `#27` 完成 typed parse + 三类测试 + canonical 三件套，`getAddressLookupTable` 按 Batch 2 exception 以 `mock + local-live RPC error evidence` 收口 |
+| 扩展 RPC methods | `rpc/client.zig` 扩展或拆分 typed 子层 | partial | `docs/00` Phase 2 / `docs/04` T4-17~T4-19 / `docs/03c-rpc-extended-spec.md` | Batch A 已完成 `getTransaction / getSignaturesForAddress / getSlot`（`#18`）；`getSignatureStatuses` 作为 `send/confirm` 支撑方法也已落地；Batch B 的 `getEpochInfo / getMinimumBalanceForRentExemption / requestAirdrop / getAddressLookupTable` 在分支 `0070fa8` 中已完成 typed parse + 三类测试 + canonical 三件套，但**尚未合并到 `main`**，`getAddressLookupTable` 按 Batch 2 exception 以 `mock + local-live RPC error evidence` 收口 |
+| `getTokenAccountsByOwner` | `rpc/client.zig` + `rpc/types.zig` | done | `docs/21` P2-12 / `docs/03c-rpc-extended-spec.md` | `#32` 已在 `b99d7fc` 完成 typed parse、`happy/rpc_error/malformed` 三类测试、`public devnet` 空结果 integration；canonical 三件套已通过隔离 worktree固化 |
 | Websocket subscriptions | `src/solana/rpc/ws_*` 或独立订阅模块 | partial | `docs/00` Phase 2 / `docs/04` T4-20 / `docs/05` 5.1 | 仓内仍有 websocket prototype 文件，但已撤出公开包面；当前不作为默认/公开能力承诺，需按 zig-native-first 与 target portability 约束重做并重新提审 |
 | Durable Nonce workflow | `interfaces/system` + tx/rpc helper composition | done | `docs/00` Phase 2 / `docs/04` T4-21 / `docs/05` 5.1 | `#28` 已完成 nonce account 双模式 typed parse、`advance_nonce_account` builder、最小 `query -> build -> compile/sign` workflow 测试；`#34` 进一步完成 `query -> build -> compile/sign -> send/confirm` local-live 深化并形成 `docs/14a` run-log。当前按 Batch 3 fixed model 记为 `local-live` 例外收口，后续继续补 public devnet |
 | Priority Fees / Compute Budget | `interfaces/compute_budget` | done | `docs/00` Phase 2 / `docs/04` T4-22 / `docs/03a-interfaces-spec.md` | `#29` 已完成 `setComputeUnitLimit` / `setComputeUnitPrice` builders、参数边界校验与 Rust 参考字节对照；canonical 三件套已由 `fffbc87` + `42/42 tests passed` 固化 |

@@ -80,7 +80,7 @@
 
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
-| `rpc.Batch B methods` | closed | `#27` | ~~4 个方法的 typed parse 与三类测试代码已落地，但 canonical 三件套与 integration-evidence 尚未提交；只读方法是否使用 `mock + local-live` 例外也尚未正式留痕~~ → **已完成**：canonical 三件套到位（`0070fa8`, clean worktree, `32/32 tests passed`），`requestAirdrop` local-live 成功，`getEpochInfo/getMinimumBalanceForRentExemption` 具备 `public devnet + local-live`，`getAddressLookupTable` 已按 `Batch 2 exception` 收口 | `getEpochInfo/getMinimumBalanceForRentExemption/requestAirdrop/getAddressLookupTable` 的 typed parse + `happy/rpc_error/malformed`；`requestAirdrop` live；只读方法 integration / exception 证据 | `src/solana/rpc/client.zig` + `src/solana/rpc/types.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2B-01` canonical 三件套；已满足 `G-P2B-02` integration-evidence；`getAddressLookupTable` 例外已登记 |
+| `rpc.Batch B methods` | in-progress | `#27` | **代码在分支 `0070fa8` 中，尚未合并到 `main`**。此前文档过早标记为 `closed`，与主线代码状态不符。分支内已完成：canonical 三件套（`0070fa8`, clean worktree, `32/32 tests passed`），`requestAirdrop` local-live 成功，`getEpochInfo/getMinimumBalanceForRentExemption` 具备 `public devnet + local-live`，`getAddressLookupTable` 已按 `Batch 2 exception` 收口 | `getEpochInfo/getMinimumBalanceForRentExemption/requestAirdrop/getAddressLookupTable` 的 typed parse + `happy/rpc_error/malformed`；`requestAirdrop` live；只读方法 integration / exception 证据 | 分支 `0070fa8` + `docs/06` + `docs/10` + 本矩阵 | `0070fa8` 合并到 `main` 后，重新执行 `zig build test` 并复核文档一致性 |
 | `interfaces.ComputeBudget builders` | closed | `#29` | ~~builders / 导出 / 字节对照与边界测试已落地，当前只差 canonical 三件套留档~~ → **已完成**：canonical 三件套到位（`fffbc87`, clean status, `42/42 tests passed`），`G-P2B-04`/`G-P2B-05` 均已满足 | `setComputeUnitLimit` / `setComputeUnitPrice` builder + Rust 参考字节对照 + boundary（0 / max）+ 全量 `zig build test` 通过 | `src/solana/interfaces/compute_budget.zig` + `src/solana/mod.zig` + `src/root.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2B-01` canonical 三件套；已满足 `G-P2B-04` 证据；docs/gate 对账完成 |
 | `interfaces.System Durable Nonce workflow` | closed | `#28` | ~~Nonce parse / builder / workflow 尚未正式留痕~~ → **已完成**：canonical 三件套到位（`5eca510`, clean status, `zig build test` PASS），`NonceState` 双模式解析、`advance_nonce_account` builder、最小 workflow test 均已满足 | `parseNonceAccountData`（direct + `Versions` wrapper）+ `buildAdvanceNonceAccountInstruction` 字节/账户顺序 + `query -> build -> compile/sign` workflow | `src/solana/interfaces/system.zig` + `src/solana/mod.zig` + `src/root.zig` + `docs/06` + `docs/10` + 本矩阵 | 已满足 `G-P2B-01` canonical 三件套；已满足 `G-P2B-03` 流程与 builder 证据；docs/gate 对账完成 |
 
@@ -97,10 +97,14 @@
 
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
+| `rpc.getTokenAccountsByOwner` | closed | `#32` | ~~代码侧虽已完成 typed parse / 三类测试 / public devnet integration 空结果证据，但共享工作树上的 `#33` websocket hang 一度阻塞全量 `zig build test`，导致 canonical 三件套未闭环~~ → **已完成**：通过隔离 worktree 固化 canonical 三件套（`b99d7fc`, clean status, `47/47 tests passed`），`public devnet` integration 空结果证据已留档，无需 Batch 3 exception | `getTokenAccountsByOwner` typed parse + `happy/rpc_error/malformed` + `public devnet` empty-result integration + isolated canonical 三件套 | `src/solana/rpc/client.zig` + `src/solana/rpc/types.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` + 本矩阵 | 已满足 `G-P2C-01` canonical 三件套；已满足 `G-P2C-02` RPC gate；`G-P2C-05` 文档回写完成 |
 | `interfaces.System Durable Nonce live workflow` | closed | `#34` | ~~仅最小 `query -> build -> compile/sign` workflow 已闭环，live `send/confirm` 与 run-log 尚未留档~~ → **已完成**：canonical 三件套到位（`dd6bdff`, clean status, `47/47 tests passed`），`nonce-e2e` mock/live `2/2 passed`，`query -> build -> compile/sign -> send/confirm` local-live 证据已在 `docs/14a` Run 6 留档 | `query nonce -> build advance -> compile/sign -> send/confirm` live run；create nonce tx / advance nonce tx / confirmed poll 0；canonical 三件套 | `src/e2e/nonce_e2e.zig` + `build.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` + 本矩阵 | 已满足 `G-P2C-01` canonical 三件套；已满足 `G-P2C-04` live 证据；`G-P2C-05` 文档回写完成 |
 
 ### Batch 3 Exception Register
 
+- `#32 rpc.getTokenAccountsByOwner`
+  - 当前口径：**无例外**
+  - 原因：已取得 `public devnet` integration 空结果证据，不需要退回 `local-live`
 - `#34 interfaces.System Durable Nonce live workflow`
   - 当前例外口径：本批 live 证据为 `local-live`（`http://127.0.0.1:8899`），尚未形成 `public devnet` 对应 run-log
   - 本批处理：以 `local-live send/confirm + docs/14a run-log` 收口

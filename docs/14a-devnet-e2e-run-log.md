@@ -347,3 +347,46 @@ Both tests pass under `zig build devnet-e2e` with zero memory leaks.
 - 本轮先以 `local-live` 收口，不把它误写成 `public devnet` 成功。
 - 按 `docs/21` 的 Batch 3 固定模型，这次 local-live 证据需要在 `docs/15` 登记 `Batch 3 exception`，后续继续补 public devnet 对应 run。
 - `recent_blockhashes sysvar` 仍按 Rust 4.0.1 参考语义保留为必需只读账户，本 run 未观察到与当前链行为冲突。
+
+---
+
+## Run 7 — getTokenAccountsByOwner Integration (Public Devnet, #32 P2-12)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-16/devnet/get-token-accounts-by-owner`
+- Commit: `b99d7fc`
+- Date: `2026-04-16`
+- Run Type: `integration-run` (public devnet RPC probe)
+- Operator: `@codex_5_3 (automated)`
+- RPC Endpoint: `https://api.devnet.solana.com`
+- Command / Entry: temporary runner invoking `getTokenAccountsByOwner(owner, program_id)`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes: 本次 integration 证明 `getTokenAccountsByOwner` 请求与 typed parse 链路可在 `public devnet` 正常往返；当前样本返回空结果（`token_accounts=0`），符合预期且已足以证明方法链路可用。
+
+### 3. Evidence Checklist
+
+- [x] public devnet endpoint reachable
+- [x] `getTokenAccountsByOwner` 请求成功返回
+- [x] typed parse 可处理空结果集
+- [x] 无需回退到 `local-live`
+
+### 4. Console / Run Evidence
+
+```
+endpoint=https://api.devnet.solana.com token_accounts=0
+```
+
+### 5. Notes
+
+- 这是 `#32` 对 `G-P2C-02` 的 integration 证据，不是 live state-changing run。
+- 当前样本为空结果，但它已能证明：
+  - 请求 payload 正常
+  - 响应结构可解析
+  - typed parse 在空结果场景稳定
+- 因已拿到 `public devnet` 证据，`#32` 本轮**不触发 Batch 3 exception**。

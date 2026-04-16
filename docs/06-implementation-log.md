@@ -273,7 +273,7 @@
 ### 验证
 - quickstart 示例的所有权语义已与 `src/solana/tx/transaction.zig` 当前实现一致。
 
-## 2026-04-16 第十二次增量记录（收口文档补齐：L4 / Test Mapping / ALT 权限）
+## 2026-04-16 第十六次增量记录（收口文档补齐：L4 / Test Mapping / ALT 权限）
 
 ### 输入
 - 针对最新文档 review，仍有 3 处需要补齐：`docs/02` 的 L4 口径未降级、`docs/03` 的测试映射章节落后于当前代码、`docs/15` 未把 ALT 权限正确性单列为 closeout blocker。
@@ -282,7 +282,7 @@
 - `docs/02-architecture.md` 将 L4 从“Devnet 集成测试”改为“Devnet acceptance harness / 外部集成验证”，并明确当前不是 in-tree E2E 测试层。
 - `docs/03-technical-spec.md` 重写 Test Mapping：纳入现有的 mock transport 测试、parser hardening、`Message.DecodeResult` 导出可用性，以及当前 oracle `v2 core` 子集覆盖。
 
-## 2026-04-16 第十五次增量记录（C2: v0/ALT 与 VersionedTransaction 失败路径补强）
+## 2026-04-16 第十七次增量记录（C2: v0/ALT 与 VersionedTransaction 失败路径补强）
 
 ### 输入
 - `#8 C2` 要求补齐 `v0/ALT` 与 `VersionedTransaction` 的失败路径证据，且测试命名需可被 closeout gate 检索。
@@ -305,7 +305,7 @@
 - 该批改动未引入新的运行时依赖，目标是补齐 closeout gate 的失败路径证据。
 - `docs/15-phase1-execution-matrix.md` 明确补入 ALT 权限正确性要求：writable 账户不能被 readonly lookup 错配，并将其提升为显式 high-priority blocker。
 
-## 2026-04-16 第十六次增量记录（C3: oracle Phase 1 最低集合补齐）
+## 2026-04-16 第十八次增量记录（C3: oracle Phase 1 最低集合补齐）
 
 ### 输入
 - `#9 C3` 目标是把 `testdata/oracle_vectors.json` 从 `v2 core` 子集扩到 `docs/12` 定义的 Phase 1 最低集合，并让 Zig 侧对 keypair/message/transaction 做实际消费断言。
@@ -347,7 +347,7 @@
 ### 验证
 - 文档之间的 L4 / wrapper / harness 口径已进一步对齐：`README -> docs/02 -> docs/05 -> docs/14 -> docs/15`。
 
-## 2026-04-16 第十七次增量记录（C5/C6: Closeout 文档统一与 Gate Review）
+## 2026-04-16 第十九次增量记录（C5/C6: Closeout 文档统一与 Gate Review）
 
 ### 输入
 - `#7/#8/#9/#10` 已完成，需要按 `docs/11` 执行一次 Phase 1 closeout gate review，并统一回写 `docs/06/07/10/14a/15`。
@@ -378,7 +378,7 @@
 - `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e`
 - `SOLANA_RPC_URL=http://127.0.0.1:8899 zig build devnet-e2e`
 
-## 2026-04-16 第十八次增量记录（文档复核吸收：E2E 口径与 typed RPC 同步）
+## 2026-04-16 第二十次增量记录（文档复核吸收：E2E 口径与 typed RPC 同步）
 
 ### 输入
 - 复核发现主规格与 closeout 文档未完全跟上最近这波 E2E / typed parse 演进：
@@ -405,7 +405,7 @@
 ### 验证
 - 文档交叉核对：`README -> docs/01 -> docs/03 -> docs/11 -> docs/14 -> docs/15 -> docs/18`
 
-## 2026-04-16 第十八次增量记录（Phase 1 Closeout Declaration）
+## 2026-04-16 第二十一次增量记录（Phase 1 Closeout Declaration）
 
 ### Closeout Declaration
 
@@ -423,7 +423,7 @@
 
 - 本次 closeout 采用 “with documented exceptions” 口径，例外项已在 `docs/08` 与 `docs/15` 固化。
 
-## 2026-04-16 第十九次增量记录（#21: P2 Batch A residual docs backfill）
+## 2026-04-16 第二十二次增量记录（#21: P2 Batch A residual docs backfill）
 
 ### 输入
 - `#17/#18` 已放行为 Done，但跨线复核给出两条 non-blocking residual：
@@ -446,7 +446,7 @@
 ### 验证
 - 文档一致性核对：`docs/06` ↔ `docs/10` ↔ `docs/19`
 
-## 2026-04-16 第二十次增量记录（#17 P2-2: send + confirm failure evidence 补齐）
+## 2026-04-16 第二十三次增量记录（#17 P2-2: send + confirm failure evidence 补齐）
 
 ### 输入
 - @codex_5_4 跨线复核指出 `G-P2-02` 要求"至少 1 成功 + 1 失败证据留档"，当前只有成功证据。
@@ -470,7 +470,7 @@
 - `zig build devnet-e2e` ✅（6 tests pass）
 - G-P2-02 DoD: send ✓ + confirm ✓ + 成功证据 ✓ + 失败证据 ✓
 
-## 2026-04-16 第二十一次增量记录（#24: websocket lifecycle / reconnect docs backfill）
+## 2026-04-16 第二十四次增量记录（#24: websocket lifecycle / reconnect docs backfill）
 
 ### 输入
 - `#22` 已清掉 `src/solana/rpc/ws_client.zig` 的 Zig 0.16 编译阻塞：
@@ -500,7 +500,7 @@
 - `G-P2-04`：subscribe/unsubscribe、disconnect detect、reconnect、resubscribe、malformed failure 均有证据
 - `G-P2-05`：`docs/06` / `docs/10` / `docs/15` 已同步回写
 
-## 2026-04-16 第二十二次增量记录（#27 P2-7: RPC Batch B 首个 checkpoint）
+## 2026-04-16 第二十五次增量记录（#27 P2-7: RPC Batch B 首个 checkpoint）
 
 ### 输入
 - `#26` 已通过第二轮 review，`docs/20-phase2-batch2-planning.md` 已冻结；第二批实现线正式放行。
@@ -535,31 +535,26 @@
   - 单次全量 `zig build test`
   - 以及 `G-P2B-02` 对应的 integration-evidence
 
-### 收口更新
-- `#27` 已补齐 canonical 三件套：
-  - worktree: `/tmp/solana-zig-p2b27-164030`
-  - commit `0070fa8`
-  - `git status --short` 为空（clean）
-  - `zig build test --summary all`：`5/5 steps; 32/32 tests passed`
-- 4 个方法的方法级测试均通过（每方法 `happy / rpc_error / malformed` 三类覆盖）：
+### 收口更新（修正）
+- `#27` 的代码实现存在于独立 commit `0070fa8`（工作区 `/tmp/solana-zig-p2b27-164030`），但**尚未合并到 `main` 分支**。
+- 该 commit 包含 4 个方法的 typed parse + 三类测试：
   - `getEpochInfo`
   - `getMinimumBalanceForRentExemption`
   - `requestAirdrop`
   - `getAddressLookupTable`
-- integration-evidence 已形成：
-  - `requestAirdrop`：local-live 成功（surfnet `127.0.0.1:8899`，`AIRDROP_SIGNATURE=2MiKthPH...`）
+- integration-evidence 在 `0070fa8` 中已形成：
+  - `requestAirdrop`：local-live 成功（surfnet `127.0.0.1:8899`）
   - `getEpochInfo` / `getMinimumBalanceForRentExemption`：`public devnet + local-live` 成功
   - `getAddressLookupTable`：`public devnet` 与 `local-live` 均返回 `-32601 Method not found`
-- 按 `docs/20` 的 Batch 2 固定例外口径，`getAddressLookupTable` 已登记为 `Batch 2 exception`：
-  - 本批以 `mock + local-live RPC error evidence` 收口
-  - 后续阶段继续收敛实际可用 endpoint / integration 路径
+- **文档状态修正**：此前 `docs/10` / `docs/15` 过早将 `#27` 标记为 `closed/done`。由于代码未进入 `main`，该状态不成立。已回写为 `in-progress / branch-committed pending merge`。
+- 按 `docs/20` 的 Batch 2 固定例外口径，`getAddressLookupTable` 仍登记为 `Batch 2 exception`。
 
 ### 验证补充
-- `G-P2B-01`：canonical 三件套 ✅
-- `G-P2B-02`：typed parse + method-level tests + integration/exception 模型 ✅
-- `G-P2B-05`：`docs/06` / `docs/10` / `docs/15` 已同步从骨架转为正式留痕
+- `G-P2B-01`：canonical 三件套在 `0070fa8` 中 ✅，但需合并到 `main` 后才算主线通过。
+- `G-P2B-02`：typed parse + method-level tests + integration/exception 模型在 `0070fa8` 中 ✅。
+- `G-P2B-05`：待 `0070fa8` 合并后最终闭环。
 
-## 2026-04-16 第二十三次增量记录（#29 P2-9: ComputeBudget builders 首个 checkpoint）
+## 2026-04-16 第二十六次增量记录（#29 P2-9: ComputeBudget builders 首个 checkpoint）
 
 ### 输入
 - `#26` 已冻结通过，`#29` 按 `docs/20` §2.3 与 `docs/03a` §5.2 进入正式实现。
@@ -602,7 +597,7 @@
   - Rust 参考字节对照已留档
 - `G-P2B-05` 本轮通过：`docs/06` / `docs/10` / `docs/15` 已同步从 checkpoint 骨架转为正式状态
 
-## 2026-04-16 第二十四次增量记录（#28 P2-8: Durable Nonce workflow 收口）
+## 2026-04-16 第二十七次增量记录（#28 P2-8: Durable Nonce workflow 收口）
 
 ### 输入
 - `#26` 已冻结通过，`#28` 按 `docs/20` §2.2 与 `docs/03a` §5.1 进入正式实现。
@@ -652,7 +647,7 @@
   - `G-P2B-03` ✅
   - `G-P2B-05` ✅（`docs/06` / `docs/10` / `docs/15` 已同步回写）
 
-## 2026-04-16 第二十五次增量记录（#34 P2-14: Nonce live 深化）
+## 2026-04-16 第二十八次增量记录（#34 P2-14: Nonce live 深化）
 
 ### 输入
 - 第三批 `#31` 已冻结通过，`#34` 按 `docs/21` §2.3 与 `G-P2C-04` 进入正式实现。
@@ -696,3 +691,50 @@
 - gate 结论（当前轮）：
   - `G-P2C-04` ✅
   - `G-P2C-05` 待本轮 `docs/14a` / `docs/15` 回写完成后正式闭环
+
+## 2026-04-16 第二十九次增量记录（#32 P2-12: getTokenAccountsByOwner typed parse 收口）
+
+### 输入
+- 第三批 `#31` 已冻结通过，`#32` 按 `docs/21` §2.1 与 `G-P2C-02` 进入正式实现。
+- `#32` 首个完整 checkpoint 已提交，范围固定为：
+  - `getTokenAccountsByOwner(owner, program_id)` 方法实现
+  - `TokenAccountInfo` / `TokenAccountsByOwnerResult` typed parse
+  - `happy + rpc_error + malformed` 三类方法级测试
+  - integration 证据（默认 `public devnet`）
+
+### 输出
+- `src/solana/rpc/client.zig` 已新增：
+  - `getTokenAccountsByOwner(owner, program_id)`
+  - 对应 JSON-RPC payload 与 typed parse 路径
+- `src/solana/rpc/types.zig` 已新增：
+  - `TokenAccountInfo`
+  - `TokenAccountsByOwnerResult`
+- 方法级测试已齐：
+  - `rpc client getTokenAccountsByOwner typed parse happy path`
+  - `rpc client getTokenAccountsByOwner preserves rpc error`
+  - `rpc client getTokenAccountsByOwner returns InvalidRpcResponse on malformed success`
+- public devnet integration 已形成最小可复现证据：
+  - endpoint `https://api.devnet.solana.com`
+  - runner 输出 `token_accounts=0`
+
+### 风险
+- 当前共享工作树上存在 `#33` websocket hang/deadlock，因此 `#32` 的 canonical 三件套不能直接依赖共享工作树。
+- 本轮已通过**隔离干净 worktree**解耦验证 `#32`，因此 `#32` 不再被 `#33` 阻塞。
+- 当前未触发 `Batch 3 exception`：`#32` 已拿到 `public devnet` integration 证据。
+
+### 验证
+- canonical 三件套（隔离 worktree）：
+  - worktree `/tmp/solana-zig-p2c32-canonical`
+  - commit `b99d7fc`
+  - `git status --short` 为空（clean）
+  - `zig build test --summary all`：`5/5 steps succeeded; 47/47 tests passed; EXIT 0`
+- 方法级测试证据：
+  - `happy` — PASS
+  - `rpc_error` — PASS
+  - `malformed` — PASS
+- integration 证据：
+  - `endpoint=https://api.devnet.solana.com token_accounts=0`
+- gate 结论：
+  - `G-P2C-01` ✅（通过隔离 worktree canonical 固化）
+  - `G-P2C-02` ✅
+  - `G-P2C-05` ✅（本轮 `docs/06` / `docs/10` / `docs/15` / `docs/14a` 已同步）
