@@ -173,6 +173,30 @@ describe("Connection", () => {
     });
   });
 
+  describe("public surface regression: only AC-01~AC-07 methods exposed", () => {
+    it("Connection has no sendTransaction method", () => {
+      const { transport } = createMockTransport([]);
+      const conn = new Connection("http://mock.test", transport);
+
+      // sendTransaction is out of scope per docs/18 §6
+      expect((conn as any).sendTransaction).toBeUndefined();
+    });
+
+    it("Connection exposes exactly the contracted methods", () => {
+      const { transport } = createMockTransport([]);
+      const conn = new Connection("http://mock.test", transport);
+
+      // AC-02: getLatestBlockhash
+      expect(typeof conn.getLatestBlockhash).toBe("function");
+      // AC-03: simulateTransaction
+      expect(typeof conn.simulateTransaction).toBe("function");
+      // AC-07: endpoint
+      expect(conn.endpoint).toBe("http://mock.test");
+      // getBalance (minimal typed helper)
+      expect(typeof conn.getBalance).toBe("function");
+    });
+  });
+
   describe("getBalance", () => {
     it("returns typed balance value", async () => {
       const { transport } = createMockTransport([MOCK_BALANCE_RESPONSE]);
