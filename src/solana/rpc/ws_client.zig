@@ -1296,3 +1296,126 @@ fn lockAtomicMutex(m: *std.atomic.Mutex) void {
         std.atomic.spinLoopHint();
     }
 }
+
+// ------------------------------------------------------------------
+// P2-23 Observability Tests
+// ------------------------------------------------------------------
+
+test "ws_observability_snapshot_initial_state" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    const stats = client.snapshot();
+    try std.testing.expectEqual(@as(u32, 0), stats.reconnect_attempts_total);
+    try std.testing.expectEqual(@as(u32, 0), stats.active_subscriptions);
+    try std.testing.expectEqual(@as(u32, 0), stats.dedup_dropped_total);
+    try std.testing.expectEqual(@as(?u16, null), stats.last_error_code);
+    try std.testing.expectEqual(@as(?[]const u8, null), stats.last_error_message);
+    try std.testing.expectEqual(@as(?u64, null), stats.last_reconnect_unix_ms);
+}
+
+test "ws_observability_counters_after_subscribe" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    _ = try client.accountSubscribe("11111111111111111111111111111111");
+    const stats = client.snapshot();
+    try std.testing.expectEqual(@as(u32, 1), stats.active_subscriptions);
+    try std.testing.expectEqual(@as(u32, 0), stats.reconnect_attempts_total);
+}
+
+test "ws_observability_reconnect_counter_increments" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    _ = try client.logsSubscribe("force_disconnect_after_notify");
+    var notif = try client.readNotification();
+    notif.deinit();
+    try std.testing.expectError(error.ConnectionClosed, client.readNotification());
+
+    const before = client.snapshot();
+    try std.testing.expectEqual(@as(u32, 0), before.reconnect_attempts_total);
+
+    try client.reconnect();
+    const after = client.snapshot();
+    try std.testing.expectEqual(@as(u32, 1), after.reconnect_attempts_total);
+    try std.testing.expect(after.last_reconnect_unix_ms != null);
+}
+
+test "ws_observability_dedup_dropped_counter" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+    defer server.stop();
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    _ = try client.logsSubscribe("duplicate_notify");
+
+    // First notification passes dedup, second is duplicate and dropped
+    var first = try client.readNotification();
+    defer first.deinit();
+
+    // After the duplicate is dropped, server sends close — readNotification returns ConnectionClosed
+    try std.testing.expectError(error.ConnectionClosed, client.readNotification());
+
+    const stats = client.snapshot();
+    try std.testing.expect(stats.dedup_dropped_total >= 1);
+}
+
+test "ws_observability_backoff_error_state" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+
+    var server = try MockWsServer.start(allocator);
+
+    const url = try std.fmt.allocPrint(allocator, "ws://127.0.0.1:{d}/", .{server.port});
+    defer allocator.free(url);
+
+    var client = try WsRpcClient.connect(allocator, io, url);
+    defer client.deinit();
+
+    server.stop();
+
+    // Failed reconnect should update error state and reconnect counter
+    if (client.reconnectWithBackoff(2, 0)) |_| {
+        return error.TestUnexpectedResult;
+    } else |_| {}
+
+    const stats = client.snapshot();
+    try std.testing.expect(stats.reconnect_attempts_total >= 2);
+    try std.testing.expect(stats.last_error_code != null);
+    try std.testing.expect(stats.last_error_message != null);
+}
