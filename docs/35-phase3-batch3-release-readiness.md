@@ -35,8 +35,9 @@
 
 ## 3. Carry-in Baseline Governance
 
-- 本批承接 `243ba7f` 及其之前主线能力。
-- 对 `author=@davirain` 且 `feat: US-*` 前缀的 ralph-tui 提交，统一视作 carry-in baseline，不计入 Batch 3 新增交付计分。
+- 本批 carry-in baseline freeze point 锁定为 `243ba7f`。
+- 仅 `<=243ba7f` 的 `feat: US-*` 提交计入 Batch 3 carry-in baseline（固定为 US-001..US-009）。
+- freeze point 之后新增的 `feat: US-*` 提交仅视为 carry-in candidate，不自动计入本批计分，除非后续任务明确重锁 freeze point。
 
 ## 4. Current Snapshot
 
@@ -52,7 +53,7 @@
 仅当以下条件全部满足时，Batch 3 verdict 才允许升级为 `可发布`：
 1. `G-P3C-01~G-P3C-05` 全部 PASS；
 2. 无未收敛 Batch 3 exception；
-3. 若存在 partial/accepted exception，已满足 frozen rule 且明确不影响本批 gate。
+3. 不存在 `partial exception` 或 `accepted exception path`（延续 strict exception model）。
 
 ## 6. Evidence Landing
 
