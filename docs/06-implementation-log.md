@@ -282,6 +282,42 @@
 - 该批改动未引入新的运行时依赖，目标是补齐 closeout gate 的失败路径证据。
 - `docs/15-phase1-execution-matrix.md` 明确补入 ALT 权限正确性要求：writable 账户不能被 readonly lookup 错配，并将其提升为显式 high-priority blocker。
 
+## 2026-04-16 第十六次增量记录（C3: oracle Phase 1 最低集合补齐）
+
+### 输入
+- `#9 C3` 目标是把 `testdata/oracle_vectors.json` 从 `v2 core` 子集扩到 `docs/12` 定义的 Phase 1 最低集合，并让 Zig 侧对 keypair/message/transaction 做实际消费断言。
+- `#12` gate 额外要求两点：固定命名键（`kp_sig_*` / `msg_*` / `tx_*`）与“生成器输出 -> Zig 消费断言”一一对应表。
+
+### 输出
+- `scripts/oracle/generate_vectors.rs` 扩充为完整 Phase 1 oracle 生成器，新增：
+  - `keypair`: `kp_sig_seed_01`, `kp_sig_seed_02`
+  - `message`: `msg_legacy_simple`, `msg_legacy_multi_ix`, `msg_v0_basic_alt`, `msg_v0_multi_lookup`
+  - `transaction`: `tx_legacy_signed`, `tx_v0_signed`
+- `testdata/oracle_vectors.json` 现已包含 `core + keypair + message + transaction` 四组最小集合。
+- `src/solana/compat/oracle_vector.zig` 新增 Zig 侧消费断言：
+  - 固定 seed -> pubkey/signature
+  - legacy / v0 message compile -> serialize
+  - legacy / v0 transaction sign -> verify -> serialize
+
+### Generator -> Zig 消费断言映射
+
+| 生成器输出 | Zig 断言 | docs/11 gate |
+|---|---|---|
+| `core.pubkey_*`, `core.hash_nonzero`, `core.shortvec.*` | `expectPubkeyCase` / `expectShortvecCase` / hash bytes compare | `G-CLOSE-02` 基础兼容样本 |
+| `keypair.kp_sig_seed_01`, `kp_sig_seed_02` | `expectKeypairSignatureCase`（seed -> pubkey -> sign -> verify） | `G-CLOSE-02` Keypair sign -> Signature |
+| `message.msg_legacy_simple`, `msg_legacy_multi_ix` | `expectMessageCase`（compileLegacy -> serialize） | `G-CLOSE-02` legacy message serialize |
+| `message.msg_v0_basic_alt`, `msg_v0_multi_lookup` | `expectMessageCase`（compileV0/ALT -> serialize） | `G-CLOSE-02` v0 message serialize（含 ALT） |
+| `transaction.tx_legacy_signed` | `expectTransactionCase`（legacy tx sign/verify/serialize） | `G-CLOSE-02` versioned transaction serialize |
+| `transaction.tx_v0_signed` | `expectTransactionCase`（v0 tx sign/verify/serialize） | `G-CLOSE-02` versioned transaction serialize |
+
+### 风险
+- 当前 oracle 生成器依赖 Rust `solana-sdk = 4.0.1` 的稳定 API；后续若升级 Rust 基线，需要重新生成并审查 JSON diff。
+- `#10` 的 Devnet live 证据仍是外部阻塞，与本任务无关；`#9` 只解决 oracle gate。
+
+### 验证
+- `cargo run --manifest-path scripts/oracle/Cargo.toml --release`
+- `zig build test`
+
 ### 风险
 - 文档已补齐到与当前实现更一致，但这不等于 v0 / ALT 已完全收口；这里强调的是“收口信号更准确”，不是“实现已完成”。
 

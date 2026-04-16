@@ -22,17 +22,17 @@
 | `core.base58` | in-progress | `T4-02` | 边界与更多 oracle 样本不足 | 非法字符/前导零/长输入覆盖 + oracle 样本 | `src/solana/core/base58.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | 通过测试并纳入 oracle 集 |
 | `core.shortvec` | in-progress | `T4-03` | 溢出/截断边界仍需系统补齐 | 边界测试 + 溢出/截断断言 | `src/solana/core/shortvec.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | 关键边界覆盖齐全 |
 | `core.Hash` | in-progress | `T4-04` | roundtrip / 非零样本与文档映射仍可增强 | roundtrip 测试 + 非零样本 | `src/solana/core/hash.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | 和 PRD 最低集合对齐 |
-| `core.Keypair` | in-progress | `T4-05` | 多消息签名与 oracle 对照不足 | 多消息 sign/verify + 固定 seed 向量 | `src/solana/core/keypair.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | 确定性签名样本齐全 |
-| `tx.Message (v0)` | in-progress | `T4-06`, `T4-07` | 已补反序列化失败路径（version byte / lookup truncation / lookup-space index），但 ALT 权限正确性与 Rust oracle 对照仍不足 | ALT 正向/重复/冲突/过量账户测试 + writable/readonly 权限错配断言 | `src/solana/tx/message.zig` tests + `testdata/oracle_vectors.json` + `docs/06/07` | v0 关键语义闭环 |
+| `core.Keypair` | closeable | `T4-05` | 固定 seed / 多消息 oracle 样本已补齐，待 closeout review 固化 | 多消息 sign/verify + 固定 seed 向量 | `src/solana/core/keypair.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | 确定性签名样本齐全 |
+| `tx.Message (v0)` | in-progress | `T4-06`, `T4-07` | 已补反序列化失败路径与 Rust oracle 对照；剩余 blocker 是 ALT 权限正确性与更系统的 closeout 留档 | ALT 正向/重复/冲突/过量账户测试 + writable/readonly 权限错配断言 | `src/solana/tx/message.zig` tests + `testdata/oracle_vectors.json` + `docs/06/07` | v0 关键语义闭环 |
 | `tx.AddressLookupTable` | open | `T4-06`, `T4-07` | 目前主要停留在 compile 语义，lookup 权限正确性尚未形成完整 closeout 证据 | lookup 注入、冲突语义与 writable-vs-readonly 正确性用例 | `src/solana/tx/message.zig` tests + `docs/06/07` | lookup 行为有证据固定 |
-| `tx.VersionedTransaction` | in-progress | `T4-08`, `T4-09` | 已补 `versioned_deserialize_*` 边界（截断签名/不支持版本/尾字节），但 v0 tx 与 oracle 对照仍需继续补 | sign/verify/serialize/deserialize 正反测试 | `src/solana/tx/transaction.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | tx 边界场景到位 |
+| `tx.VersionedTransaction` | closeable | `T4-08`, `T4-09` | 失败路径与 legacy/v0 oracle 对照已补齐，待 closeout review 固化 | sign/verify/serialize/deserialize 正反测试 | `src/solana/tx/transaction.zig` tests + `testdata/oracle_vectors.json` + `docs/06` | tx 边界场景到位 |
 | `rpc.RpcClient` 基础解析 | in-progress | `T4-11`, `T4-12`, `T4-13` | 动态 JSON 解析仍偏多，typed parse 收敛不足 | malformed/rpc_error/number_string/生命周期测试 | `src/solana/rpc/client.zig` tests + `docs/06/07` | 关键方法解析稳定 |
 | `getLatestBlockhash` | closeable | `T4-11` | typed schema 还可收紧 | happy + malformed + rpc_error | `src/solana/rpc/client.zig` tests + `docs/06` | LatestBlockhash 结构稳定 |
 | `getAccountInfo` | open | `T4-11`, `T4-12` | 当前仍以 `OwnedJson` 为主 | typed 子字段或明确边界说明 | `src/solana/rpc/client.zig` tests + `docs/03/06/07` | 至少达到 PRD 认可的 typed 收敛水平 |
 | `getBalance` | closeable | `T4-11` | 主要剩回归与留档 | happy + error + number_string | `src/solana/rpc/client.zig` tests + `docs/06` | 测试与文档映射闭环 |
 | `simulateTransaction` | open | `T4-12`, `T4-14` | 仍以 `OwnedJson` 输出，且当前没有真实 Devnet harness 证据 | base64 输入 + 模拟 happy/error + Devnet 证据 | `src/solana/rpc/client.zig` tests + `artifacts/devnet/*` + `docs/06/14` | 能支撑最小 E2E 闭环 |
 | `sendTransaction` | open | `T4-12`, `T4-14`, `T4-15` | 发送路径缺少真实 Devnet harness 验证 | base64 happy/error + Devnet 发送证据 | `src/solana/rpc/client.zig` tests + `artifacts/devnet/*` + `docs/06/14` | 发送链路可复现 |
-| `compat.oracle_vector` | open | `T4-01` + `T4-02~T4-09` | 向量集规模明显不足 | 扩充后的 JSON + Zig 消费测试 | `testdata/oracle_vectors.json` + `scripts/oracle/*` + `src/solana/compat/oracle_vector.zig` tests + `docs/12` | 满足 `docs/12` 最低集合 |
+| `compat.oracle_vector` | closed | `T4-01` + `T4-02~T4-09` | 已扩到 `docs/12` 最低集合；Zig 消费断言覆盖 core/keypair/message/transaction | 扩充后的 JSON + Zig 消费测试 | `testdata/oracle_vectors.json` + `scripts/oracle/*` + `src/solana/compat/oracle_vector.zig` tests + `docs/12` | 满足 `docs/12` 最低集合 |
 | benchmark baseline | closeable | `T4-16` | 首版基线已记录（`docs/13a` Run 1），待 closeout review 确认 | 至少一版基线记录 | `docs/13` + `docs/13a-benchmark-baseline-results.md` + `src/benchmark.zig` + `docs/06` | 满足 `docs/13` 要求 |
 | Devnet E2E evidence | in-progress | `T4-14`, `T4-15`, `T4-16` | mock harness 已落地（K3-H1 happy + K3-F1 failure），真实 Devnet 实跑待 `SOLANA_RPC_URL` | 验收日志 + 提交哈希 + 结果摘要 + 真实 E2E 证据 | `src/e2e/devnet_e2e.zig` + `docs/14a-devnet-e2e-run-log.md` + `docs/06` | mock done; devnet 实跑补齐后满足 `docs/14` |
 
@@ -41,7 +41,6 @@
 ### High-priority blockers
 - v0 / ALT 语义的正反路径仍未完全收口
 - ALT 权限正确性（writable 账户不能被 readonly lookup 错配）仍需作为独立收口信号固定
-- oracle 向量集无法支撑 Phase 1 最低声明
 - Devnet E2E 真实实跑证据仍缺（mock harness 已就绪，待 `SOLANA_RPC_URL`）
 
 ### Medium-priority blockers
