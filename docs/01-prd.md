@@ -25,8 +25,24 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
 - 接口能力（System/Token/ComputeBudget 等接口 crate 对应能力）
 - 签名与密钥管理扩展（可插拔后端）
 
+**停止条件**：当某能力可以通过现有底层模块（core/tx/rpc）在 userland 组合实现时，不强制纳入本仓库内建范围。例如 `spl-token-interface` 等应用层接口 crate，优先作为独立包扩展，而非全部内聚。
+
 ### 1.3 当前阶段目标（Phase 1）
 先完成链下 host/client 可用闭环，优先保证行为兼容与字节兼容，为后续"全量实现"奠定稳定基础。
+
+### 1.4 基线定义（Locked Baseline）
+
+所有行为与字节布局对齐以下锁定的 Rust crate 版本。若官方后续升级导致语义变化，需在 `08-evolution.md` 中记录 ADR，并通过 oracle 回归验证。
+
+| Zig 模块 | 对标 Rust Crate | 锁定版本 | 说明 |
+|---|---|---|---|
+| core (pubkey/signature/keypair/hash) | `solana-sdk` (umbrella) | **4.0.1** | 字节布局基准源 |
+| core (shortvec) | `solana-short-vec` | **3.2.0** | `solana-sdk 4.0.1` 的依赖版本 |
+| tx (message/transaction) | `solana-message` / `solana-transaction` | **4.0.0** | `solana-sdk 4.0.1` 的依赖版本 |
+| tx (signer) | `solana-signer` / `solana-keypair` | **3.0.0** | `solana-sdk 4.0.1` 的依赖版本 |
+| rpc | `solana-client` | **3.1.12** | 当前 `solana-client 4.0.0` 仍处于 beta，故锁定最新稳定版 |
+
+**注意**：`solana-sdk 4.0.1` 内部聚合了大量 component crates。上表已拆出与 Phase 1 直接相关的子 crate 版本。链上语义（`solana-program` 中的 SBF/no_std 部分）当前 Out of Scope。
 
 ---
 
@@ -82,6 +98,18 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
 - C ABI 导出 → 见路线图 Phase 3。
 - 与 Rust API 命名 1:1 完全一致（当前以行为兼容优先）。
 
+### 3.4 已知差异与约束
+
+由于 Zig 与 Rust 语言特性不同，以下差异是结构性而非实现缺陷，需在设计和评审中默认接受：
+
+| 差异项 | Rust 端表现 | Zig 端策略 |
+|---|---|---|
+| **宏系统** | `declare_id!`、`account!` 等过程宏大量存在 | Zig 无宏系统，改用编译期函数（`comptime`）或显式代码生成替代 |
+| **异步模型** | `solana-client` 基于 `tokio` 异步运行时 | 当前使用 `std.http.Client` 阻塞 I/O；如需异步，后续在 Zig 事件循环层封装，不侵入 SDK 核心 |
+| **泛型/特征** | `Signer` trait、`Pubkey` 上的泛型方法 | 用函数指针、接口结构（类似 vtable）或显式类型参数替代 |
+| **序列化 crate** | `bincode` 作为外部依赖处理字节布局 | 当前为手写 serializer（`compat/bincode_compat.zig`）；未来如需更复杂 schema，再评估是否引入 Zig 等价实现 |
+| **错误处理** | `thiserror` 派生 + `Result<T, E>` | 直接使用 Zig error union，不模拟 Rust 的 `Error` trait 层次 |
+
 ---
 
 ## 4. 产品需求（Functional Requirements）
@@ -97,7 +125,7 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
 
 ## 5. 非功能需求（Non-Functional Requirements）
 
-- NFR-01（兼容性）：字节布局与 Rust SDK 基线行为一致（当前锁定 `solana-sdk 4.0.1`）。
+- NFR-01（兼容性）：字节布局与 Rust SDK 基线行为一致（锁定 `solana-sdk 4.0.1` + `solana-client 3.1.12`，见第 1.4 节基线定义）。
 - NFR-02（可测试性）：每个公共接口至少 Happy + Error 两类测试。
 - NFR-03（可维护性）：模块边界清晰（`core -> tx -> rpc`），禁止反向依赖。
 - NFR-04（可扩展性）：RPC transport、签名后端可插拔。
@@ -116,7 +144,8 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
   - V0 message serialize（含 ALT）
   - 完整 Transaction serialize（签名 + message）
 - `zig build test` 持续通过。
-- 配置 `SOLANA_RPC_URL` 时 Devnet E2E 能完成"构造->签名->模拟->发送"。
+- Phase 1 每个公共接口至少覆盖 1 个 Happy Path + 1 个 Error Path 测试。
+- 配置 `SOLANA_RPC_URL` 时 Devnet E2E 能完成“构造->签名->模拟->发送”。
 - `std.testing.allocator` 全量测试无内存泄漏。
 - *(基线)* 序列化/反序列化吞吐量 benchmark 建立（不要求优于 Rust，但需记录数据供后续对比）。
 
@@ -182,3 +211,11 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
 
 - Solana 官方 Rust 客户端文档（中文）：
   - https://solana.com/zh/docs/clients/official/rust
+- 基线源码仓库：
+  - `anza-xyz/solana-sdk` (v4.0.1): https://github.com/anza-xyz/solana-sdk/tree/v4.0.1
+  - `anza-xyz/agave` (solana-client v3.1.12): https://github.com/anza-xyz/agave/tree/v3.1.12/client
+- 基线 API 文档：
+  - `solana-sdk` 4.0.1: https://docs.rs/solana-sdk/4.0.1
+  - `solana-client` 3.1.12: https://docs.rs/solana-client/3.1.12
+- Zig 版本约束依据：
+  - Zig 0.16.0 Release Notes: https://ziglang.org/download/0.16.0/release-notes.html
