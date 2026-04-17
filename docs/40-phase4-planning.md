@@ -29,12 +29,21 @@ Batch 0 的 `#95/#96` 仅对 `zignocchio` 路线计分，至少覆盖：
 3. localnet smoke 可达性（load/call 成功）
 4. linker/目标平台约束（含 `.rodata`/SPL 相关限制）
 
-### 2.3 风险
+### 2.3 Host Matrix 与计分策略（本次必须写死）
+
+1. 必须在 Batch 0 给出 `zignocchio/sbpf-linker` 在 `darwin-arm64` 的支持结论：`支持 / 不支持 / 条件支持`。\n
+2. 若 `darwin-arm64` 不可用，允许采用 `linux-x86_64` 作为 `G-P4A` canonical 计分主机；`darwin-arm64` 仅作 native/dev 校验。\n
+3. `solana-zig-bootstrap` 默认保持“已排除对照方案”；仅当触发机械条件时降级为 fallback candidate：\n
+   - `linux-x86_64` 上 `zignocchio` 路线 compile 与 smoke 均失败，且失败可复现；\n
+   - 已完成最小复现与根因记录（命令、环境、错误栈）；\n
+   - reviewer 在 ADR 中签署 fallback 触发。\n
+
+### 2.4 风险
 
 | 风险 | 影响 | 缓解 |
 |------|------|------|
 | Zig 版本与 `zignocchio` 路线不兼容 | 编译或链接失败 | 产出 compat matrix + build shim 决策 |
-| sbpf-linker 约束与现有 build.zig 不一致 | 工具链接入返工 | 在 `#95` 先做最小封装适配 |
+| sbpf-linker 在特定 host（如 darwin-arm64）不可用 | Batch 0 阻塞或平台割裂 | 固化 host tier（linux canonical / macOS dev-only）并记录限制 |
 | on-chain/runtime 语义偏差 | 运行时错误 | `#96` 执行 localnet smoke + 最小可调用验证 |
 | core types 共享策略不稳定 | 类型重复或接口漂移 | `#98` 固化 ADR + 布局一致性检查 |
 
@@ -80,16 +89,16 @@ Batch 0 的 `#95/#96` 仅对 `zignocchio` 路线计分，至少覆盖：
 | Task | 说明 |
 |------|------|
 | `#94` P4-Pre-1 | Perf calibration sidecar（不阻塞 `G-P4A`） |
-| `#95` P4-Pre-2 | `zignocchio` 工具链验证 + Zig compat matrix |
+| `#95` P4-Pre-2 | `zignocchio` 工具链验证 + Zig compat matrix（含 host support tier） |
 | `#96` P4-Pre-3 | 基于 `zignocchio` 的 SBF compile + localnet smoke |
-| `#97` P4-Pre-4 | Test harness ADR（validator vs program-test） |
+| `#97` P4-Pre-4 | Test harness ADR（validator vs program-test）+ fallback 边界与 host policy 记录 |
 | `#98` P4-Pre-5 | Core types 共享 ADR（@import vs vendor） |
 
 ## 6. Gate 定义
 
 | Gate | 验证内容 | 判定条件 |
 |------|----------|----------|
-| `G-P4A` | Batch 0 可行性 | ① `#95/#96` 的 `zignocchio` 路线 compile + smoke PASS ② decision records 落盘（`#97/#98` + `#95` compat matrix） |
+| `G-P4A` | Batch 0 可行性 | ① `#95/#96` 的 `zignocchio` 路线 compile + smoke PASS（canonical host = linux-x86_64） ② decision records 落盘（`#97/#98` + `#95` compat matrix 含 host tier） |
 | `G-P4B` | 核心框架 | hello-world localnet deploy/call PASS |
 | `G-P4C` | CPI + Borsh | CPI 成功 + Borsh round-trip + CU baseline 输出 |
 | `G-P4D` | 指令接口 | System/SPL + 示例程序 PASS + CU baseline 输出 |
@@ -103,8 +112,9 @@ Batch 0 的 `#95/#96` 仅对 `zignocchio` 路线计分，至少覆盖：
 | D-02 | Core types 共享策略（@import vs vendor） | Batch 0 (`#98`) | ADR + 布局一致性/边界验证 |
 | D-03 | Test harness 决策（validator vs program-test） | Batch 0 (`#97`) | ADR + CI 影响评估 |
 | D-04 | 独立仓库时机（Batch 0 feasibility 后拍板） | Batch 0->1 过渡 | 决策记录 |
+| D-05 | Host support matrix（linux canonical / darwin tier）与 fallback 触发规则 | Batch 0 (`#95/#97`) | host tier 结论 + fallback gate rule |
 
-D-01~D-03 必须在 `G-P4A` 前关闭；D-04 在 Batch 1 开工前关闭。
+D-01~D-03、D-05 必须在 `G-P4A` 前关闭；D-04 在 Batch 1 开工前关闭。
 
 ## 8. 对旧路线的说明
 
