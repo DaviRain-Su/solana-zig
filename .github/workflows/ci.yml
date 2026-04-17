@@ -20,6 +20,15 @@ jobs:
         with:
           version: 0.16.0
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install libsodium (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsodium-dev
+
+      - name: Build ring staticlib
+        run: cd scripts/oracle/ed25519_ring_cabi && cargo build --release
+
       - name: Build
         run: zig build
 
