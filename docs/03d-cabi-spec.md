@@ -99,6 +99,52 @@ solana_string_free(out);
 - 内部 helper / 宏尽量少
 - 对 opaque handle 只暴露前置声明，不暴露内部结构
 
+## 8. Exported Function Inventory
+
+当前共 27 个导出函数（`pub export fn` / `export fn`）：
+
+### 8.1 cabi/core.zig（14 个）
+
+| Function | Purpose |
+|---|---|
+| `solana_zig_abi_version()` | 返回 ABI 版本号（当前为 1） |
+| `solana_pubkey_from_bytes(...)` | 从 32 字节构造 Pubkey |
+| `solana_pubkey_to_base58(...)` | Pubkey → base58 字符串 |
+| `solana_pubkey_from_base58(...)` | base58 → Pubkey |
+| `solana_pubkey_equal(...)` | Pubkey 相等比较 |
+| `solana_signature_from_bytes(...)` | 从 64 字节构造 Signature |
+| `solana_signature_from_base58(...)` | base58 → Signature |
+| `solana_signature_to_base58(...)` | Signature → base58 字符串 |
+| `solana_signature_equal(...)` | Signature 相等比较 |
+| `solana_hash_from_bytes(...)` | 从 32 字节构造 Hash |
+| `solana_hash_from_base58(...)` | base58 → Hash |
+| `solana_hash_to_base58(...)` | Hash → base58 字符串 |
+| `solana_hash_equal(...)` | Hash 相等比较 |
+| `solana_string_free(...)` | 释放 ABI 层分配的字符串 |
+
+### 8.2 cabi/transaction.zig（9 个）
+
+| Function | Purpose |
+|---|---|
+| `solana_instruction_create(...)` | 构造 Instruction（返回堆分配指针） |
+| `solana_instruction_destroy(...)` | 释放 Instruction |
+| `solana_message_compile_legacy(...)` | 编译 legacy Message |
+| `solana_message_destroy(...)` | 释放 Message |
+| `solana_transaction_create_unsigned(...)` | 从 Message 构造无签名交易 |
+| `solana_transaction_sign_with_keypair(...)` | 用密钥对签名交易 |
+| `solana_transaction_serialize(...)` | 序列化交易为字节数组 |
+| `solana_transaction_destroy(...)` | 释放 Transaction |
+| `solana_bytes_free(...)` | 释放 ABI 层分配的字节数组 |
+
+### 8.3 cabi/rpc.zig（4 个）
+
+| Function | Purpose |
+|---|---|
+| `solana_rpc_client_init(...)` | 初始化 RPC 客户端（返回 opaque handle） |
+| `solana_rpc_client_deinit(...)` | 释放 RPC 客户端 |
+| `solana_rpc_client_get_latest_blockhash(...)` | 获取最新 blockhash |
+| `solana_rpc_client_get_balance(...)` | 查询账户余额 |
+
 ## 9. Signer and Security Boundary
 
 - C ABI 首版不强制暴露 signer vtable 细节

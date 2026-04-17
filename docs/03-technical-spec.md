@@ -147,7 +147,7 @@ pub fn RpcClient.simulateTransaction(self: *RpcClient, tx: VersionedTransaction)
 pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(SendTransactionResult)
 pub fn RpcClient.sendTransactionWithOptions(self: *RpcClient, tx: VersionedTransaction, opts: SendTransactionOptions) !RpcResult(SendTransactionResult)
 
-// Phase 2 (11 methods + Options variants, 29 public functions total)
+// Phase 2 (11 methods + Options variants, 25 public functions total)
 pub fn RpcClient.getSlot(self: *RpcClient) !RpcResult(u64)
 pub fn RpcClient.getSlotWithOptions(self: *RpcClient, opts: GetSlotOptions) !RpcResult(u64)
 pub fn RpcClient.getEpochInfo(self: *RpcClient) !RpcResult(EpochInfo)
@@ -156,9 +156,9 @@ pub fn RpcClient.getMinimumBalanceForRentExemption(self: *RpcClient, data_len: u
 pub fn RpcClient.requestAirdrop(self: *RpcClient, pubkey: Pubkey, lamports: u64) !RpcResult(RequestAirdropResult)
 pub fn RpcClient.getAddressLookupTable(self: *RpcClient, table_address: Pubkey) !RpcResult(AddressLookupTableResult)
 pub fn RpcClient.getSignaturesForAddress(self: *RpcClient, pubkey: Pubkey, limit: ?u32) !RpcResult(SignaturesForAddressResult)
-pub fn RpcClient.getSignaturesForAddressWithOptions(self: *RpcClient, pubkey: Pubkey, opts: GetSignaturesOptions) !RpcResult(SignaturesForAddressResult)
+pub fn RpcClient.getSignaturesForAddressWithOptions(self: *RpcClient, pubkey: Pubkey, opts: GetSignaturesForAddressOptions) !RpcResult(SignaturesForAddressResult)
 pub fn RpcClient.getTokenAccountsByOwner(self: *RpcClient, owner: Pubkey, program_id: Pubkey) !RpcResult(TokenAccountsByOwnerResult)
-pub fn RpcClient.getTokenAccountsByOwnerWithOptions(self: *RpcClient, owner: Pubkey, opts: GetTokenAccountsOptions) !RpcResult(TokenAccountsByOwnerResult)
+pub fn RpcClient.getTokenAccountsByOwnerWithOptions(self: *RpcClient, owner: Pubkey, opts: GetTokenAccountsByOwnerOptions) !RpcResult(TokenAccountsByOwnerResult)
 pub fn RpcClient.getTokenAccountBalance(self: *RpcClient, token_account: Pubkey) !RpcResult(TokenAmount)
 pub fn RpcClient.getTokenSupply(self: *RpcClient, mint: Pubkey) !RpcResult(TokenAmount)
 pub fn RpcClient.getTransaction(self: *RpcClient, signature: Signature) !RpcResult(?TransactionInfo)
@@ -179,7 +179,7 @@ pub fn RpcClient.getSignatureStatusesWithOptions(self: *RpcClient, signatures: [
 
 ### 3.3.1 Phase 1 `getAccountInfo` 最小 typed 子集
 
-当前公开 API 已前进为 `getAccountInfo(...) !RpcResult(AccountInfo)`。
+当前公开 API 已前进为 `getAccountInfo(...) !RpcResult(?AccountInfo)`。
 Product Phase 1 closeout 约束的最小 typed 子集为：
 - `lamports: u64`
 - `owner: Pubkey`
@@ -374,7 +374,7 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 
 ## 11. Test Mapping (实现与规格对应)
 
-当前代码已覆盖（229 tests）：
+当前代码已覆盖（239 tests）：
 - base58 roundtrip + 非法字符
 - shortvec roundtrip + invalid
 - pubkey/signature 固定长度校验

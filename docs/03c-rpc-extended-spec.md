@@ -14,7 +14,7 @@
 
 ### 2.1 已落地的全部扩展 RPC 方法（✅ 已完成）
 
-当前 16 个 RPC 方法全部实现（5 Phase 1 + 11 Phase 2），含 `*WithOptions` 变体共 29 个公开函数：
+当前 16 个 RPC 方法全部实现（5 Phase 1 + 11 Phase 2），含 `*WithOptions` 变体共 25 个公开函数：
 - `getTransaction` / `getTransactionWithOptions`
 - `getSignaturesForAddress` / `getSignaturesForAddressWithOptions`
 - `getSignatureStatuses` / `getSignatureStatusesWithOptions`
@@ -27,7 +27,21 @@
 - `getTokenAccountBalance`
 - `getTokenSupply`
 
-### 2.2 后续优先级
+### 2.2 TokenAmount Type
+
+`TokenAmount` 是 `getTokenAccountBalance` 和 `getTokenSupply` 的返回结构：
+
+| Field | Type | Notes |
+|---|---|---|
+| `ui_amount` | `?f64 = null` | 人类可读数值，若代币不支持 decimals 则为 null |
+| `ui_amount_string` | `?[]const u8 = null` | 字符串格式，可能包含 trailing zeros |
+| `amount` | `[]const u8` | 最小单位（lamports-like）的字符串表示 |
+| `decimals` | `u8` | 代币小数位 |
+| `raw_json` | `?[]const u8 = null` | 原始 JSON 保留，用于排障 |
+
+注意：`ui_amount_string` 在 Solana 某些代币类型下可能为 null，代码中已按 `?[]const u8 = null` 处理。
+
+### 2.3 后续优先级
 
 所有 Phase 2 目标方法已交付。后续扩展方向：
 - 更多低频 RPC 方法（见 Product Phase 4 评估）

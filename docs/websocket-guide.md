@@ -135,7 +135,7 @@ pub fn exampleAccountSubscription(ws_url: []const u8, account_pubkey_b58: []cons
     var client = try connectWs(allocator, ws_url);
     defer client.deinit();
 
-    const subscription_id = try client.accountSubscribe(account_pubkey_b58);
+    const subscription_id = try client.accountSubscribe(account_pubkey_b58, .confirmed);
     defer client.accountUnsubscribe(subscription_id) catch {};
 
     const notification = client.readAccountNotification() catch |err| {
@@ -163,7 +163,7 @@ pub fn exampleMixedDispatch(ws_url: []const u8, account_pubkey_b58: []const u8) 
     var client = try connectWs(allocator, ws_url);
     defer client.deinit();
 
-    const account_sub_id = try client.accountSubscribe(account_pubkey_b58);
+    const account_sub_id = try client.accountSubscribe(account_pubkey_b58, .confirmed);
     defer client.accountUnsubscribe(account_sub_id) catch {};
 
     const slot_sub_id = try client.slotSubscribe();

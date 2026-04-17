@@ -6,7 +6,7 @@
 
 - 文档：`docs/00-06` 与最新 PRD / roadmap 一致性
 - 代码：`core/tx/rpc/compat/interfaces/signers/cabi` 当前实现
-- 测试：当前覆盖（208 tests）与 `docs/05-test-spec.md` 目标差距
+- 测试：当前覆盖（239 tests）与 `docs/05-test-spec.md` 目标差距
 
 ## 2. 关键发现（按严重度）
 

@@ -32,7 +32,7 @@ Notes:
 - `zig build devnet-e2e` 是当前真实 in-tree live harness，已覆盖 `construct -> sign -> simulate -> send -> confirm`。
 - `zig build nonce-e2e` — Nonce 账户完整 E2E 流程。
 - `zig build e2e` — Surfpool 本地验证（K3-H1 + K3-F1）。
-- Phase 1/2/3 全部完成，229 tests pass。
+- Phase 1/2/3 全部完成，239 tests pass。
 
 ---
 
