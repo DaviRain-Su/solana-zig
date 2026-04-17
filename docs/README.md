@@ -64,3 +64,5 @@
 - `35-phase3-batch3-release-readiness.md`：Phase 3 Batch 3 专属发布就绪清单
 - `36-phase3-batch4-planning.md`：Product Phase 3 第四批规划（signers 抽象 + C ABI 最小闭环 + benchmark 扩展 + verdict 升级评估）
 - `37-phase3-batch4-release-readiness.md`：Phase 3 Batch 4 专属发布就绪清单
+- `38-phase3-batch5-planning.md`：Product Phase 3 第五批规划（exception 最终收敛 + C ABI RPC/live 对齐 + stake create/negative-path + Rust 对比 + Phase 3 aggregate closeout）
+- `39-phase3-batch5-release-readiness.md`：Phase 3 Batch 5 专属发布就绪清单（包含 Phase 3 aggregate verdict）
