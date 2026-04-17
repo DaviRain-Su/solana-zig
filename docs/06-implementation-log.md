@@ -1442,3 +1442,103 @@
   - `G-P3D-03` ✅
   - `G-P3D-04` ✅
   - `G-P3D-05` ✅
+
+## 2026-04-17 第四十七次增量记录（Phase 3 Batch 5：#84/#85/#86/#87 闭环 + #88 docs/gate 收口提审）
+
+### 输入
+- `#83`（Batch 5 planning / DoD）已在 `7671c87` 通过结构审并关闭。
+- `#84`（exception final convergence）在 `b02071b` 通过 reviewer。
+- `#85`（C ABI RPC/live alignment）与 `#86`（stake create + negative-path）在 `23d8cf4` 通过 reviewer。
+- `#87`（Rust baseline + aggregate verdict input）在 `9f903e5` 通过 reviewer（supersede `adec500`）。
+
+### 输出
+- `#84`：固化 strict model 最终可复现输入：
+  - `requestAirdrop = partial_exception`
+  - `getAddressLookupTable = accepted_exception_path`
+- `#85`：`cabi/rpc` 切到真实 HTTP transport 路径（`initHttpTransport + std.Io.Threaded`），lifecycle/error model 证据闭环。
+- `#86`：`buildCreateStakeAccountInstructions` 契约对齐为 `create-account + initialize`，并补齐 compile-sign 与负路径证据。
+- `#87`：Rust baseline harness 入库（`scripts/oracle/rust_benchmark.rs`），Run 3 可复现且可审计。
+- `#88`：提交本批 docs/gate reconciliation（`docs/06+10+13a+14a+15+39`），等待 `G-P3E-05` reviewer 结论。
+
+### 风险
+- strict model 下 open exceptions 仍未关闭：
+  - `requestAirdrop = partial_exception`
+  - `getAddressLookupTable = accepted_exception_path`
+- 因此 Batch 5 与 Phase 3 aggregate 当前候选结论为 `有条件发布`，是否锁 final 取决于 `#88` 终审。
+- 条件回写候选判断：`docs/37` / `docs/35` / `docs/28` 不触发。
+
+### 验证
+- `#84` canonical（isolated）：
+  - commit `b02071b`
+  - clean status
+  - `devnet-e2e 17/17` + `e2e 2/2` + `zig build test --summary all: 208/208`
+- `#85/#86` canonical（isolated）：
+  - commit `23d8cf4`
+  - clean status
+  - `zig build test --summary all: 210/210`
+- `#87` canonical（isolated）：
+  - commit `9f903e5`
+  - clean status
+  - `zig build test --summary all: 208/208`
+  - Rust baseline:
+    - `BENCH|rust_signer_sign|small|10000|108370|10837|92276`
+    - `BENCH|rust_pubkey_to_base58|small|10000|833|83|12004801`
+- Batch 5 gate 收敛状态：
+  - `G-P3E-01` ✅
+  - `G-P3E-02` ✅
+  - `G-P3E-03` ✅
+  - `G-P3E-04` ✅
+  - `G-P3E-05` ⏳ In Review
+
+## 2026-04-17 第四十七次增量记录（Phase 3 Batch 5：#84~#88 闭环 + Phase 3 aggregate closeout）
+
+### 输入
+- `#83`（Batch 5 planning / DoD）已在 `7671c87` 通过结构审并关闭。
+- `#84`（exception final convergence）/ `#85`（C ABI RPC/live）/ `#86`（stake negative-path）/ `#87`（Rust baseline + aggregate input）均已完成 reviewer PASS。
+- `#88` 作为本批收口线，执行全量 docs 对账与 Phase 3 aggregate verdict 固化。
+
+### 输出
+- `#84` 在 `b02071b` 完成 exception final convergence：
+  - devnet-e2e 17/17 + e2e 2/2 + 208/208 PASS
+  - strict model 最终输入固化：`partial_exception` + `accepted_exception_path`
+  - reviewer：`G-P3E-01 PASS` + `G-P3E-02 PASS`
+- `#85` 在 `23d8cf4` 完成 C ABI RPC/live alignment：
+  - C ABI RPC 切到真实 HTTP transport（`initHttpTransport` + `std.Io.Threaded`）
+  - lifecycle/error model 证据齐（init/deinit + transport-error 路径）
+  - isolated canonical 210/210 PASS
+  - reviewer：`G-P3E-03 PASS`
+- `#86` 在 `23d8cf4` 完成 stake create + negative-path closure：
+  - `buildCreateStakeAccountInstructions` 契约对齐（create-account + initialize 两步闭环）
+  - 4 组负路径测试（zero lamports / default pubkey / default authority / missing authority）
+  - reviewer：PASS（归 `G-P3E-04` 输入）
+- `#87` 在 `9f903e5` 完成 Rust baseline + aggregate verdict input：
+  - `scripts/oracle/rust_benchmark.rs` 入库（signer sign + pubkey base58）
+  - `docs/13a` Run 3 Rust baseline 数据（signer 10.8μs, base58 83ns）
+  - P1 修复：Rust harness 首次提交遗漏入库，补件后通过复审
+  - reviewer：`G-P3E-04 PASS`
+- `#88` 完成 Phase 3 aggregate closeout：
+  - 回写 `docs/06/10/13a/15/39`
+  - `docs/00` Phase 3 状态更新
+  - `notes/project-state.md` Phase 3 COMPLETE 汇总
+  - Phase 3 aggregate verdict: `final: 有条件发布`
+
+### 风险
+- Phase 3 仍存在 strict model 下的两条未收敛 exception：
+  - `requestAirdrop`: `partial_exception`
+  - `getAddressLookupTable`: `accepted_exception_path`
+- 因此 Phase 3 aggregate verdict 继续锁定为 `final: 有条件发布`
+- 条件回写不触发：`docs/37` / `docs/35` / `docs/28` 判定前提未变化
+- Zig vs Rust benchmark 口径不完全等价（C ABI path vs native），后续需开 perf 校准子任务
+
+### 验证
+- `#84` canonical（isolated）：commit `b02071b`，clean，`208/208 PASS`
+- `#85` canonical（isolated）：commit `23d8cf4`，clean，`210/210 PASS`
+- `#86` canonical（isolated）：commit `23d8cf4`，clean，`210/210 PASS`
+- `#87` canonical（isolated）：commit `9f903e5`，clean，`208/208 PASS`
+- `#88` canonical（main）：commit `762f0f3`，clean，`239/239 PASS`
+- Batch 5 gate 收敛结论：
+  - `G-P3E-01` ✅
+  - `G-P3E-02` ✅
+  - `G-P3E-03` ✅
+  - `G-P3E-04` ✅
+  - `G-P3E-05` ✅（pending reviewer confirmation）

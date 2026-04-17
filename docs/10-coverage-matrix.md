@@ -176,10 +176,10 @@
 | US-020 `InMemorySigner` | done | `src/solana/signers/in_memory.zig`, `src/solana/tx/transaction.zig` | signer-path/keypair-path 等价已覆盖，legacy 多签顺序无关证据已存在 |
 | US-021 `MockExternalSigner` | partial | `src/solana/signers/mock_external.zig` | 已覆盖 backend failure / rejected；仍需修复“忽略输入消息签名”与 `pubkey mismatch` 语义 |
 | US-022 `signWithSigners(...)` | done | `src/solana/tx/transaction.zig` | 缺签错误与 keypair-path 单 signer 等价已覆盖 |
-| US-023 C ABI 核心类型 | partial | `src/solana/cabi/core.zig`, `include/solana_zig.h` | header/core/test surface 仍未完全对齐，且仓内无稳定 C integration test |
+| US-023 C ABI 核心类型 | done | `src/solana/cabi/core.zig`, `include/solana_zig.h` | header/core/test surface 对齐，C compile evidence 已通过 |
 | US-024 C ABI 交易构建 | done | `src/solana/cabi/transaction.zig` | instruction → message → tx → serialize 闭环已覆盖 |
-| US-025 C ABI RPC 最小导出 | partial | `src/solana/cabi/rpc.zig` | surface 已导出，但 runtime 仍绑定 dummy transport |
-| US-026 Stake 完整生命周期 | partial | `src/solana/interfaces/stake.zig` | 四类 builder 已有；create helper 契约与负路径测试仍不足 |
+| US-025 C ABI RPC 最小导出 | done | `src/solana/cabi/rpc.zig` | RPC 已切到真实 HTTP transport（`#85`，`23d8cf4`） |
+| US-026 Stake 完整生命周期 | done | `src/solana/interfaces/stake.zig` | create helper 契约对齐 + 4 组负路径测试（`#86`，`23d8cf4`） |
 | US-027 benchmark 扩展 | done | `src/benchmark.zig` | `zig build bench` 已输出 signer/C ABI 指标 |
 | US-028 文档收口 | done | `docs/prd-phase-3-batch-3-solana-zig-sdk-signersc-abi-stake.md`, `docs/17-quickstart-and-api-examples.md`, `docs/cabi-guide.md`, `docs/06-implementation-log.md`, `docs/10-coverage-matrix.md` | 2026-04-17 已按复核结论回写 |
 
@@ -208,3 +208,27 @@
 - 条件回写：
   - `docs/35-phase3-batch3-release-readiness.md`：不触发
   - `docs/28-phase2-closeout-readiness.md`：不触发
+
+## 16. Phase 3 Batch 5 Tracking (canonical board: #84~#88)
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `exception final convergence` | closed | `#84` | — | `b02071b`，isolated canonical clean，`devnet-e2e 17/17` + `e2e 2/2` + `208/208`；最终输入：`partial_exception + accepted_exception_path` | `src/e2e/devnet_e2e.zig` + `docs/14a` Run 15 + `docs/39` | `G-P3E-01` + `G-P3E-02` PASS |
+| `C ABI RPC/live alignment` | closed | `#85` | — | `23d8cf4`，`cabi/rpc` 已切到真实 HTTP transport 路径（`initHttpTransport + std.Io.Threaded`），lifecycle/error model 证据齐 | `src/solana/cabi/rpc.zig` + `include/solana_zig.h` + `docs/39` | `G-P3E-03` PASS |
+| `stake create + negative-path closure` | closed | `#86` | — | `23d8cf4`，`buildCreateStakeAccountInstructions` 契约对齐（create-account + initialize），compile-sign/negative-path 证据齐 | `src/solana/interfaces/stake.zig` + `docs/39` | 作为 `G-P3E-04` 子项输入 PASS |
+| `rust baseline + aggregate verdict input` | closed | `#87` | — | `9f903e5`，Rust harness 入库 + Run 3 可复现，`G-P3E-04 PASS` | `scripts/oracle/rust_benchmark.rs` + `docs/13a` + `docs/39` | `G-P3E-04` PASS |
+| `batch5.docs/gate reconciliation + aggregate closeout` | in_review | `#88` | 全量 docs 对账完成，待 reviewer `G-P3E-05` 结论 | 回写 `docs/06+10+13a+15+39`；main `762f0f3`，`239/239 PASS` | 本矩阵 + `docs/39` | 待 `G-P3E-05` |
+
+### Phase 3 Batch 5 Exception Register
+
+- `requestAirdrop`: `partial_exception`（public devnet rate-limit + local-live success）
+- `getAddressLookupTable`: `accepted_exception_path`（method-not-found / RPC error evidence）
+
+### Phase 3 Batch 5 / Aggregate Verdict (candidate)
+
+- Batch 5 候选结论：`有条件发布`
+- Phase 3 aggregate 候选结论：`有条件发布`
+- 原因：strict model 下仍存在 2 项 open exceptions
+- Gates: G-P3E-01~04 PASS，G-P3E-05 待 reviewer 结论
+- Tests: 239/239 PASS
+- 条件回写判断：`docs/37` / `docs/35` / `docs/28` 均不触发

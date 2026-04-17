@@ -315,10 +315,10 @@
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
 | `exception final convergence` | closed | `#84` | — | `b02071b`，isolated canonical clean，`devnet-e2e 17/17` + `e2e 2/2` + `208/208`；最终输入：`partial_exception + accepted_exception_path` | `src/e2e/devnet_e2e.zig` + `docs/14a` Run 15 + `docs/39` | `G-P3E-01` + `G-P3E-02` PASS |
-| `C ABI RPC/live alignment` | in_progress | `#85` | 待可评审包 | header/export consistency + RPC 真实可调证据待补 | `src/solana/cabi/*` + `include/solana_zig.h` + `docs/39` | 待 `G-P3E-03` |
-| `stake create + negative-path closure` | in_progress | `#86` | 待可评审包 | create helper 契约一致性 + 负路径机械证据待补 | `src/solana/interfaces/stake.zig` + `docs/39` | 待 `G-P3E-04`（stake 子项） |
-| `rust baseline + aggregate verdict input` | in_progress | `#87` | 依赖 `#85/#86` 证据 | benchmark 对比与 aggregate verdict 输入并包待提审 | `docs/13a` + 本矩阵 + `docs/39` | 待 `G-P3E-04` |
-| `docs/gate reconciliation + aggregate closeout` | in_progress | `#88` | 依赖 `#85/#86/#87` | 中间态已纳入 `#84` 结论，final closeout 待实现线齐备 | `docs/06+10+13a+14a+15+39` | 待 `G-P3E-05` |
+| `C ABI RPC/live alignment` | closed | `#85` | — | `23d8cf4`，isolated canonical clean，`210/210 PASS`；C ABI RPC 切到真实 HTTP transport，lifecycle/error 证据齐 | `src/solana/cabi/*` + `include/solana_zig.h` + `docs/39` | `G-P3E-03` PASS |
+| `stake create + negative-path closure` | closed | `#86` | — | `23d8cf4`，isolated canonical clean，`210/210 PASS`；create helper 契约对齐 + 4 组负路径测试 | `src/solana/interfaces/stake.zig` + `docs/39` | `G-P3E-04` input PASS |
+| `rust baseline + aggregate verdict input` | closed | `#87` | — | `9f903e5`，isolated canonical clean，`208/208 PASS`；Rust baseline Run 3（signer 10.8μs, base58 83ns）+ aggregate verdict input | `docs/13a` + `scripts/oracle/rust_benchmark.rs` + 本矩阵 + `docs/39` | `G-P3E-04` PASS |
+| `docs/gate reconciliation + aggregate closeout` | in_review | `#88` | reviewer final verdict pending | `762f0f3`（main），clean，`239/239 PASS`；全量 docs 对账已提交，等待 `G-P3E-05` 结论 | `docs/06+10+13a+14a+15+39` | 待 `G-P3E-05` |
 
 ### Phase 3 Batch 5 Exception Register（Current）
 
@@ -329,4 +329,12 @@
   - 当前状态：`accepted_exception_path`
   - 证据：`#84`（`b02071b`，Run 15）
 
-> 当前 aggregate 输入下，Batch 5 / Phase 3 仍不满足升级到 `可发布` 的条件；最终 verdict 由 `#88` 在 `G-P3E-05` 收口时锁定。
+> Batch 5 / Phase 3 aggregate verdict（candidate）: `有条件发布`。strict model 下仍有 2 项 open exceptions，不满足升级到 `可发布` 的条件。
+
+### Phase 3 Batch 5 Verdict（pending `#88` reviewer）
+
+- Batch 5 verdict（candidate）: `有条件发布`
+- Phase 3 aggregate verdict（candidate）: `有条件发布`
+- Gates: `G-P3E-01~04` PASS，`G-P3E-05` 待 reviewer 结论
+- Tests: 239/239 PASS（main `762f0f3`）
+- Conditional writeback（candidate）: docs/37、docs/35、docs/28 预计均不触发
