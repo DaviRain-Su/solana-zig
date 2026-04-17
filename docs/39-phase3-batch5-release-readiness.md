@@ -40,7 +40,7 @@
 - 仅 `<=b55c165` 的提交计入本批 baseline；
 - 之后新增提交默认为 candidate，不自动计入。
 
-## 4. Current Snapshot (provisional)
+## 4. Current Snapshot (final)
 
 - `#79`: `3460ac9`（G-P3D-01/02 PASS）
 - `#80`: `e9fd4ff`（G-P3D-01/03 PASS）
@@ -51,7 +51,7 @@
 - `#85`: `23d8cf4`（G-P3E-03 PASS，Done）
 - `#86`: `23d8cf4`（G-P3E-04 input PASS，Done）
 - `#87`: `9f903e5`（G-P3E-04 PASS，Done）
-- `#88`: Final closeout（G-P3E-05）
+- `#88`: Final closeout（G-P3E-05 PASS）
 
 ### 4.1 Final strict-model input
 
@@ -87,16 +87,16 @@
 
 默认不触发；仅在满足对应升级条件时回写。
 
-## 8. Finalization Block (to be filled at closeout)
+## 8. Finalization Block
 
 - Batch 5 verdict: `final: 有条件发布`
 - Phase 3 aggregate verdict: `final: 有条件发布`
 - Open exceptions summary:
   - `requestAirdrop`: `partial_exception`（public devnet rate-limit + local-live success）
   - `getAddressLookupTable`: `accepted_exception_path`（method-not-found / RPC error evidence）
-- Closeout commit/hash: `c654414`
+- Closeout commit/hash: 本次 `#88` closeout docs commit
 - Test count: 239/239 PASS（baseline `a0984da`）
-- Rust baseline: Run 3（`9f903e5`，signer 10.9μs Rust vs 36.3μs Zig，base58 83ns Rust vs 1213ns Zig）
+- Rust baseline: Run 3（harness `b71a899`，review package `9f903e5`；signer 13.7μs Rust vs 36.3μs Zig，base58 81ns Rust vs 1213ns Zig）
 
 ### 8.1 Phase 3 Aggregate Verdict Rationale
 
@@ -111,5 +111,5 @@ Phase 3 最终保持 `有条件发布`，原因：
 ### 8.2 Conditional Writeback Result
 
 - `docs/37`：不触发回写（Batch 4 verdict 口径未变）
-- `docs/35`：不触发回写（Batch 3 verdict 口径��变）
+- `docs/35`：不触发回写（Batch 3 verdict 口径未变）
 - `docs/28`：不触发回写（Phase 2 aggregate 升级条件仍不满足）
