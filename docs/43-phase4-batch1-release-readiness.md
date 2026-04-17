@@ -32,7 +32,7 @@ Batch 1 只覆盖 core framework：
 | Gate | 目标 | 当前状态 |
 |------|------|----------|
 | `G-P4B-01` | 独立包边界 + canonical host compile | `pending` |
-| `G-P4B-02` | entrypoint/parse/smoke（surfpool, linux-x86_64） | `pending` |
+| `G-P4B-02` | entrypoint + account deserialization + instruction parse + surfpool smoke（linux-x86_64） | `pending` |
 | `G-P4B-03` | docs/gate reconciliation | `pending` |
 
 ## 4. Task-to-Gate Mapping（planned）
@@ -40,6 +40,8 @@ Batch 1 只覆盖 core framework：
 - `#101` → `G-P4B-01`
 - `#102/#103/#104` → `G-P4B-02`
 - `#105` → `G-P4B-03`
+
+`#103` 为 `G-P4B-02` 必经项，不可绕开。
 
 ## 5. Canonical Execution Policy
 
@@ -51,18 +53,21 @@ Batch 1 只覆盖 core framework：
 ## 6. Required Evidence（for `G-P4B` closeout）
 
 1. clean isolated canonical package（commit/hash + clean status）
-2. package boundary 证据（目录/构建入口/边界说明）
+2. package boundary 证据（固定目录、allowed import boundary、negative write-set）
 3. compile + deploy + smoke 机械证据（同一 canonical host）
-4. docs 对账（`docs/06` / `docs/10` / `docs/15` / `docs/41` / `docs/43`）
+4. account deserialization 机械证据：
+   - 1 条正路径（合法账户视图解析）
+   - 2 条负路径（数据长度不足 + owner/account meta 不匹配）
+5. docs 对账（`docs/06` / `docs/10` / `docs/15` / `docs/41` / `docs/43`）
 
 ## 7. Current Snapshot
 
-- `#100`: `in_progress`（planning draft）
+- `#100`: `in_review`（planning draft）
 - Batch 1 implementation tasks: `pending creation`
 - Gate mode: planning-first（结构审 PASS 前冻结实现提交）
 
 ## 8. Finalization Block (pending reviewer)
 
-- structural review baseline: `pending`
+- structural review baseline: `pending supersede`
 - `#100` verdict: `pending`
 - Batch 1 implementation mode: `frozen`
