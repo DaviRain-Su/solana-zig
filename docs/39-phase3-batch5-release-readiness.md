@@ -1,7 +1,7 @@
 # Phase 3 Batch 5 Release Readiness
 
 **Date**: 2026-04-17  
-**Status**: Provisional  
+**Status**: Final  
 **Owner**: `#88`  
 **Batch**: Phase 3 Batch 5  
 **Freeze point**: `b55c165`
@@ -40,7 +40,7 @@
 - 仅 `<=b55c165` 的提交计入本批 baseline；
 - 之后新增提交默认为 candidate，不自动计入。
 
-## 4. Current Snapshot (in review)
+## 4. Current Snapshot (final)
 
 - `#79`: `3460ac9`（G-P3D-01/02 PASS）
 - `#80`: `e9fd4ff`（G-P3D-01/03 PASS）
@@ -51,7 +51,7 @@
 - `#85`: `23d8cf4`（G-P3E-03 PASS，Done）
 - `#86`: `23d8cf4`（G-P3E-04 input PASS，Done）
 - `#87`: `9f903e5`（G-P3E-04 PASS，Done）
-- `#88`: In Review（G-P3E-05 pending reviewer verdict）
+- `#88`: `ee73045`（G-P3E-05 PASS，Done）
 
 ### 4.1 Current strict-model input
 
@@ -87,14 +87,14 @@
 
 默认不触发；仅在满足对应升级条件时回写。
 
-## 8. Finalization Block (pending reviewer)
+## 8. Finalization Block
 
-- Batch 5 verdict: `candidate: 有条件发布`
-- Phase 3 aggregate verdict: `candidate: 有条件发布`
+- Batch 5 verdict: `final: 有条件发布`
+- Phase 3 aggregate verdict: `final: 有条件发布`
 - Open exceptions summary:
   - `requestAirdrop`: `partial_exception`（public devnet rate-limit + local-live success）
   - `getAddressLookupTable`: `accepted_exception_path`（method-not-found / RPC error evidence）
-- Closeout commit/hash: pending `#88 / G-P3E-05`
+- Closeout commit/hash: `ee73045`
 - Test count: 239/239 PASS（baseline `a0984da`）
 - Rust baseline: Run 3（harness `b71a899`，review package `9f903e5`；signer 13.7μs Rust vs 36.3μs Zig，base58 81ns Rust vs 1213ns Zig）
 
