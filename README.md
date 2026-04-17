@@ -29,7 +29,7 @@ The main implementation surface is present, but the authoritative status for rem
 ## Build & Test
 
 ```bash
-zig build test          # 229 tests
+zig build test          # 239 tests
 zig build bench         # benchmark baseline
 ```
 

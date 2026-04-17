@@ -117,7 +117,7 @@
 ### 1. Run Record
 
 - Run ID: `2026-04-17/p3e87-rust-baseline/small`
-- Commit: `9f903e5`
+- Commit: `b71a899`（harness source；`9f903e5` 为 reviewer package docs sync）
 - Date: `2026-04-17`
 - Operator: `@codex_5_3`
 - Host / CPU: Apple Silicon (arm64)

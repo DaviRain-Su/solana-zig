@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("types.zig");
 
 const c = std.c;
+const max_ws_payload_len = 16 * 1024 * 1024; // 16MB
 
 pub const WsClient = struct {
     allocator: std.mem.Allocator,
@@ -320,6 +321,7 @@ pub const WsClient = struct {
                 payload_len = (payload_len << 8) | @as(u64, b);
             }
         }
+        if (payload_len > max_ws_payload_len) return error.WsProtocolError;
 
         var mask_key: [4]u8 = undefined;
         if (masked) {
@@ -1570,6 +1572,7 @@ const MockWsServer = struct {
             payload_len = 0;
             for (lb) |b| payload_len = (payload_len << 8) | b;
         }
+        if (payload_len > max_ws_payload_len) return error.WsProtocolError;
 
         var mask_key: [4]u8 = undefined;
         if (masked) {

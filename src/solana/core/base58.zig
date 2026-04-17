@@ -53,6 +53,51 @@ pub fn encodeAlloc(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
     return out;
 }
 
+/// Encode `input` into caller-provided `out` buffer without heap allocation for small inputs.
+/// Returns the number of bytes written.
+/// For common small inputs (e.g. 32-byte pubkey) this path is allocation-free.
+pub fn encodeToBuf(out: []u8, input: []const u8) !usize {
+    if (input.len == 0) return 0;
+
+    var zeros: usize = 0;
+    while (zeros < input.len and input[zeros] == 0) : (zeros += 1) {}
+
+    // Upper-bound estimate: each input byte adds at most ~1.37 base58 chars.
+    const max_digits = (input.len * 137) / 100 + 1;
+
+    // Stack fallback ensures small inputs (pubkey etc.) require zero heap allocations.
+    var fallback = std.heap.stackFallback(256, std.heap.page_allocator);
+    const allocator = fallback.get();
+
+    var digits: std.ArrayList(u8) = .empty;
+    defer digits.deinit(allocator);
+    try digits.ensureTotalCapacity(allocator, max_digits);
+
+    var i: usize = zeros;
+    while (i < input.len) : (i += 1) {
+        var carry: u32 = input[i];
+        var j: usize = 0;
+        while (j < digits.items.len) : (j += 1) {
+            carry += @as(u32, digits.items[j]) * 256;
+            digits.items[j] = @intCast(carry % 58);
+            carry /= 58;
+        }
+        while (carry > 0) {
+            digits.appendAssumeCapacity(@intCast(carry % 58));
+            carry /= 58;
+        }
+    }
+
+    const encoded_len = zeros + digits.items.len;
+    if (out.len < encoded_len) return error.NoSpaceLeft;
+
+    @memset(out[0..encoded_len], '1');
+    for (digits.items, 0..) |digit, k| {
+        out[encoded_len - 1 - k] = alphabet[digit];
+    }
+    return encoded_len;
+}
+
 pub fn decodeAlloc(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
     if (input.len == 0) return allocator.alloc(u8, 0);
 
@@ -150,4 +195,31 @@ test "base58 roundtrip preserves leading zero bytes" {
     const decoded = try decodeAlloc(gpa, encoded);
     defer gpa.free(decoded);
     try std.testing.expectEqualSlices(u8, &input, decoded);
+}
+
+test "encodeToBuf matches encodeAlloc for various inputs" {
+    const gpa = std.testing.allocator;
+    const cases = &[_][]const u8{
+        "",
+        &[_]u8{0},
+        &[_]u8{ 0, 0, 1, 2, 3 },
+        "hello-solana",
+        &[_]u8{0xAB} ** 1024,
+    };
+
+    var buf: [2048]u8 = undefined;
+    for (cases) |input| {
+        const expected = try encodeAlloc(gpa, input);
+        defer gpa.free(expected);
+
+        const len = try encodeToBuf(&buf, input);
+        try std.testing.expectEqual(expected.len, len);
+        try std.testing.expectEqualSlices(u8, expected, buf[0..len]);
+    }
+}
+
+test "encodeToBuf returns NoSpaceLeft when buffer too small" {
+    const input = "hello-solana";
+    var buf: [4]u8 = undefined;
+    try std.testing.expectError(error.NoSpaceLeft, encodeToBuf(&buf, input));
 }

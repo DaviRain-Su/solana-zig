@@ -8,8 +8,6 @@ export fn solana_rpc_client_init(endpoint: [*c]const u8, endpoint_len: usize, ou
     if (endpoint == null or out == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
     const allocator = std.heap.c_allocator;
     const endpoint_slice = endpoint[0..endpoint_len];
-    const endpoint_copy = allocator.dupe(u8, endpoint_slice) catch return errors.SOLANA_ERR_INTERNAL;
-    errdefer allocator.free(endpoint_copy);
 
     const client = allocator.create(solana.rpc.RpcClient) catch return errors.SOLANA_ERR_INTERNAL;
     errdefer allocator.destroy(client);
@@ -18,10 +16,11 @@ export fn solana_rpc_client_init(endpoint: [*c]const u8, endpoint_len: usize, ou
     transport_ctx.* = .{};
 
     const transport = solana.rpc.Transport.init(transport_ctx, dummyPostJson, dummyDeinit);
-    client.* = solana.rpc.RpcClient.initWithTransport(allocator, endpoint_copy, transport) catch {
+    errdefer transport.deinit(allocator);
+
+    client.* = solana.rpc.RpcClient.initWithTransport(allocator, endpoint_slice, transport) catch {
         return errors.SOLANA_ERR_INTERNAL;
     };
-    allocator.free(endpoint_copy);
 
     out[0] = @ptrCast(client);
     return errors.SOLANA_OK;

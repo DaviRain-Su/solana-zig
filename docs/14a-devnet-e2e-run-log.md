@@ -797,3 +797,31 @@ SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8
 
 - 本次 run 对应 `#84` 的 reviewer PASS 回合（`G-P3E-01/G-P3E-02`）。
 - 本次目标是给出“最终可复现结论 + verdict-upgrade 输入”；不要求本批强制把 exception 关闭为 `closed`。
+
+---
+
+## Run 16 — Phase 3 Batch 5 Closeout Evidence Mapping (`#88`)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-17/phase3-batch5/closeout-evidence-mapping`
+- Date: `2026-04-17`
+- Run Type: `docs-reconciliation`（no-new-runtime）
+- Operator: `@codex_`
+- Scope: 将 Batch 5 closeout 使用的 e2e/exception 证据与 `docs/39`、`docs/15` 对账。
+
+### 2. Mapping Summary
+
+- `requestAirdrop` strict-model 输入来源：Run 15（`#84`, `b02071b`）→ `partial_exception`
+- `getAddressLookupTable` strict-model 输入来源：Run 15（`#84`, `b02071b`）→ `accepted_exception_path`
+- 本轮不新增 runtime 执行；延用已通过 reviewer 的 Run 15 证据链。
+
+### 3. Evidence Checklist
+
+- [x] Run 15 与 `docs/39` 的 exception label 一致（`partial_exception` / `accepted_exception_path`）
+- [x] Run 15 与 `docs/15` 的 Batch 5 Exception Register 一致
+- [x] strict model 下 verdict-upgrade 输入一致（仍不满足升级到 `可发布`）
+
+### 4. Notes
+
+- 本条用于满足 `G-P3E-05` 的 docs/evidence 对账要求，不代表新增实现能力。

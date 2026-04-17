@@ -25,6 +25,10 @@ pub const Pubkey = struct {
         return base58.encodeAlloc(allocator, &self.bytes);
     }
 
+    pub fn toBase58Buf(self: Pubkey, out: []u8) !usize {
+        return base58.encodeToBuf(out, &self.bytes);
+    }
+
     pub fn eql(self: Pubkey, other: Pubkey) bool {
         return std.mem.eql(u8, &self.bytes, &other.bytes);
     }

@@ -8,23 +8,23 @@ pub export fn solana_zig_abi_version() c_int {
 
 // ===================== Pubkey =====================
 
-pub export fn solana_pubkey_from_bytes(bytes: [*c]const u8, len: usize, out: *solana.core.Pubkey) c_int {
-    if (bytes == null or len != 32) return errors.SOLANA_ERR_INVALID_ARGUMENT;
-    out.* = solana.core.Pubkey.init(bytes[0..32].*);
+pub export fn solana_pubkey_from_bytes(bytes: [*c]const u8, len: usize, out: ?*solana.core.Pubkey) c_int {
+    if (bytes == null or out == null or len != 32) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+    out.?.* = solana.core.Pubkey.init(bytes[0..32].*);
     return errors.SOLANA_OK;
 }
 
-pub export fn solana_pubkey_to_base58(pubkey: ?*const solana.core.Pubkey, out_str: *[*c]u8, out_len: *usize) c_int {
-    if (pubkey == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+pub export fn solana_pubkey_to_base58(pubkey: ?*const solana.core.Pubkey, out_str: ?*[*c]u8, out_len: ?*usize) c_int {
+    if (pubkey == null or out_str == null or out_len == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
     const encoded = pubkey.?.toBase58Alloc(std.heap.c_allocator) catch return errors.SOLANA_ERR_INTERNAL;
-    out_str.* = encoded.ptr;
-    out_len.* = encoded.len;
+    out_str.?.* = encoded.ptr;
+    out_len.?.* = encoded.len;
     return errors.SOLANA_OK;
 }
 
-pub export fn solana_pubkey_from_base58(str: [*c]const u8, len: usize, out: *solana.core.Pubkey) c_int {
-    if (str == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
-    out.* = solana.core.Pubkey.fromBase58(str[0..len]) catch return errors.SOLANA_ERR_INVALID_ARGUMENT;
+pub export fn solana_pubkey_from_base58(str: [*c]const u8, len: usize, out: ?*solana.core.Pubkey) c_int {
+    if (str == null or out == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+    out.?.* = solana.core.Pubkey.fromBase58(str[0..len]) catch return errors.SOLANA_ERR_INVALID_ARGUMENT;
     return errors.SOLANA_OK;
 }
 
@@ -35,23 +35,23 @@ pub export fn solana_pubkey_equal(a: ?*const solana.core.Pubkey, b: ?*const sola
 
 // ===================== Signature =====================
 
-pub export fn solana_signature_from_bytes(bytes: [*c]const u8, len: usize, out: *solana.core.Signature) c_int {
-    if (bytes == null or len != 64) return errors.SOLANA_ERR_INVALID_ARGUMENT;
-    out.* = solana.core.Signature.init(bytes[0..64].*);
+pub export fn solana_signature_from_bytes(bytes: [*c]const u8, len: usize, out: ?*solana.core.Signature) c_int {
+    if (bytes == null or out == null or len != 64) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+    out.?.* = solana.core.Signature.init(bytes[0..64].*);
     return errors.SOLANA_OK;
 }
 
-pub export fn solana_signature_from_base58(str: [*c]const u8, len: usize, out: *solana.core.Signature) c_int {
-    if (str == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
-    out.* = solana.core.Signature.fromBase58(str[0..len]) catch return errors.SOLANA_ERR_INVALID_ARGUMENT;
+pub export fn solana_signature_from_base58(str: [*c]const u8, len: usize, out: ?*solana.core.Signature) c_int {
+    if (str == null or out == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+    out.?.* = solana.core.Signature.fromBase58(str[0..len]) catch return errors.SOLANA_ERR_INVALID_ARGUMENT;
     return errors.SOLANA_OK;
 }
 
-pub export fn solana_signature_to_base58(sig: ?*const solana.core.Signature, out_str: *[*c]u8, out_len: *usize) c_int {
-    if (sig == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+pub export fn solana_signature_to_base58(sig: ?*const solana.core.Signature, out_str: ?*[*c]u8, out_len: ?*usize) c_int {
+    if (sig == null or out_str == null or out_len == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
     const encoded = sig.?.toBase58Alloc(std.heap.c_allocator) catch return errors.SOLANA_ERR_INTERNAL;
-    out_str.* = encoded.ptr;
-    out_len.* = encoded.len;
+    out_str.?.* = encoded.ptr;
+    out_len.?.* = encoded.len;
     return errors.SOLANA_OK;
 }
 
@@ -62,23 +62,23 @@ pub export fn solana_signature_equal(a: ?*const solana.core.Signature, b: ?*cons
 
 // ===================== Hash =====================
 
-pub export fn solana_hash_from_bytes(bytes: [*c]const u8, len: usize, out: *solana.core.Hash) c_int {
-    if (bytes == null or len != 32) return errors.SOLANA_ERR_INVALID_ARGUMENT;
-    out.* = solana.core.Hash.init(bytes[0..32].*);
+pub export fn solana_hash_from_bytes(bytes: [*c]const u8, len: usize, out: ?*solana.core.Hash) c_int {
+    if (bytes == null or out == null or len != 32) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+    out.?.* = solana.core.Hash.init(bytes[0..32].*);
     return errors.SOLANA_OK;
 }
 
-pub export fn solana_hash_from_base58(str: [*c]const u8, len: usize, out: *solana.core.Hash) c_int {
-    if (str == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
-    out.* = solana.core.Hash.fromBase58(str[0..len]) catch return errors.SOLANA_ERR_INVALID_ARGUMENT;
+pub export fn solana_hash_from_base58(str: [*c]const u8, len: usize, out: ?*solana.core.Hash) c_int {
+    if (str == null or out == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+    out.?.* = solana.core.Hash.fromBase58(str[0..len]) catch return errors.SOLANA_ERR_INVALID_ARGUMENT;
     return errors.SOLANA_OK;
 }
 
-pub export fn solana_hash_to_base58(h: ?*const solana.core.Hash, out_str: *[*c]u8, out_len: *usize) c_int {
-    if (h == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+pub export fn solana_hash_to_base58(h: ?*const solana.core.Hash, out_str: ?*[*c]u8, out_len: ?*usize) c_int {
+    if (h == null or out_str == null or out_len == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
     const encoded = h.?.toBase58Alloc(std.heap.c_allocator) catch return errors.SOLANA_ERR_INTERNAL;
-    out_str.* = encoded.ptr;
-    out_len.* = encoded.len;
+    out_str.?.* = encoded.ptr;
+    out_len.?.* = encoded.len;
     return errors.SOLANA_OK;
 }
 

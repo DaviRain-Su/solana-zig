@@ -8,14 +8,14 @@ fn freeInstruction(allocator: std.mem.Allocator, ix: *solana.tx.Instruction) voi
 }
 
 export fn solana_instruction_create(
-    program_id: *const solana.core.Pubkey,
+    program_id: ?*const solana.core.Pubkey,
     accounts: ?[*]const solana.tx.AccountMeta,
     account_count: usize,
     data: [*c]const u8,
     data_len: usize,
     out: [*c]?*solana.tx.Instruction,
 ) c_int {
-    if (out == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+    if (program_id == null or out == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
 
     const allocator = std.heap.c_allocator;
 
@@ -38,7 +38,7 @@ export fn solana_instruction_create(
         return errors.SOLANA_ERR_INTERNAL;
     };
     ix.* = .{
-        .program_id = program_id.*,
+        .program_id = program_id.?.*,
         .accounts = accts,
         .data = d,
     };
@@ -54,13 +54,13 @@ export fn solana_instruction_destroy(ix: [*c]?*solana.tx.Instruction) void {
 }
 
 export fn solana_message_compile_legacy(
-    payer: *const solana.core.Pubkey,
+    payer: ?*const solana.core.Pubkey,
     instructions: ?[*]const *const solana.tx.Instruction,
     instruction_count: usize,
-    recent_blockhash: *const solana.core.Hash,
+    recent_blockhash: ?*const solana.core.Hash,
     out: [*c]?*solana.tx.Message,
 ) c_int {
-    if (out == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
+    if (payer == null or recent_blockhash == null or out == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
     const allocator = std.heap.c_allocator;
 
     const ixs = allocator.alloc(solana.tx.Instruction, instruction_count) catch return errors.SOLANA_ERR_INTERNAL;
@@ -99,7 +99,7 @@ export fn solana_message_compile_legacy(
         }
         return errors.SOLANA_ERR_INTERNAL;
     };
-    msg.* = solana.tx.Message.compileLegacy(allocator, payer.*, ixs, recent_blockhash.*) catch {
+    msg.* = solana.tx.Message.compileLegacy(allocator, payer.?.*, ixs, recent_blockhash.?.*) catch {
         allocator.destroy(msg);
         for (0..initialized_ix_count) |j| {
             allocator.free(ixs[j].accounts);
