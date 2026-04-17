@@ -33,7 +33,7 @@ Also available:
 
 ## Important behavior and limitations
 
-- The current transport supports both `ws://` and `wss://` endpoints.
+- The current transport only supports `ws://` endpoints. `wss://` will return `error.InvalidUrl`.
 - `accountSubscribe`, `programSubscribe`, `signatureSubscribe`, and `blockSubscribe` accept a `Commitment` parameter (default: `.confirmed`).
 - `accountSubscribe` and `programSubscribe` currently send `encoding = "base64"` and `commitment = "confirmed"`.
 - `signatureSubscribe` and `blockSubscribe` currently send `commitment = "confirmed"`.
