@@ -682,6 +682,20 @@ pub fn main() !void {
         printResult("pubkey_to_base58_buf", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
 
+    {
+        var buf: [64]u8 = undefined;
+        for (0..WARMUP_ITERS) |_| {
+            const len = pubkey.toBase58Fast(&buf);
+            std.mem.doNotOptimizeAway(buf[0..len]);
+        }
+        const start = nowNs();
+        for (0..BENCH_ITERS) |_| {
+            const len = pubkey.toBase58Fast(&buf);
+            std.mem.doNotOptimizeAway(buf[0..len]);
+        }
+        printResult("pubkey_to_base58_fast", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
+    }
+
     // --- shortvec ---
     std.debug.print("\n--- shortvec ---\n", .{});
     {

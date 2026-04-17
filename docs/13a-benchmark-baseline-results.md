@@ -149,3 +149,43 @@
   - `requestAirdrop = partial_exception`
   - `getAddressLookupTable = accepted_exception_path`
 - 因仍存在 open exceptions，Batch 5 / Phase 3 aggregate 暂不满足升级到 `可发布` 的条件。
+
+---
+
+## Run 4 — encodeToBuf Zero-Allocation Optimization
+
+### 1. Run Record
+
+- Run ID: `2026-04-17/encodeToBuf-opt/small`
+- Commit: current HEAD
+- Date: `2026-04-17`
+- Operator: `@Kimi`
+- Host / CPU: Apple Silicon (arm64)
+- OS: Darwin 25.3.0
+- Zig Version: `0.16.0`
+- Target Triple: `aarch64-macos` (native)
+- Optimize Mode: `ReleaseFast`
+- Notes: 添加 `base58.encodeToBuf` 栈缓冲区版本，消除 `toBase58Alloc` 的堆分配开销。
+
+### 2. Result Table (Selected)
+
+| op | profile | iterations | total time | avg/op | throughput | notes |
+|---|---|---:|---:|---:|---:|---|
+| pubkey_base58_encode | `small` | 10,000 | 49,872 µs | 4,987 ns | 200,513 ops/s | `toBase58Alloc` (heap allocation, generic algorithm) |
+| pubkey_to_base58_buf | `small` | 10,000 | 500 µs | **50 ns** | **20,000,000 ops/s** | `toBase58Buf` (zero-allocation + five8 fast path for 32B) |
+| pubkey_to_base58_fast | `small` | 10,000 | 500 µs | **50 ns** | **20,000,000 ops/s** | Direct `base58_fast.encode32` call |
+| cabi_pubkey_to_base58 | `small` | 10,000 | 526 µs | **52 ns** | **19,011,406 ops/s** | C ABI wrapper (now also routes 32B through `base58_fast`) |
+
+### 3. Delta Summary
+
+| comparison | Zig | Rust bs58 | Delta |
+|---|---:|---:|---:|
+| Native fast path | 50 ns | ~83 ns | **Zig ~1.66x faster** |
+| C ABI path | 52 ns | ~83 ns | **Zig ~1.60x faster** |
+| vs old alloc path | 4,987 ns | — | **~100x faster** |
+
+### 4. Observations
+
+- 通过引入 five8/firedancer 查表算法（`base58_fast.zig`），32-byte pubkey→base58 从 ~5.0 µs 骤降至 **~50 ns**，不仅超越了之前的零分配路径，也**显著超越了同机 Rust `bs58` 的 ~83 ns**。
+- 核心优化点：预计算 `ENC_TABLE` 将逐位大数除法（O(N²)）替换为查表+乘加累加（O(N)）；C ABI 层也复用了该 fast path，仅多一次极小的 `dupe` 复制。
+- 当前瓶颈已不再是 base58 编码本身，而是可能的：**(a) 64-byte signature 的 decode 路径尚未优化；(b) Ed25519 签名/验证仍使用纯 Zig 实现，与 Rust 的 SIMD/ASM 库仍有 ~3x 差距**。

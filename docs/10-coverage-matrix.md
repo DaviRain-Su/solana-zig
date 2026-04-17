@@ -217,7 +217,7 @@
 | `C ABI RPC/live alignment` | closed | `#85` | — | `23d8cf4`，`cabi/rpc` 已切到真实 HTTP transport 路径（`initHttpTransport + std.Io.Threaded`），lifecycle/error model 证据齐 | `src/solana/cabi/rpc.zig` + `include/solana_zig.h` + `docs/39` | `G-P3E-03` PASS |
 | `stake create + negative-path closure` | closed | `#86` | — | `23d8cf4`，`buildCreateStakeAccountInstructions` 契约对齐（create-account + initialize），compile-sign/negative-path 证据齐 | `src/solana/interfaces/stake.zig` + `docs/39` | 作为 `G-P3E-04` 子项输入 PASS |
 | `rust baseline + aggregate verdict input` | closed | `#87` | — | `9f903e5`，Rust harness 入库 + Run 3 可复现，`G-P3E-04 PASS` | `scripts/oracle/rust_benchmark.rs` + `docs/13a` + `docs/39` | `G-P3E-04` PASS |
-| `batch5.docs/gate reconciliation + aggregate closeout` | in_review | `#88` | 全量 docs 对账完成，待 reviewer `G-P3E-05` 结论 | 回写 `docs/06+10+13a+15+39`；main `762f0f3`，`239/239 PASS` | 本矩阵 + `docs/39` | 待 `G-P3E-05` |
+| `batch5.docs/gate reconciliation + aggregate closeout` | closed | `#88` | — | `e913351`，G-P3E-05 PASS，verdict `有条件发布` | 本矩阵 + `docs/39` | `G-P3E-05` PASS |
 
 ### Phase 3 Batch 5 Exception Register
 

@@ -1,5 +1,6 @@
 const std = @import("std");
 const base58 = @import("base58.zig");
+const base58_fast = @import("base58_fast.zig");
 
 pub const Pubkey = struct {
     pub const LENGTH: usize = 32;
@@ -27,6 +28,10 @@ pub const Pubkey = struct {
 
     pub fn toBase58Buf(self: Pubkey, out: []u8) !usize {
         return base58.encodeToBuf(out, &self.bytes);
+    }
+
+    pub fn toBase58Fast(self: Pubkey, out: []u8) usize {
+        return base58_fast.encode32(&self.bytes, out);
     }
 
     pub fn eql(self: Pubkey, other: Pubkey) bool {

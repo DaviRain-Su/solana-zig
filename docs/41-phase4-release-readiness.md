@@ -15,7 +15,7 @@
 
 | Gate | 目标 | 当前状态 |
 |------|------|----------|
-| `G-P4A` | 可行性（zignocchio compile/smoke + decision records） | `pending` |
+| `G-P4A` | 可行性（zignocchio compile/smoke on **linux-x86_64 canonical host** + decision records incl. D-05 host matrix） | `pending` |
 | `G-P4B` | 核心框架（entrypoint + hello-world） | `pending` |
 | `G-P4C` | CPI + Borsh + CU baseline | `pending` |
 | `G-P4D` | System/SPL + 示例程序 + CU baseline | `pending` |
@@ -30,6 +30,16 @@
 
 `G-P4A` 只计 `#95/#96/#97/#98`；`#94` 不作为解锁项。
 
+### 3.1 Host Matrix / Fallback 约束（#99 固化项）
+
+1. `#95` 必须给出 `zignocchio/sbpf-linker` 在 `darwin-arm64` 的支持结论：`支持 / 不支持 / 条件支持`。
+2. 若 `darwin-arm64` 不可用，允许采用 `linux-x86_64` 作为 `G-P4A` canonical 计分主机；`darwin-arm64` 降为 native/dev-only。
+3. `solana-zig-bootstrap` 默认保持“已排除对照方案”；仅在下列条件同时满足时才能降级为 controlled fallback candidate：
+- `linux-x86_64` 上 `zignocchio` compile 与 smoke 均失败且可复现；
+- 已提供最小复现（命令、环境、错误栈）；
+- reviewer 在 ADR 中签署 fallback 触发。
+4. 若 `linux-x86_64` 上 `zignocchio` compile + smoke 通过，则 bootstrap 维持永久排除，不进入实施计分。
+
 ## 4. Phase 3 Open Exceptions Boundary
 
 - Phase 3 open exceptions 不纳入 Phase 4 实现 scope：
@@ -42,7 +52,8 @@
 1. `#95` Zig compat matrix（基于 zignocchio 路线）
 2. `#97` Test harness ADR（validator vs program-test）
 3. `#98` Core types ADR（@import vs vendor + layout/freestanding evidence）
-4. `#95/#96` compile + smoke evidence
+4. `#95/#96` compile + smoke evidence（**on linux-x86_64 canonical host**）
+5. `D-05` Host support matrix：`darwin-arm64` 支持结论 + host tier 定义 + bootstrap fallback gate rule
 
 ## 6. Current Snapshot (in review)
 

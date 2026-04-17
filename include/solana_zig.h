@@ -97,7 +97,7 @@ int solana_transaction_serialize(const SolanaTransaction *tx, uint8_t **out_byte
 void solana_transaction_destroy(SolanaTransaction **tx);
 
 /* ===================== RPC Client ===================== */
-/* Current Batch 4 status: lifecycle scaffold only; transport is a dummy/stub and RPC calls are not live-ready from C yet. */
+/* Current status: live HTTP transport. RPC calls are functional from C. */
 int solana_rpc_client_init(const char *endpoint, size_t endpoint_len, SolanaRpcClientHandle **out);
 void solana_rpc_client_deinit(SolanaRpcClientHandle **handle);
 int solana_rpc_client_get_latest_blockhash(SolanaRpcClientHandle *handle, SolanaHash *out_blockhash);

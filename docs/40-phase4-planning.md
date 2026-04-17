@@ -37,6 +37,7 @@ Batch 0 的 `#95/#96` 仅对 `zignocchio` 路线计分，至少覆盖：
    - `linux-x86_64` 上 `zignocchio` 路线 compile 与 smoke 均失败，且失败可复现；\n
    - 已完成最小复现与根因记录（命令、环境、错误栈）；\n
    - reviewer 在 ADR 中签署 fallback 触发。\n
+4. 若 `linux-x86_64` 上 `zignocchio` compile + smoke 通过，则 `solana-zig-bootstrap` 维持永久排除，不进入实施计分。\n
 
 ### 2.4 风险
 

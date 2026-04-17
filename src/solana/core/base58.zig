@@ -57,6 +57,18 @@ pub fn encodeAlloc(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
 /// Returns the number of bytes written.
 /// For common small inputs (e.g. 32-byte pubkey) this path is allocation-free.
 pub fn encodeToBuf(out: []u8, input: []const u8) !usize {
+    if (input.len == 32) {
+        const bytes: *const [32]u8 = @ptrCast(input.ptr);
+        const len = @import("base58_fast.zig").encode32(bytes, out);
+        if (len == 0) return error.NoSpaceLeft;
+        return len;
+    }
+    if (input.len == 64) {
+        const bytes: *const [64]u8 = @ptrCast(input.ptr);
+        const len = @import("base58_fast.zig").encode64(bytes, out);
+        if (len == 0) return error.NoSpaceLeft;
+        return len;
+    }
     if (input.len == 0) return 0;
 
     var zeros: usize = 0;

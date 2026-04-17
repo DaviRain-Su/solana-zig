@@ -19,10 +19,12 @@
 - H-02: `MockExternalSigner` 存在 correctness gap。
   - 证据：`src/solana/signers/mock_external.zig` 的 `signMessage(...)` 当前忽略输入消息并签名空字符串。
   - 影响：mock external signer 不能作为可靠的 transaction-level signing 证据。
+  - **状态：已在 #79 修复** — 当前实现已改为 `kp.sign(msg)`，测试覆盖 `sig.verify(msg, pk)`。
 
 - H-03: Stake create helper 的 API/实现契约不一致。
   - 证据：`buildCreateStakeAccountInstruction(...)` 接口接收 `lamports`，但当前实现仅序列化 `StakeInstruction.initialize` 路径。
   - 影响：API 名称和行为不一致，且会误导调用方与文档示例。
+  - **状态：已在 #86 修复** — 当前 `buildCreateStakeAccountInstructions` 返回 `createAccount` + `initialize` 两条指令，测试覆盖数据布局与负路径。
 
 ### Medium
 
@@ -61,7 +63,7 @@
 
 ## 5. 结论
 
-- 当前阶段可判定为：**Product Phase 1/2 已完成；Phase 3 主体能力已落地，但仍处于 Batch 4 closeout**。
+- 当前阶段可判定为：**Product Phase 1/2 已完成；Phase 3 Batch 5 已完成，aggregate verdict 为 `有条件发布`**。
 - 当前对外表述应限定为：
   - 16 个 RPC 方法、7 种 WebSocket 订阅、7 个 interface 模块已实现
   - signer abstraction / C ABI / stake 已有主实现，但仍有 correctness 与 closeout 项待处理

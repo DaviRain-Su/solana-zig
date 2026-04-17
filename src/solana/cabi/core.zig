@@ -16,7 +16,9 @@ pub export fn solana_pubkey_from_bytes(bytes: [*c]const u8, len: usize, out: ?*s
 
 pub export fn solana_pubkey_to_base58(pubkey: ?*const solana.core.Pubkey, out_str: ?*[*c]u8, out_len: ?*usize) c_int {
     if (pubkey == null or out_str == null or out_len == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
-    const encoded = pubkey.?.toBase58Alloc(std.heap.c_allocator) catch return errors.SOLANA_ERR_INTERNAL;
+    var buf: [64]u8 = undefined;
+    const len = pubkey.?.toBase58Fast(&buf);
+    const encoded = std.heap.c_allocator.dupe(u8, buf[0..len]) catch return errors.SOLANA_ERR_INTERNAL;
     out_str.?.* = encoded.ptr;
     out_len.?.* = encoded.len;
     return errors.SOLANA_OK;

@@ -11,7 +11,7 @@ The C ABI layer allows non-Zig languages to safely call a minimal subset of `sol
 
 Current 2026-04-17 review status:
 - `core` and `transaction` exports are usable as documented below
-- `rpc` exports are in **scaffold** state: they validate handle lifecycle and error-code plumbing, but use a dummy transport. To make real RPC calls from C, extend the C ABI surface with a real HTTP transport binding.
+- `rpc` exports use a **live HTTP transport** (`initHttpTransport + std.Io.Threaded`). Real RPC calls from C are functional.
 
 ## Header File
 
@@ -131,7 +131,7 @@ int main(void) {
 
 ## Limitations
 
-- The C ABI RPC client (`solana_rpc_client_init`) uses a **dummy transport** (scaffold state). Real HTTP transport from C requires extending the C ABI surface.
+- The C ABI RPC client (`solana_rpc_client_init`) uses a **live HTTP transport** and is functional from C.
 - `solana_hash_*` covers byte construction, base58 conversion, and equality (`solana_hash_equal`).
 - `solana_zig_abi_version()` is exported as a C function (in addition to the `SOLANA_ZIG_ABI_VERSION` macro).
 - Opaque handles (`SolanaRpcClientHandle`, `SolanaInstruction`, `SolanaMessage`, `SolanaTransaction`) hide internal Zig types. Do not cast them to your own structs.

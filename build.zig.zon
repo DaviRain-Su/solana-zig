@@ -74,6 +74,7 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        "include",
         "testdata",
         // For example...
         //"LICENSE",

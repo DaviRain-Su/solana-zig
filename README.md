@@ -4,8 +4,8 @@ Zig implementation of Solana SDK, aligned to Rust SDK 4.0.1 semantics.
 
 ## Current Status
 
-**Phase 1 / Phase 2 have shipped. Phase 3 is in final closeout review (Batch 4).**
-The main implementation surface is present, but the authoritative status for remaining gaps is `docs/10-coverage-matrix.md` and `docs/36-phase3-batch4-planning.md`.
+**Phase 1 / Phase 2 have shipped. Phase 3 Batch 5 is complete.**
+The aggregate verdict is `有条件发布` (2 open exceptions: `requestAirdrop` partial, `getAddressLookupTable` accepted). The authoritative status is `docs/10-coverage-matrix.md` and `docs/39-phase3-batch5-release-readiness.md`.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
@@ -22,7 +22,7 @@ The main implementation surface is present, but the authoritative status for rem
 - **WebSocket**: `WsRpcClient` — 7 subscription types (`account`/`program`/`signature`/`slot`/`root`/`logs`/`block`), auto-reconnect with backoff, dedup ring buffer, `WsStats` observability
 - **Interfaces**: `system` (Transfer/CreateAccount/AdvanceNonceAccount), `token` (TransferChecked/CloseAccount/MintTo/Approve/Burn), `token_2022`, `compute_budget` (SetComputeUnitLimit/SetComputeUnitPrice), `memo`, `stake` (Create/Delegate/Deactivate/Withdraw), `ata` (Associated Token Account)
 - **Signers**: `Signer` vtable abstraction, `InMemorySigner`, `MockExternalSigner` (final correctness closeout pending)
-- **C ABI**: Core types + tx build exported; RPC minimum export is still under closeout review (`include/solana_zig.h`)
+- **C ABI**: Core types + tx build + RPC with live HTTP transport exported (`include/solana_zig.h`)
 - **E2E**: Devnet (`zig build devnet-e2e`), Nonce (`zig build nonce-e2e`), Surfpool (`zig build e2e`)
 - **Benchmark**: `zig build bench` — serialization/deserialization baseline
 
@@ -138,8 +138,7 @@ Contract mapping: `packages/client/AC-MAPPING.md`, `docs/18-surfpool-e2e-contrac
 - Test Spec: `docs/05-test-spec.md`
 - Evolution: `docs/08-evolution.md`
 - Coverage Matrix: `docs/10-coverage-matrix.md`
-- Phase 3 Batch 4 Planning: `docs/36-phase3-batch4-planning.md`
-- Phase 3 Batch 4 Release Readiness: `docs/37-phase3-batch4-release-readiness.md`
+- Phase 3 Batch 5 Release Readiness: `docs/39-phase3-batch5-release-readiness.md`
 - Quickstart + API Examples: `docs/17-quickstart-and-api-examples.md`
 - WebSocket Guide: `docs/websocket-guide.md`
 - RPC Examples: `docs/rpc-examples.md`

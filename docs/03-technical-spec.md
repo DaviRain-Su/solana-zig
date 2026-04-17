@@ -7,7 +7,7 @@
 本规格覆盖当前实现的 Zig 边界：
 - core: `base58/shortvec/Pubkey/Signature/Keypair/Hash`
 - tx: `Instruction/Message(legacy+v0)/AddressLookupTable/VersionedTransaction`
-- rpc: `HttpTransport/RpcClient` 及 **16 个公开方法**（5 个 Phase 1 高频 + 11 个 Phase 2 扩展）
+- rpc: `HttpTransport/RpcClient` 及 **16 个 JSON-RPC 调用方法**（5 个 Phase 1 高频 + 11 个 Phase 2 扩展），对应约 25 个 `pub fn` 公开 API 入口（含 commitment/options 变体）
 - rpc: `WsClient/WsRpcClient` — WebSocket 客户端（7 种订阅 + 重连 + 去重 + 可观测性）
 - interfaces: `system/token/token_2022/compute_budget/memo/stake/ata`
 - signers: `Signer` vtable + `InMemorySigner` + `MockExternalSigner`
