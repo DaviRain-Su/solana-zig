@@ -53,6 +53,10 @@ pub const VersionedTransaction = struct {
         const required = @as(usize, self.message.header.num_required_signatures);
         if (required != self.signatures.len) return signer_mod.SignerError.SignatureCountMismatch;
 
+        for (0..required) |i| {
+            self.signatures[i] = signature_mod.Signature.zero();
+        }
+
         const msg_bytes = try self.message.serialize(self.allocator);
         defer self.allocator.free(msg_bytes);
 
@@ -62,7 +66,7 @@ pub const VersionedTransaction = struct {
             self.signatures[signer_index] = try signer.signMessage(self.allocator, msg_bytes);
         }
 
-        for (self.signatures) |sig| {
+        for (self.signatures[0..required]) |sig| {
             if (sig.isZero()) return signer_mod.SignerError.MissingRequiredSignature;
         }
     }
@@ -116,6 +120,12 @@ pub const VersionedTransaction = struct {
 
         const decoded_message = try message_mod.Message.deserialize(allocator, bytes[cursor..]);
         cursor += decoded_message.consumed;
+
+        if (sig_len.value != decoded_message.message.header.num_required_signatures) {
+            var leaked = decoded_message.message;
+            leaked.deinit();
+            return error.InvalidTransaction;
+        }
 
         if (cursor != bytes.len) {
             var leaked = decoded_message.message;
@@ -264,6 +274,35 @@ test "transaction signWithSigners fails when required signer missing" {
     try std.testing.expectError(signer_mod.SignerError.MissingRequiredSignature, tx.signWithSigners(&.{}));
 }
 
+test "transaction signWithSigners clears stale signatures before applying signers" {
+    const gpa = std.testing.allocator;
+    const pubkey_mod = @import("../core/pubkey.zig");
+    const hash_mod = @import("../core/hash.zig");
+    const instruction_mod = @import("instruction.zig");
+
+    const payer = try keypair_mod.Keypair.fromSeed([_]u8{75} ** 32);
+    const receiver = pubkey_mod.Pubkey.init([_]u8{76} ** 32);
+    const program = pubkey_mod.Pubkey.init([_]u8{77} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{78} ** 32);
+
+    const accounts = [_]instruction_mod.AccountMeta{
+        .{ .pubkey = payer.pubkey(), .is_signer = true, .is_writable = true },
+        .{ .pubkey = receiver, .is_signer = false, .is_writable = true },
+    };
+    const ixs = [_]instruction_mod.Instruction{
+        .{ .program_id = program, .accounts = &accounts, .data = &.{} },
+    };
+
+    var msg = try message_mod.Message.compileLegacy(gpa, payer.pubkey(), &ixs, blockhash);
+    errdefer msg.deinit();
+    var tx = try VersionedTransaction.initUnsigned(gpa, msg);
+    defer tx.deinit();
+
+    tx.signatures[0] = signature_mod.Signature.init([_]u8{0xAB} ** signature_mod.Signature.LENGTH);
+
+    try std.testing.expectError(signer_mod.SignerError.MissingRequiredSignature, tx.signWithSigners(&.{}));
+}
+
 test "verify signatures rejects malformed message header before indexing account keys" {
     const gpa = std.testing.allocator;
     const pubkey_mod = @import("../core/pubkey.zig");
@@ -361,6 +400,24 @@ test "versioned_deserialize_rejects_trailing_bytes" {
     malformed[encoded.len] = 0x42;
 
     try std.testing.expectError(error.InvalidTransaction, VersionedTransaction.deserialize(gpa, malformed));
+}
+
+test "versioned_deserialize_rejects_signature_count_mismatch" {
+    const gpa = std.testing.allocator;
+
+    const sig = signature_mod.Signature.zero().bytes;
+    const account_key = [_]u8{1} ** 32;
+    const blockhash = [_]u8{2} ** 32;
+    const bytes = [_]u8{2} ++ sig ++ sig ++ [_]u8{
+        1, // header.num_required_signatures
+        0, // header.num_readonly_signed_accounts
+        0, // header.num_readonly_unsigned_accounts
+        1, // account_keys len
+    } ++ account_key ++ blockhash ++ [_]u8{
+        0, // instructions len
+    };
+
+    try std.testing.expectError(error.InvalidTransaction, VersionedTransaction.deserialize(gpa, &bytes));
 }
 
 test "transaction multi-signer legacy flow is order-independent" {
