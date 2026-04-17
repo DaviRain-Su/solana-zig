@@ -68,3 +68,5 @@
 - `39-phase3-batch5-release-readiness.md`：Phase 3 Batch 5 专属发布就绪清单（包含 Phase 3 aggregate verdict）
 - `40-phase4-planning.md`：Phase 4 规划（链上程序支持 — zignocchio 基线 / scope / batch / gate / 决策项）
 - `41-phase4-release-readiness.md`：Phase 4 发布就绪清单（zignocchio 路线 gate 状态 / decision records / CU baseline / aggregate verdict）
+- `42-phase4-batch1-planning.md`：Phase 4 Batch 1 规划（core framework：entrypoint + account deserialize + instruction parse + package boundary）
+- `43-phase4-batch1-release-readiness.md`：Phase 4 Batch 1 发布就绪清单（G-P4B gate map / evidence / closeout 约束）
