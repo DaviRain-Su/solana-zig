@@ -43,6 +43,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .link_libc = true,
     });
+    mod.addIncludePath(b.path("include"));
 
     // Here we define an executable. An executable needs to have a root module
     // which needs to expose a `main` function. While we could add a main function
@@ -85,6 +86,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    exe.root_module.addIncludePath(b.path("include"));
 
     // This declares intent for the executable to be installed into the
     // install prefix when running `zig build` (i.e. when executing the default
@@ -120,7 +122,7 @@ pub fn build(b: *std.Build) void {
 
     // Creates an executable that will run `test` blocks from the provided module.
     // Here `mod` needs to define a target, which is why earlier we made sure to
-    // set the releative field.
+    // set the relative field.
     const mod_tests = b.addTest(.{
         .root_module = mod,
     });

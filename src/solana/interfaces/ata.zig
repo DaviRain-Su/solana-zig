@@ -5,10 +5,10 @@ const hash_mod = @import("../core/hash.zig");
 const keypair_mod = @import("../core/keypair.zig");
 const message_mod = @import("../tx/message.zig");
 const transaction_mod = @import("../tx/transaction.zig");
+const system = @import("system.zig");
+const token = @import("token.zig");
 
 const ATA_PROGRAM_ID_STR = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
-const SYSTEM_PROGRAM_ID_STR = "11111111111111111111111111111111";
-const TOKEN_PROGRAM_ID_STR = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
 /// SPL Associated Token Account program ID.
 pub fn ataProgramId() pubkey_mod.Pubkey {
@@ -17,12 +17,12 @@ pub fn ataProgramId() pubkey_mod.Pubkey {
 
 /// System program ID.
 pub fn systemProgramId() pubkey_mod.Pubkey {
-    return pubkey_mod.Pubkey.fromBase58(SYSTEM_PROGRAM_ID_STR) catch unreachable;
+    return system.SYSTEM_PROGRAM_ID;
 }
 
 /// SPL Token program ID.
 pub fn tokenProgramId() pubkey_mod.Pubkey {
-    return pubkey_mod.Pubkey.fromBase58(TOKEN_PROGRAM_ID_STR) catch unreachable;
+    return token.programId();
 }
 
 /// Find the associated token address for a wallet, mint and token program.
@@ -51,8 +51,7 @@ pub const CreateATAParams = struct {
 ///
 /// Data layout: empty (0 bytes).
 /// Accounts:
-/// 0. payer (readonly signer) — wait, payer should be writable signer since they fund the account creation
-/// Actually in SPL ATA, payer is [signer, writable]
+/// 0. payer [signer, writable]
 /// 1. associated_token [writable]
 /// 2. owner []
 /// 3. mint []
@@ -232,4 +231,3 @@ test "ATA builder compiles into signed legacy transaction" {
     try tx.sign(&[_]keypair_mod.Keypair{payer});
     try tx.verifySignatures();
 }
-

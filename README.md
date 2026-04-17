@@ -29,7 +29,7 @@ The main implementation surface is present, but the authoritative status for rem
 ## Build & Test
 
 ```bash
-zig build test          # 208 tests
+zig build test          # 229 tests
 zig build bench         # benchmark baseline
 ```
 
@@ -138,6 +138,8 @@ Contract mapping: `packages/client/AC-MAPPING.md`, `docs/18-surfpool-e2e-contrac
 - Test Spec: `docs/05-test-spec.md`
 - Evolution: `docs/08-evolution.md`
 - Coverage Matrix: `docs/10-coverage-matrix.md`
+- Phase 3 Batch 4 Planning: `docs/36-phase3-batch4-planning.md`
+- Phase 3 Batch 4 Release Readiness: `docs/37-phase3-batch4-release-readiness.md`
 - Quickstart + API Examples: `docs/17-quickstart-and-api-examples.md`
 - WebSocket Guide: `docs/websocket-guide.md`
 - RPC Examples: `docs/rpc-examples.md`

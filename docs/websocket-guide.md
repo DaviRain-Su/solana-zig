@@ -14,13 +14,13 @@ This guide shows how to use the Phase 2 websocket client in `solana_zig` for:
 
 | Subscribe | Unsubscribe | Typed reader | Input |
 | --- | --- | --- | --- |
-| `accountSubscribe` | `accountUnsubscribe` | `readAccountNotification` | base58 account pubkey |
-| `programSubscribe` | `programUnsubscribe` | `readProgramNotification` | base58 program id |
-| `signatureSubscribe` | `signatureUnsubscribe` | `readSignatureNotification` | base58 signature |
+| `accountSubscribe` | `accountUnsubscribe` | `readAccountNotification` | base58 account pubkey + commitment |
+| `programSubscribe` | `programUnsubscribe` | `readProgramNotification` | base58 program id + commitment |
+| `signatureSubscribe` | `signatureUnsubscribe` | `readSignatureNotification` | base58 signature + commitment |
 | `slotSubscribe` | `slotUnsubscribe` | `readSlotNotification` | none |
 | `rootSubscribe` | `rootUnsubscribe` | `readRootNotification` | none |
 | `logsSubscribe` | `logsUnsubscribe` | `readLogsNotification` | raw Solana logs filter string |
-| `blockSubscribe` | `blockUnsubscribe` | `readBlockNotification` | raw Solana block filter string |
+| `blockSubscribe` | `blockUnsubscribe` | `readBlockNotification` | raw Solana block filter string + commitment |
 
 Also available:
 
@@ -33,7 +33,8 @@ Also available:
 
 ## Important behavior and limitations
 
-- The current transport supports `ws://` endpoints. `wss://` is not supported yet.
+- The current transport supports both `ws://` and `wss://` endpoints.
+- `accountSubscribe`, `programSubscribe`, `signatureSubscribe`, and `blockSubscribe` accept a `Commitment` parameter (default: `.confirmed`).
 - `accountSubscribe` and `programSubscribe` currently send `encoding = "base64"` and `commitment = "confirmed"`.
 - `signatureSubscribe` and `blockSubscribe` currently send `commitment = "confirmed"`.
 - Re-subscribing with the same subscription kind and same input value is deduplicated: the client returns the existing subscription id instead of sending another request.

@@ -398,7 +398,7 @@ pub const WsRpcClient = struct {
 
     pub const SubscribeError = WsClient.SendError || WsClient.ReadError || error{InvalidSubscriptionResponse};
     pub const ReconnectError = WsClient.ConnectError || SubscribeError;
-    pub const NotificationReadError = ReconnectError || error{OutOfMemory, WriteFailed};
+    pub const NotificationReadError = ReconnectError || error{ OutOfMemory, WriteFailed };
 
     pub const NotificationAccountInfo = struct {
         lamports: u64,
@@ -530,6 +530,7 @@ pub const WsRpcClient = struct {
         kind: SubscriptionKind,
         value: []u8,
         id: u64,
+        commitment: types.Commitment = .confirmed,
     };
 
     pub fn connect(allocator: std.mem.Allocator, io: std.Io, url: []const u8) WsClient.ConnectError!WsRpcClient {
@@ -629,32 +630,32 @@ pub const WsRpcClient = struct {
         }
     }
 
-    pub fn accountSubscribe(self: *WsRpcClient, pubkey_base58: []const u8) SubscribeError!u64 {
-        return try self.ensureSubscribed(.account, pubkey_base58);
+    pub fn accountSubscribe(self: *WsRpcClient, pubkey_base58: []const u8, commitment: types.Commitment) SubscribeError!u64 {
+        return try self.ensureSubscribed(.account, pubkey_base58, commitment);
     }
 
-    pub fn programSubscribe(self: *WsRpcClient, program_id_base58: []const u8) SubscribeError!u64 {
-        return try self.ensureSubscribed(.program, program_id_base58);
+    pub fn programSubscribe(self: *WsRpcClient, program_id_base58: []const u8, commitment: types.Commitment) SubscribeError!u64 {
+        return try self.ensureSubscribed(.program, program_id_base58, commitment);
     }
 
     pub fn logsSubscribe(self: *WsRpcClient, filter: []const u8) SubscribeError!u64 {
-        return try self.ensureSubscribed(.logs, filter);
+        return try self.ensureSubscribed(.logs, filter, .confirmed);
     }
 
-    pub fn signatureSubscribe(self: *WsRpcClient, signature_base58: []const u8) SubscribeError!u64 {
-        return try self.ensureSubscribed(.signature, signature_base58);
+    pub fn signatureSubscribe(self: *WsRpcClient, signature_base58: []const u8, commitment: types.Commitment) SubscribeError!u64 {
+        return try self.ensureSubscribed(.signature, signature_base58, commitment);
     }
 
     pub fn slotSubscribe(self: *WsRpcClient) SubscribeError!u64 {
-        return try self.ensureSubscribed(.slot, "");
+        return try self.ensureSubscribed(.slot, "", .confirmed);
     }
 
     pub fn rootSubscribe(self: *WsRpcClient) SubscribeError!u64 {
-        return try self.ensureSubscribed(.root, "");
+        return try self.ensureSubscribed(.root, "", .confirmed);
     }
 
-    pub fn blockSubscribe(self: *WsRpcClient, filter: []const u8) SubscribeError!u64 {
-        return try self.ensureSubscribed(.block, filter);
+    pub fn blockSubscribe(self: *WsRpcClient, filter: []const u8, commitment: types.Commitment) SubscribeError!u64 {
+        return try self.ensureSubscribed(.block, filter, commitment);
     }
 
     pub fn accountUnsubscribe(self: *WsRpcClient, subscription_id: u64) SubscribeError!void {
@@ -847,14 +848,14 @@ pub const WsRpcClient = struct {
         return notification;
     }
 
-    fn ensureSubscribed(self: *WsRpcClient, kind: SubscriptionKind, value: []const u8) SubscribeError!u64 {
+    fn ensureSubscribed(self: *WsRpcClient, kind: SubscriptionKind, value: []const u8, commitment: types.Commitment) SubscribeError!u64 {
         for (self.subscriptions.items) |sub| {
-            if (sub.kind == kind and std.mem.eql(u8, sub.value, value)) {
+            if (sub.kind == kind and std.mem.eql(u8, sub.value, value) and sub.commitment == commitment) {
                 return sub.id;
             }
         }
 
-        const payload = try self.buildSubscribePayload(kind, value);
+        const payload = try self.buildSubscribePayload(kind, value, commitment);
         defer self.ws.allocator.free(payload);
         try self.sendTextTracked(payload);
         const id = try self.readSubscriptionResult();
@@ -863,25 +864,26 @@ pub const WsRpcClient = struct {
             .kind = kind,
             .value = try self.ws.allocator.dupe(u8, value),
             .id = id,
+            .commitment = commitment,
         });
         return id;
     }
 
-    fn buildSubscribePayload(self: *WsRpcClient, kind: SubscriptionKind, value: []const u8) std.mem.Allocator.Error![]u8 {
+    fn buildSubscribePayload(self: *WsRpcClient, kind: SubscriptionKind, value: []const u8, commitment: types.Commitment) std.mem.Allocator.Error![]u8 {
         return switch (kind) {
-            .account => serializeAccountSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
-            .program => serializeProgramSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
+            .account => serializeAccountSubscribeRequest(self.ws.allocator, self.nextRpcId(), value, commitment),
+            .program => serializeProgramSubscribeRequest(self.ws.allocator, self.nextRpcId(), value, commitment),
             .logs => serializeLogsSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
-            .signature => serializeSignatureSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
+            .signature => serializeSignatureSubscribeRequest(self.ws.allocator, self.nextRpcId(), value, commitment),
             .slot => serializeSlotSubscribeRequest(self.ws.allocator, self.nextRpcId()),
             .root => serializeRootSubscribeRequest(self.ws.allocator, self.nextRpcId()),
-            .block => serializeBlockSubscribeRequest(self.ws.allocator, self.nextRpcId(), value),
+            .block => serializeBlockSubscribeRequest(self.ws.allocator, self.nextRpcId(), value, commitment),
         };
     }
 
     fn resubscribeAll(self: *WsRpcClient) SubscribeError!void {
         for (self.subscriptions.items) |*sub| {
-            const payload = try self.buildSubscribePayload(sub.kind, sub.value);
+            const payload = try self.buildSubscribePayload(sub.kind, sub.value, sub.commitment);
             defer self.ws.allocator.free(payload);
             try self.sendTextTracked(payload);
             sub.id = try self.readSubscriptionResult();
@@ -983,19 +985,19 @@ pub const WsRpcClient = struct {
     }
 };
 
-pub fn serializeAccountSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, pubkey_base58: []const u8) std.mem.Allocator.Error![]u8 {
+pub fn serializeAccountSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, pubkey_base58: []const u8, commitment: types.Commitment) std.mem.Allocator.Error![]u8 {
     return std.fmt.allocPrint(
         allocator,
-        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"accountSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
-        .{ rpc_id, pubkey_base58 },
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"accountSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"{s}\"}}]}}",
+        .{ rpc_id, pubkey_base58, commitment.jsonString() },
     );
 }
 
-pub fn serializeProgramSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, program_id_base58: []const u8) std.mem.Allocator.Error![]u8 {
+pub fn serializeProgramSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, program_id_base58: []const u8, commitment: types.Commitment) std.mem.Allocator.Error![]u8 {
     return std.fmt.allocPrint(
         allocator,
-        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"programSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"confirmed\"}}]}}",
-        .{ rpc_id, program_id_base58 },
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"programSubscribe\",\"params\":[\"{s}\",{{\"encoding\":\"base64\",\"commitment\":\"{s}\"}}]}}",
+        .{ rpc_id, program_id_base58, commitment.jsonString() },
     );
 }
 
@@ -1007,11 +1009,11 @@ pub fn serializeLogsSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, 
     );
 }
 
-fn serializeSignatureSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, signature_base58: []const u8) std.mem.Allocator.Error![]u8 {
+fn serializeSignatureSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, signature_base58: []const u8, commitment: types.Commitment) std.mem.Allocator.Error![]u8 {
     return std.fmt.allocPrint(
         allocator,
-        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"signatureSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
-        .{ rpc_id, signature_base58 },
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"signatureSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"{s}\"}}]}}",
+        .{ rpc_id, signature_base58, commitment.jsonString() },
     );
 }
 
@@ -1031,11 +1033,11 @@ fn serializeRootSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64) std.
     );
 }
 
-fn serializeBlockSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, filter: []const u8) std.mem.Allocator.Error![]u8 {
+fn serializeBlockSubscribeRequest(allocator: std.mem.Allocator, rpc_id: u64, filter: []const u8, commitment: types.Commitment) std.mem.Allocator.Error![]u8 {
     return std.fmt.allocPrint(
         allocator,
-        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"blockSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"confirmed\"}}]}}",
-        .{ rpc_id, filter },
+        "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":\"blockSubscribe\",\"params\":[\"{s}\",{{\"commitment\":\"{s}\"}}]}}",
+        .{ rpc_id, filter, commitment.jsonString() },
     );
 }
 
@@ -1765,7 +1767,7 @@ test "WsRpcClient subscribe and receive notification" {
     var client = try WsRpcClient.connect(allocator, io, url);
     defer client.deinit();
 
-    const sub_id = try client.accountSubscribe("11111111111111111111111111111111");
+    const sub_id = try client.accountSubscribe("11111111111111111111111111111111", .confirmed);
     try std.testing.expect(sub_id > 0);
 
     var notif = try client.readNotification();
@@ -1781,7 +1783,7 @@ test "ws_account_subscribe_typed_notify_unsubscribe" {
     var harness = try TypedWsTestHarness.init(allocator, io);
     defer harness.deinit();
 
-    const sub_id = try harness.client.accountSubscribe("11111111111111111111111111111111");
+    const sub_id = try harness.client.accountSubscribe("11111111111111111111111111111111", .confirmed);
     try std.testing.expect(sub_id > 0);
     try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
 
@@ -1812,7 +1814,7 @@ test "ws_program_subscribe_typed_notify_unsubscribe" {
     var harness = try TypedWsTestHarness.init(allocator, io);
     defer harness.deinit();
 
-    const sub_id = try harness.client.programSubscribe("BPFLoaderUpgradeab1e11111111111111111111111");
+    const sub_id = try harness.client.programSubscribe("BPFLoaderUpgradeab1e11111111111111111111111", .confirmed);
     try std.testing.expect(sub_id > 0);
     try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
 
@@ -1842,7 +1844,7 @@ test "ws_signature_subscribe_typed_notify_unsubscribe" {
     var harness = try TypedWsTestHarness.init(allocator, io);
     defer harness.deinit();
 
-    const sub_id = try harness.client.signatureSubscribe("deadbeef");
+    const sub_id = try harness.client.signatureSubscribe("deadbeef", .confirmed);
     try std.testing.expect(sub_id > 0);
     try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
 
@@ -1953,7 +1955,7 @@ test "ws_block_subscribe_typed_notify_unsubscribe" {
     var harness = try TypedWsTestHarness.init(allocator, io);
     defer harness.deinit();
 
-    const sub_id = try harness.client.blockSubscribe("all");
+    const sub_id = try harness.client.blockSubscribe("all", .confirmed);
     try std.testing.expect(sub_id > 0);
     try std.testing.expectEqual(@as(usize, 1), harness.client.subscriptionCount());
 
@@ -1987,7 +1989,7 @@ test "WsRpcClient disconnect detect and reconnect" {
     var client = try WsRpcClient.connect(allocator, io, url);
     defer client.deinit();
 
-    const sub_id = try client.signatureSubscribe("deadbeef");
+    const sub_id = try client.signatureSubscribe("deadbeef", .confirmed);
     try std.testing.expect(sub_id > 0);
 
     var notif = try client.readNotification();
@@ -2009,7 +2011,7 @@ test "ws_unsubscribe_ack_success" {
     var client = try WsRpcClient.connect(allocator, io, url);
     defer client.deinit();
 
-    const sub_id = try client.accountSubscribe("11111111111111111111111111111111");
+    const sub_id = try client.accountSubscribe("11111111111111111111111111111111", .confirmed);
     try std.testing.expect(sub_id > 0);
 
     // Consume the pending notification before unsubscribing.
@@ -2072,7 +2074,7 @@ test "ws_reconnect_resubscribe_restores_all_active_subscriptions" {
         .max_delay_ms = 0,
     });
 
-    const account_id = try client.accountSubscribe("11111111111111111111111111111111");
+    const account_id = try client.accountSubscribe("11111111111111111111111111111111", .confirmed);
     var first_account = try client.readAccountNotification();
     defer first_account.deinit(allocator);
     try std.testing.expectEqual(account_id, first_account.subscription_id);
@@ -2419,7 +2421,7 @@ test "ws_observability_counters_after_subscribe" {
     var client = try WsRpcClient.connect(allocator, io, url);
     defer client.deinit();
 
-    _ = try client.accountSubscribe("11111111111111111111111111111111");
+    _ = try client.accountSubscribe("11111111111111111111111111111111", .confirmed);
     const stats = client.snapshot();
     try std.testing.expectEqual(WsRpcClient.ConnectionState.connected, stats.connection_state);
     try std.testing.expectEqual(@as(u32, 1), stats.active_subscriptions);
@@ -2611,7 +2613,7 @@ test "ws_recoverability_recovery_state_consistency" {
     defer client.deinit();
 
     // Subscribe and consume notification
-    _ = try client.accountSubscribe("11111111111111111111111111111111");
+    _ = try client.accountSubscribe("11111111111111111111111111111111", .confirmed);
     {
         var n = try client.readNotification();
         n.deinit();

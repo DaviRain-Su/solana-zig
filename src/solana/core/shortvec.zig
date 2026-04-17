@@ -144,3 +144,22 @@ test "shortvec rejects truncated and oversized encodings" {
     try std.testing.expectError(error.IntegerOverflow, decode(&[_]u8{ 0x80, 0x80, 0x06 }));
     try std.testing.expectError(error.IntegerOverflow, encodeAlloc(std.testing.allocator, MAX_VALUE + 1));
 }
+
+test "shortvec encodes and decodes 256 accounts length" {
+    const gpa = std.testing.allocator;
+    const encoded = try encodeAlloc(gpa, 256);
+    defer gpa.free(encoded);
+    try std.testing.expectEqualSlices(u8, &[_]u8{ 0x80, 0x02 }, encoded);
+
+    const decoded = try decode(encoded);
+    try std.testing.expectEqual(@as(usize, 256), decoded.value);
+}
+
+test "shortvec roundtrip at max value" {
+    const gpa = std.testing.allocator;
+    const encoded = try encodeAlloc(gpa, MAX_VALUE);
+    defer gpa.free(encoded);
+
+    const decoded = try decode(encoded);
+    try std.testing.expectEqual(@as(usize, MAX_VALUE), decoded.value);
+}

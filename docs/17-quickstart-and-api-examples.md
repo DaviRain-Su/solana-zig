@@ -32,7 +32,7 @@ Notes:
 - `zig build devnet-e2e` 是当前真实 in-tree live harness，已覆盖 `construct -> sign -> simulate -> send -> confirm`。
 - `zig build nonce-e2e` — Nonce 账户完整 E2E 流程。
 - `zig build e2e` — Surfpool 本地验证（K3-H1 + K3-F1）。
-- Phase 1/2/3 全部完成，208 tests pass。
+- Phase 1/2/3 全部完成，229 tests pass。
 
 ---
 
@@ -199,15 +199,16 @@ test "stake builder example" {
         .withdrawer = from,
     };
 
-    var ix = try sol.interfaces.stake.buildCreateStakeAccountInstruction(
+    const ixs = try sol.interfaces.stake.buildCreateStakeAccountInstructions(
         alloc,
-        from,
-        stake,
-        authorized,
-        sol.interfaces.stake.Lockup{},
-        1_000_000,
+        .{
+            .from = from,
+            .stake_pubkey = stake,
+            .authorized = authorized,
+            .lamports = 1_000_000,
+        },
     );
-    defer ix.deinit(alloc);
+    defer sol.interfaces.stake.deinitInstructions(alloc, ixs);
 }
 ```
 

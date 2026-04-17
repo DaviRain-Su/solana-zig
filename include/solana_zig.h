@@ -10,6 +10,8 @@ extern "C" {
 
 #define SOLANA_ZIG_ABI_VERSION 1
 
+int solana_zig_abi_version(void);
+
 /* ===================== Error codes ===================== */
 #define SOLANA_OK 0
 #define SOLANA_ERR_INVALID_ARGUMENT 1
@@ -46,12 +48,15 @@ int solana_pubkey_equal(const SolanaPubkey *a, const SolanaPubkey *b);
 
 /* ===================== Signature ===================== */
 int solana_signature_from_bytes(const uint8_t *bytes, size_t len, SolanaSignature *out);
+int solana_signature_from_base58(const char *str, size_t len, SolanaSignature *out);
 int solana_signature_to_base58(const SolanaSignature *sig, char **out_str, size_t *out_len);
 int solana_signature_equal(const SolanaSignature *a, const SolanaSignature *b);
 
 /* ===================== Hash ===================== */
 int solana_hash_from_bytes(const uint8_t *bytes, size_t len, SolanaHash *out);
+int solana_hash_from_base58(const char *str, size_t len, SolanaHash *out);
 int solana_hash_to_base58(const SolanaHash *h, char **out_str, size_t *out_len);
+int solana_hash_equal(const SolanaHash *a, const SolanaHash *b);
 
 /* ===================== General free ===================== */
 void solana_string_free(char *str, size_t len);
@@ -86,12 +91,13 @@ int solana_message_compile_legacy(
 void solana_message_destroy(SolanaMessage **msg);
 
 /* ===================== Transaction ===================== */
-int solana_transaction_create_unsigned(SolanaMessage *msg, SolanaTransaction **out);
-int solana_transaction_sign_with_keypair(SolanaTransaction *tx, const uint8_t *secret_key);
-void solana_transaction_serialize(const SolanaTransaction *tx, uint8_t **out_bytes, size_t *out_len);
+int solana_transaction_create_unsigned(SolanaMessage **msg, SolanaTransaction **out);
+int solana_transaction_sign_with_keypair(SolanaTransaction *tx, const uint8_t *secret_key, size_t secret_key_len);
+int solana_transaction_serialize(const SolanaTransaction *tx, uint8_t **out_bytes, size_t *out_len);
 void solana_transaction_destroy(SolanaTransaction **tx);
 
 /* ===================== RPC Client ===================== */
+/* Current Batch 4 status: lifecycle scaffold only; transport is a dummy/stub and RPC calls are not live-ready from C yet. */
 int solana_rpc_client_init(const char *endpoint, size_t endpoint_len, SolanaRpcClientHandle **out);
 void solana_rpc_client_deinit(SolanaRpcClientHandle **handle);
 int solana_rpc_client_get_latest_blockhash(SolanaRpcClientHandle *handle, SolanaHash *out_blockhash);

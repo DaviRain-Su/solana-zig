@@ -83,6 +83,11 @@ pub fn buildXxxInstructions(allocator: std.mem.Allocator, params: Params) ![]tx.
 - 首批目标：`create_stake_account`, `delegate`, `deactivate`, `withdraw`
 - 重点：多账户顺序与授权角色区分
 
+### 5.6 ata (Associated Token Account)
+- 首批目标：`findAssociatedTokenAddress` + `createAssociatedTokenAccountInstruction`
+- 重点：deterministic ATA derivation via `findProgramAddress` with seeds `[owner, token_program_id, mint]`
+- 返回：`Instruction` builder，可直接嵌入交易
+
 ## 6. Error Model
 
 建议在 `src/solana/errors.zig` 扩充或按模块细分，但对外至少应可表达：

@@ -87,9 +87,10 @@ solana_string_free(out);
 
 ## 7. Versioning and Stability
 
-至少需要：
-- `solana_zig_abi_version()`
-- 头文件中显式 ABI version 宏
+当前状态（2026-04-17）：
+- `solana_zig_abi_version()` 已导出为 C ABI 函数（`include/solana_zig.h:13`）
+- 头文件中已有 `SOLANA_ZIG_ABI_VERSION` 宏定义（`include/solana_zig.h`，当前值为 `1`）
+- `solana_hash_equal()` 已导出（`include/solana_zig.h:59`）
 - 若发生破坏性变更，必须 bump ABI version 并写 ADR
 
 ## 8. Header Strategy

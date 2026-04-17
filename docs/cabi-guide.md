@@ -11,7 +11,7 @@ The C ABI layer allows non-Zig languages to safely call a minimal subset of `sol
 
 Current 2026-04-17 review status:
 - `core` and `transaction` exports are usable as documented below
-- `rpc` exports currently validate handle lifecycle and error-code plumbing only; they do not yet provide a live HTTP transport from C
+- `rpc` exports are in **scaffold** state: they validate handle lifecycle and error-code plumbing, but use a dummy transport. To make real RPC calls from C, extend the C ABI surface with a real HTTP transport binding.
 
 ## Header File
 
@@ -35,7 +35,7 @@ All heap-allocated outputs from the ABI must be freed using the matching `solana
 | `solana_transaction_serialize` | `solana_bytes_free` |
 | `solana_instruction_create` | `solana_instruction_destroy` |
 | `solana_message_compile_legacy` | `solana_message_destroy` |
-| `solana_transaction_create_unsigned` | `solana_transaction_destroy` |
+| `solana_transaction_create_unsigned` (consumes `msg`) | `solana_transaction_destroy` |
 | `solana_rpc_client_init` | `solana_rpc_client_deinit` |
 
 ## Error Codes
@@ -106,7 +106,7 @@ int main(void) {
     }
 
     SolanaTransaction *tx = NULL;
-    if (solana_transaction_create_unsigned(msg, &tx) != SOLANA_OK) {
+    if (solana_transaction_create_unsigned(&msg, &tx) != SOLANA_OK) {
         solana_message_destroy(&msg);
         solana_instruction_destroy(&ix);
         return 1;
@@ -116,7 +116,6 @@ int main(void) {
     size_t serialized_len = 0;
     if (solana_transaction_serialize(tx, &serialized, &serialized_len) != SOLANA_OK) {
         solana_transaction_destroy(&tx);
-        solana_message_destroy(&msg);
         solana_instruction_destroy(&ix);
         return 1;
     }
@@ -125,7 +124,6 @@ int main(void) {
 
     solana_bytes_free(serialized, serialized_len);
     solana_transaction_destroy(&tx);
-    solana_message_destroy(&msg);
     solana_instruction_destroy(&ix);
     return 0;
 }
@@ -133,8 +131,9 @@ int main(void) {
 
 ## Limitations
 
-- The C ABI RPC client exported by `solana_rpc_client_init` uses a dummy transport for compilation/lifecycle verification. To make real RPC calls from C, you must re-initialize the client with a valid HTTP transport inside Zig and expose your own wrapper, or extend the C ABI surface.
-- `solana_hash_*` currently covers byte construction and base58 conversion only; equality helpers are not exported yet.
+- The C ABI RPC client (`solana_rpc_client_init`) uses a **dummy transport** (scaffold state). Real HTTP transport from C requires extending the C ABI surface.
+- `solana_hash_*` covers byte construction, base58 conversion, and equality (`solana_hash_equal`).
+- `solana_zig_abi_version()` is exported as a C function (in addition to the `SOLANA_ZIG_ABI_VERSION` macro).
 - Opaque handles (`SolanaRpcClientHandle`, `SolanaInstruction`, `SolanaMessage`, `SolanaTransaction`) hide internal Zig types. Do not cast them to your own structs.
 
 ## Versioning

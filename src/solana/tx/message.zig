@@ -629,22 +629,36 @@ test "compile and serialize legacy message" {
 
 test "compile legacy with empty instruction data" {
     const gpa = std.testing.allocator;
-    const payer = pubkey_mod.Pubkey.init([_]u8{4} ** 32);
-    const program_id = pubkey_mod.Pubkey.init([_]u8{5} ** 32);
-    const blockhash = hash_mod.Hash.init([_]u8{6} ** 32);
+    const payer = pubkey_mod.Pubkey.init([_]u8{1} ** 32);
+    const program = pubkey_mod.Pubkey.init([_]u8{2} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{3} ** 32);
 
-    const accounts = [_]instruction_mod.AccountMeta{
+    const metas = [_]instruction_mod.AccountMeta{
         .{ .pubkey = payer, .is_signer = true, .is_writable = true },
     };
     const ixs = [_]instruction_mod.Instruction{
-        .{ .program_id = program_id, .accounts = &accounts, .data = &.{} },
+        .{ .program_id = program, .accounts = &metas, .data = "" },
     };
 
-    var message = try Message.compileLegacy(gpa, payer, &ixs, blockhash);
-    defer message.deinit();
+    var msg = try Message.compileLegacy(gpa, payer, &ixs, blockhash);
+    defer msg.deinit();
 
-    try std.testing.expectEqual(@as(usize, 1), message.instructions.len);
-    try std.testing.expectEqual(@as(usize, 0), message.instructions[0].data.len);
+    try std.testing.expectEqual(MessageVersion.legacy, msg.version);
+    try std.testing.expectEqual(@as(usize, 1), msg.instructions.len);
+}
+
+test "compile legacy with empty instruction set" {
+    const gpa = std.testing.allocator;
+    const payer = pubkey_mod.Pubkey.init([_]u8{1} ** 32);
+    const blockhash = hash_mod.Hash.init([_]u8{3} ** 32);
+
+    var msg = try Message.compileLegacy(gpa, payer, &[_]instruction_mod.Instruction{}, blockhash);
+    defer msg.deinit();
+
+    try std.testing.expectEqual(MessageVersion.legacy, msg.version);
+    try std.testing.expectEqual(@as(usize, 0), msg.instructions.len);
+    try std.testing.expectEqual(@as(usize, 1), msg.account_keys.len);
+    try std.testing.expect(msg.account_keys[0].eql(payer));
 }
 
 test "compile v0 skips lookup keys that are already static" {

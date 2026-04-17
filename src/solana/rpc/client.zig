@@ -535,9 +535,11 @@ pub const RpcClient = struct {
         const amount_u64 = parseTokenAmountField(value, "amount") orelse return error.InvalidRpcResponse;
         const decimals_u64 = getU64Field(value, "decimals") orelse return error.InvalidRpcResponse;
         if (decimals_u64 > std.math.maxInt(u8)) return error.InvalidRpcResponse;
-        const ui_amount_string_raw = getStringField(value, "uiAmountString") orelse return error.InvalidRpcResponse;
-        const ui_amount_string = try self.allocator.dupe(u8, ui_amount_string_raw);
-        errdefer self.allocator.free(ui_amount_string);
+        const ui_amount_string = if (getStringField(value, "uiAmountString")) |raw|
+            try self.allocator.dupe(u8, raw)
+        else
+            null;
+        errdefer if (ui_amount_string) |s| self.allocator.free(s);
         const raw_json = try stringifyValue(self.allocator, value.*);
         errdefer self.allocator.free(raw_json);
 
@@ -577,9 +579,11 @@ pub const RpcClient = struct {
         const amount_u64 = parseTokenAmountField(value, "amount") orelse return error.InvalidRpcResponse;
         const decimals_u64 = getU64Field(value, "decimals") orelse return error.InvalidRpcResponse;
         if (decimals_u64 > std.math.maxInt(u8)) return error.InvalidRpcResponse;
-        const ui_amount_string_raw = getStringField(value, "uiAmountString") orelse return error.InvalidRpcResponse;
-        const ui_amount_string = try self.allocator.dupe(u8, ui_amount_string_raw);
-        errdefer self.allocator.free(ui_amount_string);
+        const ui_amount_string = if (getStringField(value, "uiAmountString")) |raw|
+            try self.allocator.dupe(u8, raw)
+        else
+            null;
+        errdefer if (ui_amount_string) |s| self.allocator.free(s);
         const raw_json = try stringifyValue(self.allocator, value.*);
         errdefer self.allocator.free(raw_json);
 
@@ -1027,7 +1031,7 @@ fn parseIntegerAsU64(value: *const std.json.Value) ?u64 {
 fn parseTokenAmountField(root: *const std.json.Value, field: []const u8) ?u64 {
     const value = getObjectField(root, field) orelse return null;
     return switch (value.*) {
-        .integer => |n| if (n >= 0) @intCast(n) else null,
+        .integer => |n| if (n >= 0) @as(u64, @intCast(n)) else null,
         .number_string => |s| std.fmt.parseInt(u64, s, 10) catch null,
         .string => |s| std.fmt.parseInt(u64, s, 10) catch null,
         else => null,
@@ -1143,9 +1147,9 @@ fn decodeBase64(allocator: std.mem.Allocator, encoded: []const u8) ![]u8 {
 }
 
 fn decodeAccountData(allocator: std.mem.Allocator, value: *const std.json.Value) ![]u8 {
-    const data_field = getObjectField(value, "data") orelse return &[_]u8{};
+    const data_field = getObjectField(value, "data") orelse return allocator.alloc(u8, 0);
     if (data_field.* == .string) {
-        return decodeBase64(allocator, data_field.string) catch &[_]u8{};
+        return decodeBase64(allocator, data_field.string) catch allocator.alloc(u8, 0);
     }
     if (data_field.* == .array and data_field.array.items.len > 0) {
         const first = data_field.array.items[0];
@@ -1153,7 +1157,7 @@ fn decodeAccountData(allocator: std.mem.Allocator, value: *const std.json.Value)
             return try decodeBase64(allocator, first.string);
         }
     }
-    return &[_]u8{};
+    return allocator.alloc(u8, 0);
 }
 
 fn extractAccountDataEncoding(allocator: std.mem.Allocator, value: *const std.json.Value) !?[]const u8 {
@@ -1173,8 +1177,8 @@ fn extractSimulationError(allocator: std.mem.Allocator, value: *const std.json.V
 }
 
 fn parseStringArray(allocator: std.mem.Allocator, value: *const std.json.Value, field: []const u8) ![][]const u8 {
-    const arr_field = getObjectField(value, field) orelse return &[_][]const u8{};
-    if (arr_field.* != .array) return &[_][]const u8{};
+    const arr_field = getObjectField(value, field) orelse return allocator.alloc([]const u8, 0);
+    if (arr_field.* != .array) return allocator.alloc([]const u8, 0);
 
     const items = arr_field.array.items;
     const out = try allocator.alloc([]const u8, items.len);
@@ -2537,7 +2541,7 @@ test "rpc client getTokenAccountBalance typed parse happy path" {
             defer owned.deinit(gpa);
             try std.testing.expectEqual(@as(u64, 4_200_000), owned.amount);
             try std.testing.expectEqual(@as(u8, 6), owned.decimals);
-            try std.testing.expectEqualStrings("4.2", owned.ui_amount_string);
+            try std.testing.expectEqualStrings("4.2", owned.ui_amount_string.?);
             try std.testing.expect(owned.raw_json != null);
         },
         .rpc_error => return error.UnexpectedRpcError,
@@ -2608,7 +2612,7 @@ test "rpc client getTokenSupply typed parse happy path" {
             defer owned.deinit(gpa);
             try std.testing.expectEqual(@as(u64, 1_000_000_000), owned.amount);
             try std.testing.expectEqual(@as(u8, 9), owned.decimals);
-            try std.testing.expectEqualStrings("1", owned.ui_amount_string);
+            try std.testing.expectEqualStrings("1", owned.ui_amount_string.?);
             try std.testing.expect(owned.raw_json != null);
         },
         .rpc_error => return error.UnexpectedRpcError,

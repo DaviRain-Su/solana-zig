@@ -10,66 +10,78 @@
 
 ## 1. Objective
 
-Batch 4 目标是“补齐 Phase 3 剩余主交付，并给出 verdict 升级评估输入”：
-1. P3-17：signers 最小可用闭环（抽象 + in-memory + mock external + tx 接入）
-2. P3-18：C ABI 最小闭环（核心导出 + 所有权/错误码 + header 一致性）
-3. P3-19：benchmark 扩展（signers + C ABI）与 verdict 升级评估
+Batch 4 目标是“把 Phase 3 从主体已实现推进到 correctness/contract/documentation closeout”：
+1. P3-17：signers correctness closure（重点是 `MockExternalSigner`）
+2. P3-18：stake lifecycle contract closure（重点是 create helper 契约与负路径证据）
+3. P3-19：C ABI reality alignment（surface / header / tests / RPC story）
+4. P3-20：repo status/docs reconciliation + follow-up task freeze
 
 ## 2. In Scope
 
-### 2.1 P3-17 Signers minimum
-- `Signer` 抽象与最小 vtable 形状落地
-- `InMemorySigner` 与现有 Keypair 路径行为兼容
-- `MockExternalSigner` 的拒签/后端错误语义透传
-- `VersionedTransaction` 的 signer 抽象接入（含缺失 required signer 错误）
-- 至少 1 组 compile/sign + verify 证据
+### 2.1 P3-17 Signers correctness closure
+- 保持 `Signer` / `InMemorySigner` / `signWithSigners(...)` 现有能力不回退
+- 修复 `MockExternalSigner.signMessage(...)` 对输入消息的签名语义
+- 明确 `pubkey mismatch` 的错误语义与测试路径
+- 提供至少 1 组 mock signer transaction-level compile/sign/verify 或明确失败证据
 
-### 2.2 P3-18 C ABI minimum
-- `solana_zig.h` 最小导出集（value types + transaction/rpc 最小入口）
-- 稳定错误码与 ownership/free 约定最小闭环
-- `abi_version` 查询能力与头文件版本宏一致
-- 至少 1 组 C 调用闭环证据（create/use/free）
+### 2.2 P3-18 Stake lifecycle contract closure
+- 对齐 `buildCreateStakeAccountInstruction(...)` 的 API 名称、参数、文档与实际行为
+- 保持 `delegate/deactivate/withdraw` 的现有 builder 证据
+- 补齐至少一组 stake lifecycle 负路径测试（非法参数 / authority 问题 / contract misuse）
 
-### 2.3 P3-19 Benchmark & Verdict-upgrade evaluation
-- 扩展 benchmark 基线：signers 路径 + C ABI 路径
-- 在 strict exception model 下输出 Batch 4 verdict-upgrade 判定输入：
-  - 若仍存在 `partial exception` / `accepted exception path`，不得升级为 `可发布`
-  - 若无未收敛 exception 且 gates 全 PASS，才可评估升级
+### 2.3 P3-19 C ABI reality alignment
+- 明确首版 C ABI 哪些 surface 是“真实可用”，哪些只是 lifecycle scaffold
+- 对齐 `include/solana_zig.h`、`src/solana/cabi/*.zig` 与文档中的能力声明
+- 至少提供 1 组稳定的仓内 C compile/integration 证据
+- 若保留 RPC export，则需明确是真实 transport 还是显式 dummy/stub；不得两种口径混用
+
+### 2.4 P3-20 Repo status / docs reconciliation
+- 统一 `README.md`、`docs/00-roadmap.md`、`docs/07-review-report.md`、`docs/10-coverage-matrix.md`
+- 冻结“哪些文档是权威状态源”：
+  - 状态真相：`docs/10`
+  - planning：`docs/36`
+  - readiness/gate：`docs/37`
+  - narrative log：`docs/06`
+  - operator pointer：`notes/project-state.md`
 
 ## 3. Out of Scope
 
-1. 外部 KMS/HSM 真实接入（仅 mock/stub）
-2. C ABI 全量接口暴露（仅最小闭环）
+1. 外部 KMS/HSM 真实接入（仍仅 mock/stub）
+2. C ABI 全量接口暴露（只做首版 reality alignment，不追求 full surface）
 3. 新增 RPC 方法族或 websocket 能力扩展
 4. Phase 4（on-chain/SBF）相关内容
+5. Rust SDK 升级或新的 oracle 向量批次
 
 ## 4. Write-set Freeze
 
 ### P3-17 Signers
 - `src/solana/signers/*`
-- `src/solana/transaction.zig`（仅 signer 接入最小触碰）
+- `src/solana/tx/transaction.zig`
 - `src/solana/mod.zig`（仅必要导出）
 - `src/root.zig`（仅必要测试触点）
 
-### P3-18 C ABI
+### P3-18 Stake
+- `src/solana/interfaces/stake.zig`
+- `docs/17-quickstart-and-api-examples.md`
+- `docs/03a-interfaces-spec.md`（仅必要口径回写）
+
+### P3-19 C ABI
 - `src/solana/cabi/*`
 - `include/solana_zig.h`
 - `src/solana/mod.zig`（仅必要导出）
 - `src/root.zig`（仅必要测试触点）
 
-### P3-19 Benchmark & Verdict
-- `src/benchmark.zig`
-- `docs/13a-benchmark-baseline-results.md`
-- `docs/14a-devnet-e2e-run-log.md`
-- `docs/15-phase1-execution-matrix.md`
-- `docs/37-phase3-batch4-release-readiness.md`
-
 ### Docs/Gate
+- `README.md`
+- `docs/00-roadmap.md`
 - `docs/06-implementation-log.md`
+- `docs/07-review-report.md`
 - `docs/10-coverage-matrix.md`
-- `docs/35-phase3-batch3-release-readiness.md`（仅条件回写）
+- `docs/17-quickstart-and-api-examples.md`
 - `docs/37-phase3-batch4-release-readiness.md`
-- `docs/README.md`
+- `notes/project-state.md`
+- `MEMORY.md`
+- `docs/35-phase3-batch3-release-readiness.md`（仅条件回写）
 - `docs/28-phase2-closeout-readiness.md`（仅条件触发）
 
 ## 5. Carry-in Baseline Governance
@@ -101,33 +113,36 @@ Batch 4 目标是“补齐 Phase 3 剩余主交付，并给出 verdict 升级评
 - commit hash
 - 单次全量 `zig build test` 原始结果
 
-### G-P3D-02 signers minimum
-- `Signer` 抽象 + in-memory + mock external 落地
-- 至少 1 组 required signer 匹配/缺失错误机械证据
-- 至少 1 条 compile/sign + verify 证据
+### G-P3D-02 signers correctness closure
+- `MockExternalSigner` 正确签名输入消息，或其受限语义被清晰降级并文档化
+- `pubkey mismatch` / reject / backend failure 均有机械证据
+- 不回退现有 `Signer` / `InMemorySigner` / `signWithSigners(...)` 能力
 
-### G-P3D-03 C ABI minimum
-- 最小导出能力可调用（value/tx/rpc 至少一组）
-- ownership/free 规则机械可复现
-- 头文件与导出符号一致性证据
+### G-P3D-03 stake lifecycle contract closure
+- create helper 的 API/实现/文档口径一致
+- `delegate/deactivate/withdraw` 现有证据保持通过
+- 至少 1 组负路径测试证据
 
-### G-P3D-04 benchmark + verdict-upgrade input
-- signer/C ABI benchmark 基线已扩展并留档
-- strict exception model 判定输入完整
-- 明确输出本批 verdict-upgrade 结论
+### G-P3D-04 C ABI reality alignment
+- 头文件、导出实现、文档三者口径一致
+- 至少 1 组稳定 C compile/integration 证据
+- RPC surface 的真实能力边界明确，不再混用“可用/占位”表述
 
 ### G-P3D-05 docs/gate reconciliation
 必须回写并对账：
+- `README.md`
+- `docs/00-roadmap.md`
 - `docs/06-implementation-log.md`
+- `docs/07-review-report.md`
 - `docs/10-coverage-matrix.md`
-- `docs/13a-benchmark-baseline-results.md`
-- `docs/14a-devnet-e2e-run-log.md`
-- `docs/15-phase1-execution-matrix.md`
+- `docs/17-quickstart-and-api-examples.md`
 - `docs/37-phase3-batch4-release-readiness.md`
+- `notes/project-state.md`
+- `MEMORY.md`
 - 条件触发：`docs/35-phase3-batch3-release-readiness.md`, `docs/28-phase2-closeout-readiness.md`
 
 ## 8. Dependency Rule
 
-- P3-17 与 P3-18 可并行。
-- P3-19 可并行推进，但 Batch 4 final verdict 必须建立在三线证据都到位后。
+- P3-17 / P3-18 / P3-19 可并行。
+- P3-20 必须建立在前三线复核结论之上，再统一回写文档。
 - 若仍存在 `partial exception` 或 `accepted exception path`，Batch 4 verdict 只能是 `有条件发布` 或 `不可发布`。

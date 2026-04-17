@@ -5,7 +5,13 @@ pub const core = solana.core;
 pub const tx = solana.tx;
 pub const rpc = solana.rpc;
 pub const interfaces = solana.interfaces;
+pub const signers = solana.signers;
+pub const cabi = solana.cabi;
 pub const compat = solana.compat;
+
+const c_abi = @cImport({
+    @cInclude("solana_zig.h");
+});
 
 test "core exports" {
     const pk = solana.core.Pubkey.init([_]u8{1} ** 32);
@@ -48,6 +54,27 @@ test "ata interface compiles" {
 
 test "stake interface compiles" {
     _ = interfaces.stake;
+}
+
+test "signers compile" {
+    _ = signers.InMemorySigner;
+    _ = signers.MockExternalSigner;
+}
+
+test "c abi compiles" {
+    _ = cabi.core;
+    _ = cabi.transaction;
+    _ = cabi.rpc;
+}
+
+test "c abi header compiles through cImport" {
+    _ = c_abi.SolanaPubkey;
+    _ = c_abi.SolanaSignature;
+    _ = c_abi.SolanaHash;
+    _ = c_abi.solana_pubkey_from_bytes;
+    _ = c_abi.solana_hash_equal;
+    _ = c_abi.solana_zig_abi_version;
+    try std.testing.expectEqual(@as(c_int, c_abi.SOLANA_ZIG_ABI_VERSION), cabi.core.solana_zig_abi_version());
 }
 
 test "websocket client compiles" {

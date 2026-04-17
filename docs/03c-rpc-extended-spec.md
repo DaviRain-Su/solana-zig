@@ -12,22 +12,27 @@
 
 ## 2. Phase 2 Target Methods
 
-### 2.1 已落地的第一批扩展 RPC / 支撑方法
+### 2.1 已落地的全部扩展 RPC 方法（✅ 已完成）
 
-当前已进入公开能力或已被 live evidence 依赖的方法：
-- `getTransaction`
-- `getSignaturesForAddress`
-- `getSlot`
-- `getSignatureStatuses`（用于 `send -> confirm` 状态查询与留档）
+当前 16 个 RPC 方法全部实现（5 Phase 1 + 11 Phase 2），含 `*WithOptions` 变体共 29 个公开函数：
+- `getTransaction` / `getTransactionWithOptions`
+- `getSignaturesForAddress` / `getSignaturesForAddressWithOptions`
+- `getSignatureStatuses` / `getSignatureStatusesWithOptions`
+- `getSlot` / `getSlotWithOptions`
+- `getEpochInfo` / `getEpochInfoWithOptions`
+- `getMinimumBalanceForRentExemption`
+- `requestAirdrop`
+- `getAddressLookupTable`
+- `getTokenAccountsByOwner` / `getTokenAccountsByOwnerWithOptions`
+- `getTokenAccountBalance`
+- `getTokenSupply`
 
 ### 2.2 后续优先级
 
-下一批优先级：
-- `getAddressLookupTable`
-- `getTokenAccountsByOwner`
-- `getEpochInfo`
-- `getMinimumBalanceForRentExemption`
-- `requestAirdrop`
+所有 Phase 2 目标方法已交付。后续扩展方向：
+- 更多低频 RPC 方法（见 Product Phase 4 评估）
+- `jsonParsed` encoding 支持（当前 `getTransaction` 以 `json` encoding 为基线）
+- typed parse 子层继续扩展（当前 5 个高频方法 + 11 个扩展方法均已 typed）
 
 ## 3. Parse Strategy
 
@@ -65,10 +70,12 @@ pub const ParsedTransaction = struct { ... };
 - unsubscribe
 - close
 
-当前实现快照：
-- 最小低层 `WsClient` / `WsRpcClient` 已存在，并已进入公开包面
-- 已有基础订阅、通知读取、disconnect detect、reconnect 相关测试
-- 但 Product Phase 2 对 websocket 的承诺边界仍以“生命周期可重复验证并完成收口”为准，而不是仅以底层 client 已可编译/基础可跑为准
+当前实现快照（✅ 生产级硬化完成）：
+- `WsClient` / `WsRpcClient` 已完整实现并进入公开包面（2681 行）
+- 7 种订阅全部支持：`accountSubscribe` / `programSubscribe` / `signatureSubscribe` / `slotSubscribe` / `rootSubscribe` / `logsSubscribe` / `blockSubscribe`
+- 生产级硬化：heartbeat、deterministic backoff、dedup ring buffer、WsStats 可观测性
+- 连接/断线/重连/去重/可观测性测试全覆盖
+- 订阅生命周期完整：connect → subscribe → receive → reconnect → resubscribe → unsubscribe → close
 
 默认策略：
 - 断线后可配置是否自动重连
@@ -119,22 +126,14 @@ pub const ParsedTransaction = struct { ... };
 - Boundary：number_string、缺字段、空 result、断线重连
 - Error：非 200、malformed JSON、rpc_error、订阅丢失
 
-## 8. Implementation Snapshot / Next Order
+## 8. Implementation Snapshot（✅ 全部交付）
 
-### 8.1 已完成的第一批
+Phase 2 全部 16 个 RPC 方法 + 7 种 WebSocket 订阅 + Nonce 工作流 + Compute Budget 均已交付。详见 `docs/00-roadmap.md` Phase 2 交付物清单。
 
-1. `getTransaction(json baseline)`
-2. `getSignaturesForAddress`
-3. `getSlot`
-4. `getSignatureStatuses`（作为 `send/confirm` 支撑方法）
-
-### 8.2 下一批建议顺序
-
-1. `getAddressLookupTable`
-2. `getTokenAccountsByOwner` / `getEpochInfo` / `getMinimumBalanceForRentExemption` / `requestAirdrop`
-3. typed parse 子层继续扩展（先扩展高频结果；当前 5 个高频方法的最小收敛仍属于 Phase 1）
-4. Websocket 订阅骨架
-5. Durable Nonce 工作流联调（指令构造落在 `interfaces/system`）
+后续方向：
+- `jsonParsed` encoding 支持（当前 `getTransaction` 以 `json` encoding 为基线）
+- 更多低频 RPC 方法（Product Phase 4 评估）
+- typed parse 子层继续扩展
 
 ## 9. Open Questions
 

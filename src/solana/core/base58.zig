@@ -122,3 +122,32 @@ test "base58 invalid character" {
     const gpa = std.testing.allocator;
     try std.testing.expectError(error.InvalidBase58, decodeAlloc(gpa, "0OIl"));
 }
+
+test "base58 encodes and decodes 1KB input" {
+    const gpa = std.testing.allocator;
+    const input = [_]u8{0xAB} ** 1024;
+    const encoded = try encodeAlloc(gpa, &input);
+    defer gpa.free(encoded);
+
+    const decoded = try decodeAlloc(gpa, encoded);
+    defer gpa.free(decoded);
+    try std.testing.expectEqualSlices(u8, &input, decoded);
+}
+
+test "base58 empty input encodes to empty string" {
+    const gpa = std.testing.allocator;
+    const encoded = try encodeAlloc(gpa, "");
+    defer gpa.free(encoded);
+    try std.testing.expectEqualSlices(u8, "", encoded);
+}
+
+test "base58 roundtrip preserves leading zero bytes" {
+    const gpa = std.testing.allocator;
+    const input = [_]u8{ 0, 0, 0, 1, 2, 3 };
+    const encoded = try encodeAlloc(gpa, &input);
+    defer gpa.free(encoded);
+
+    const decoded = try decodeAlloc(gpa, encoded);
+    defer gpa.free(decoded);
+    try std.testing.expectEqualSlices(u8, &input, decoded);
+}

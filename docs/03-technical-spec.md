@@ -137,25 +137,34 @@ pub fn VersionedTransaction.deserialize(allocator: std.mem.Allocator, bytes: []c
 ### 3.3 RPC
 
 ```zig
-// Phase 1 (5 methods)
+// Phase 1 (5 methods + commitment variants)
 pub fn RpcClient.getLatestBlockhash(self: *RpcClient) !RpcResult(LatestBlockhash)
+pub fn RpcClient.getLatestBlockhashWithCommitment(self: *RpcClient, commitment: Commitment) !RpcResult(LatestBlockhash)
 pub fn RpcClient.getAccountInfo(self: *RpcClient, pubkey: Pubkey) !RpcResult(?AccountInfo)
 pub fn RpcClient.getBalance(self: *RpcClient, pubkey: Pubkey) !RpcResult(u64)
+pub fn RpcClient.getBalanceWithCommitment(self: *RpcClient, pubkey: Pubkey, commitment: Commitment) !RpcResult(u64)
 pub fn RpcClient.simulateTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(SimulateTransactionResult)
 pub fn RpcClient.sendTransaction(self: *RpcClient, tx: VersionedTransaction) !RpcResult(SendTransactionResult)
+pub fn RpcClient.sendTransactionWithOptions(self: *RpcClient, tx: VersionedTransaction, opts: SendTransactionOptions) !RpcResult(SendTransactionResult)
 
-// Phase 2 (11 methods)
+// Phase 2 (11 methods + Options variants, 29 public functions total)
 pub fn RpcClient.getSlot(self: *RpcClient) !RpcResult(u64)
+pub fn RpcClient.getSlotWithOptions(self: *RpcClient, opts: GetSlotOptions) !RpcResult(u64)
 pub fn RpcClient.getEpochInfo(self: *RpcClient) !RpcResult(EpochInfo)
+pub fn RpcClient.getEpochInfoWithOptions(self: *RpcClient, opts: GetEpochInfoOptions) !RpcResult(EpochInfo)
 pub fn RpcClient.getMinimumBalanceForRentExemption(self: *RpcClient, data_len: usize) !RpcResult(u64)
 pub fn RpcClient.requestAirdrop(self: *RpcClient, pubkey: Pubkey, lamports: u64) !RpcResult(RequestAirdropResult)
 pub fn RpcClient.getAddressLookupTable(self: *RpcClient, table_address: Pubkey) !RpcResult(AddressLookupTableResult)
 pub fn RpcClient.getSignaturesForAddress(self: *RpcClient, pubkey: Pubkey, limit: ?u32) !RpcResult(SignaturesForAddressResult)
+pub fn RpcClient.getSignaturesForAddressWithOptions(self: *RpcClient, pubkey: Pubkey, opts: GetSignaturesOptions) !RpcResult(SignaturesForAddressResult)
 pub fn RpcClient.getTokenAccountsByOwner(self: *RpcClient, owner: Pubkey, program_id: Pubkey) !RpcResult(TokenAccountsByOwnerResult)
+pub fn RpcClient.getTokenAccountsByOwnerWithOptions(self: *RpcClient, owner: Pubkey, opts: GetTokenAccountsOptions) !RpcResult(TokenAccountsByOwnerResult)
 pub fn RpcClient.getTokenAccountBalance(self: *RpcClient, token_account: Pubkey) !RpcResult(TokenAmount)
 pub fn RpcClient.getTokenSupply(self: *RpcClient, mint: Pubkey) !RpcResult(TokenAmount)
 pub fn RpcClient.getTransaction(self: *RpcClient, signature: Signature) !RpcResult(?TransactionInfo)
+pub fn RpcClient.getTransactionWithOptions(self: *RpcClient, signature: Signature, opts: GetTransactionOptions) !RpcResult(?TransactionInfo)
 pub fn RpcClient.getSignatureStatuses(self: *RpcClient, signatures: []const Signature) !RpcResult(SignatureStatusesResult)
+pub fn RpcClient.getSignatureStatusesWithOptions(self: *RpcClient, signatures: []const Signature, opts: GetSignatureStatusesOptions) !RpcResult(SignatureStatusesResult)
 ```
 
 前置条件：
@@ -365,7 +374,7 @@ RPC 业务错误封装定义于 `src/solana/rpc/types.zig`：
 
 ## 11. Test Mapping (实现与规格对应)
 
-当前代码已覆盖（208 tests）：
+当前代码已覆盖（229 tests）：
 - base58 roundtrip + 非法字符
 - shortvec roundtrip + invalid
 - pubkey/signature 固定长度校验

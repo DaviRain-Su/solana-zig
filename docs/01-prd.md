@@ -100,9 +100,9 @@ Solana 官方 Rust 客户端生态已形成分层 crate 体系（客户端、组
 ### 3.3 当前阶段 Out of Scope（暂不承诺）
 - 链上程序运行时语义（no_std/SBF）完整实现 → 见路线图 Phase 4。
 - 一次性覆盖全部低频 RPC → 见路线图 Phase 2。
-- Token Program / Associated Token Account 等上层抽象 → 见路线图 Phase 3。
-- Websocket 订阅 → 见路线图 Phase 2。
-- C ABI 导出 → 见路线图 Phase 3。
+- ~~Token Program / Associated Token Account 等上层抽象 → 见路线图 Phase 3。~~（✅ Phase 3 已交付）
+- ~~Websocket 订阅 → 见路线图 Phase 2。~~（✅ Phase 2 已交付）
+- ~~C ABI 导出 → 见路线图 Phase 3。~~（✅ Phase 3 已交付，RPC 为 scaffold 状态）
 - 与 Rust API 命名 1:1 完全一致（当前以行为兼容优先）。
 
 ### 3.4 已知差异与约束

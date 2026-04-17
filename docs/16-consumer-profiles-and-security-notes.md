@@ -13,9 +13,10 @@
 - 需要在服务端或工具链中构造、签名、发送 Solana 交易的工程团队
 - 重点关注：行为兼容、字节兼容、错误语义、测试可验证性
 
-### 1.2 Near-future Users (Product Phase 3)
-- 通过 C ABI 使用功能的非 Zig 语言调用者
-- 需要外部 signer / 托管 signer / mock signer 的集成方
+### 1.2 Current Users (Product Phase 3 — ✅ 已交付)
+- 通过 C ABI 使用功能的非 Zig 语言调用者（C ABI 核心类型 + 交易构建已可用；RPC 导出为 scaffold 状态）
+- 需要外部 signer / 托管 signer / mock signer 的集成方（Signer vtable + InMemorySigner + MockExternalSigner 已交付）
+- 7 个 interface 模块消费者：system / token / token_2022 / compute_budget / memo / stake / ata
 - 重点关注：所有权、句柄稳定性、错误码、secret boundary
 
 ### 1.3 Deferred / Non-primary Users

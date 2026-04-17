@@ -1,6 +1,8 @@
 const std = @import("std");
 const solana_zig = @import("solana_zig");
 
+/// Demo binary that derives a keypair from a fixed seed and prints its pubkey.
+/// Usage: solana-zig [--seed <hex>]
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
 

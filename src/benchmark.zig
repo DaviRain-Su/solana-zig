@@ -33,8 +33,8 @@ const RpcClient = solana.rpc.RpcClient;
 
 const WARMUP_ITERS: usize = 100;
 const BENCH_ITERS: usize = 10_000;
-const RPC_PARSE_WARMUP_ITERS: usize = 25;
-const RPC_PARSE_BENCH_ITERS: usize = 1_000;
+const RPC_PARSE_WARMUP_ITERS: usize = 100;
+const RPC_PARSE_BENCH_ITERS: usize = 10_000;
 const RPC_ACCOUNT_DATA_BYTES: usize = 8 * 1024;
 const RPC_TRANSACTION_LOG_COUNT: usize = 24;
 const RPC_TRANSACTION_INNER_INSTRUCTION_COUNT: usize = 8;
