@@ -91,7 +91,7 @@ Batch 5 固定四条实现/收口线：
 ### G-P3E-02 exception final convergence
 
 - `requestAirdrop` 与 `getAddressLookupTable` 都给出本批最终可复现结论；
-- 明确区分：`closed` / `partial_exception` / `accepted_exception` / `not_converged`；
+- 明确区分：`closed` / `partial_exception` / `accepted_exception_path` / `not_converged`；
 - 输出 verdict-upgrade 输入，不得仅给代码变更无判定。
 
 ### G-P3E-03 C ABI RPC/live alignment
