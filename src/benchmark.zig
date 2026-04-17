@@ -459,7 +459,35 @@ fn runWsSubscribeSerializeBenchmark(
     comptime name: []const u8,
     allocator: std.mem.Allocator,
     value: []const u8,
-    serializer: *const fn (std.mem.Allocator, u64, []const u8) std.mem.Allocator.Error![]u8,
+    comptime serializer: anytype,
+    commitment: solana.rpc.types.Commitment,
+) !void {
+    var total_payload_bytes: usize = 0;
+    var rpc_id: u64 = 1;
+
+    for (0..WS_CODEC_WARMUP_ITERS) |_| {
+        const payload = try serializer(allocator, rpc_id, value, commitment);
+        rpc_id += 1;
+        total_payload_bytes += payload.len;
+        allocator.free(payload);
+    }
+
+    const start = nowNs();
+    for (0..WS_CODEC_BENCH_ITERS) |_| {
+        const payload = try serializer(allocator, rpc_id, value, commitment);
+        rpc_id += 1;
+        total_payload_bytes += payload.len;
+        allocator.free(payload);
+    }
+    std.mem.doNotOptimizeAway(&total_payload_bytes);
+    printResult(name, PROFILE_WS_SUBSCRIBE, WS_CODEC_BENCH_ITERS, nowNs() - start);
+}
+
+fn runWsLogsSubscribeSerializeBenchmark(
+    comptime name: []const u8,
+    allocator: std.mem.Allocator,
+    value: []const u8,
+    comptime serializer: anytype,
 ) !void {
     var total_payload_bytes: usize = 0;
     var rpc_id: u64 = 1;
@@ -822,9 +850,9 @@ pub fn main() !void {
 
     // --- websocket message codec ---
     std.debug.print("\n--- websocket message codec ---\n", .{});
-    try runWsSubscribeSerializeBenchmark("ws_accountSubscribe_serialize", allocator, ws_account_pubkey, ws_rpc.serializeAccountSubscribeRequest);
-    try runWsSubscribeSerializeBenchmark("ws_programSubscribe_serialize", allocator, ws_program_id, ws_rpc.serializeProgramSubscribeRequest);
-    try runWsSubscribeSerializeBenchmark("ws_logsSubscribe_serialize", allocator, ws_logs_filter, ws_rpc.serializeLogsSubscribeRequest);
+    try runWsSubscribeSerializeBenchmark("ws_accountSubscribe_serialize", allocator, ws_account_pubkey, ws_rpc.serializeAccountSubscribeRequest, .confirmed);
+    try runWsSubscribeSerializeBenchmark("ws_programSubscribe_serialize", allocator, ws_program_id, ws_rpc.serializeProgramSubscribeRequest, .confirmed);
+    try runWsLogsSubscribeSerializeBenchmark("ws_logsSubscribe_serialize", allocator, ws_logs_filter, ws_rpc.serializeLogsSubscribeRequest);
     try runWsAccountNotificationParseBenchmark(allocator, ws_account_notification);
     try runWsProgramNotificationParseBenchmark(allocator, ws_program_notification);
     try runWsLogsNotificationParseBenchmark(allocator, ws_logs_notification);
