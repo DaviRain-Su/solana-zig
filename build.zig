@@ -23,6 +23,25 @@ pub fn build(b: *std.Build) void {
     // target and optimize options) will be listed when running `zig build --help`
     // in this directory.
 
+    // libsodium is optional but recommended for faster Ed25519 sign/verify.
+    const enable_libsodium = b.option(bool, "enable-libsodium", "Link libsodium for faster Ed25519 (default: true)") orelse true;
+
+    // ed25519-dalek staticlib provides the same backend as Rust's ed25519-dalek crate.
+    // Default is false because the staticlib is not checked into the repo and must be
+    // built manually from scripts/oracle/ed25519_dalek_cabi/.
+    const enable_dalek = b.option(bool, "enable-dalek", "Link ed25519-dalek staticlib for Ed25519 (default: false)") orelse false;
+    const dalek_staticlib_path = "scripts/oracle/ed25519_dalek_cabi/target/release/libed25519_dalek_cabi.a";
+
+    // ring staticlib (based on BoringSSL) often outperforms dalek on aarch64.
+    const enable_ring = b.option(bool, "enable-ring", "Link ring staticlib for Ed25519 (default: true)") orelse true;
+    const ring_staticlib_path = "scripts/oracle/ed25519_ring_cabi/target/release/libed25519_ring_cabi.a";
+
+    // Build-time config options exposed to Zig code via @import("config").
+    const config_options = b.addOptions();
+    config_options.addOption(bool, "enable_libsodium", enable_libsodium);
+    config_options.addOption(bool, "enable_dalek", enable_dalek);
+    config_options.addOption(bool, "enable_ring", enable_ring);
+
     // This creates a module, which represents a collection of source files alongside
     // some compilation options, such as optimization mode and linked system libraries.
     // Zig modules are the preferred way of making Zig code available to consumers.
@@ -44,6 +63,17 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
     });
     mod.addIncludePath(b.path("include"));
+    mod.addOptions("config", config_options);
+    if (enable_libsodium) {
+        mod.linkSystemLibrary("sodium", .{});
+        mod.addLibraryPath(std.Build.LazyPath{ .cwd_relative = "/opt/homebrew/lib" });
+    }
+    if (enable_dalek) {
+        mod.addObjectFile(b.path(dalek_staticlib_path));
+    }
+    if (enable_ring) {
+        mod.addObjectFile(b.path(ring_staticlib_path));
+    }
 
     // Here we define an executable. An executable needs to have a root module
     // which needs to expose a `main` function. While we could add a main function
@@ -87,6 +117,17 @@ pub fn build(b: *std.Build) void {
         }),
     });
     exe.root_module.addIncludePath(b.path("include"));
+    exe.root_module.addOptions("config", config_options);
+    if (enable_libsodium) {
+        exe.root_module.linkSystemLibrary("sodium", .{});
+        exe.root_module.addLibraryPath(std.Build.LazyPath{ .cwd_relative = "/opt/homebrew/lib" });
+    }
+    if (enable_dalek) {
+        exe.root_module.addObjectFile(b.path(dalek_staticlib_path));
+    }
+    if (enable_ring) {
+        exe.root_module.addObjectFile(b.path(ring_staticlib_path));
+    }
 
     // This declares intent for the executable to be installed into the
     // install prefix when running `zig build` (i.e. when executing the default
@@ -210,12 +251,54 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
         }),
     });
+    bench_exe.root_module.addOptions("config", config_options);
+    if (enable_libsodium) {
+        bench_exe.root_module.linkSystemLibrary("sodium", .{});
+        bench_exe.root_module.addLibraryPath(std.Build.LazyPath{ .cwd_relative = "/opt/homebrew/lib" });
+    }
+    if (enable_dalek) {
+        bench_exe.root_module.addObjectFile(b.path(dalek_staticlib_path));
+    }
+    if (enable_ring) {
+        bench_exe.root_module.addObjectFile(b.path(ring_staticlib_path));
+    }
     b.installArtifact(bench_exe);
 
     const bench_run = b.addRunArtifact(bench_exe);
     bench_run.step.dependOn(b.getInstallStep());
     const bench_step = b.step("bench", "Run Phase 1 benchmark baseline");
     bench_step.dependOn(&bench_run.step);
+
+    // C ABI header compile check (docs/03d-cabi-spec.md)
+    const cabi_header_check = b.addExecutable(.{
+        .name = "cabi_header_check",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("scripts/check_cabi_header.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    cabi_header_check.root_module.addIncludePath(b.path("include"));
+    const run_cabi_header_check = b.addRunArtifact(cabi_header_check);
+    const cabi_check_step = b.step("cabi-check", "Compile C ABI header check");
+    cabi_check_step.dependOn(&run_cabi_header_check.step);
+
+    // Core freestanding compile check (ADR-0002)
+    const freestanding_target = b.resolveTargetQuery(.{
+        .cpu_arch = .bpfel,
+        .os_tag = .freestanding,
+    });
+    const freestanding_check = b.addObject(.{
+        .name = "freestanding_check",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/solana/core/pubkey.zig"),
+            .target = freestanding_target,
+            .optimize = .ReleaseSmall,
+        }),
+    });
+    const freestanding_step = b.step("freestanding-check", "Compile core types for bpfel-freestanding");
+    freestanding_step.dependOn(&freestanding_check.step);
 
     // Just like flags, top level steps are also listed in the `--help` menu.
     //

@@ -10,3 +10,4 @@ test_time
 dist
 .zig-global-cache
 .ralph*
+scripts/oracle/*/target/

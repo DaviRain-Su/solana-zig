@@ -9,7 +9,7 @@
 
 - Phase 4 主 scope：on-chain SBF feasibility、runtime/entrypoint 边界、CPI + Borsh、System/SPL wrappers、示例程序、收口发布。
 - 工具链主基线：`zignocchio`（standard Zig BPF + `sbpf-linker`）。
-- `solana-zig-bootstrap` 在本批仅作为背景对照，不作为实施计分对象。
+- `solana-zig-bootstrap` 已按 `ADR-0004` §5 触发永久排除条件，不再作为 fallback candidate。
 
 ## 2. Gate Map
 
@@ -32,13 +32,9 @@
 
 ### 3.1 Host Matrix / Fallback 约束（#99 固化项）
 
-1. `#95` 必须给出 `zignocchio/sbpf-linker` 在 `darwin-arm64` 的支持结论：`支持 / 不支持 / 条件支持`。
-2. 若 `darwin-arm64` 不可用，允许采用 `linux-x86_64` 作为 `G-P4A` canonical 计分主机；`darwin-arm64` 降为 native/dev-only。
-3. `solana-zig-bootstrap` 默认保持“已排除对照方案”；仅在下列条件同时满足时才能降级为 controlled fallback candidate：
-- `linux-x86_64` 上 `zignocchio` compile 与 smoke 均失败且可复现；
-- 已提供最小复现（命令、环境、错误栈）；
-- reviewer 在 ADR 中签署 fallback 触发。
-4. 若 `linux-x86_64` 上 `zignocchio` compile + smoke 通过，则 bootstrap 维持永久排除，不进入实施计分。
+1. `#95` 必须给出 `zignocchio/sbpf-linker` 在 `darwin-arm64` 的支持结论：`不支持`（`sbpf-linker` 在 Darwin 上触发 `_LLVMInitializeBPFTarget` panic）。
+2. `linux-x86_64` 已确定为 `G-P4A` canonical 计分主机；`darwin-arm64` 降为 native/dev-only。
+3. `solana-zig-bootstrap` 已按 `ADR-0004` §5 永久排除，不再作为 controlled fallback candidate。
 
 ## 4. Phase 3 Open Exceptions Boundary
 

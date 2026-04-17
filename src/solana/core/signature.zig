@@ -30,11 +30,16 @@ pub const Signature = struct {
         return base58.encodeAlloc(allocator, &self.bytes);
     }
 
+    pub fn toBase58Buf(self: Signature, out: []u8) !usize {
+        return base58.encodeToBuf(out, &self.bytes);
+    }
+
+    pub fn toBase58Fast(self: Signature, out: []u8) usize {
+        return @import("base58_fast.zig").encode64(&self.bytes, out);
+    }
+
     pub fn verify(self: Signature, msg: []const u8, pubkey: pubkey_mod.Pubkey) !void {
-        const Ed25519 = std.crypto.sign.Ed25519;
-        const pk = try Ed25519.PublicKey.fromBytes(pubkey.bytes);
-        const sig = Ed25519.Signature.fromBytes(self.bytes);
-        try sig.verify(msg, pk);
+        try @import("ed25519.zig").verify(&self.bytes, msg, &pubkey.bytes);
     }
 
     pub fn isZero(self: Signature) bool {

@@ -51,7 +51,9 @@ pub export fn solana_signature_from_base58(str: [*c]const u8, len: usize, out: ?
 
 pub export fn solana_signature_to_base58(sig: ?*const solana.core.Signature, out_str: ?*[*c]u8, out_len: ?*usize) c_int {
     if (sig == null or out_str == null or out_len == null) return errors.SOLANA_ERR_INVALID_ARGUMENT;
-    const encoded = sig.?.toBase58Alloc(std.heap.c_allocator) catch return errors.SOLANA_ERR_INTERNAL;
+    var buf: [128]u8 = undefined;
+    const len = sig.?.toBase58Fast(&buf);
+    const encoded = std.heap.c_allocator.dupe(u8, buf[0..len]) catch return errors.SOLANA_ERR_INTERNAL;
     out_str.?.* = encoded.ptr;
     out_len.?.* = encoded.len;
     return errors.SOLANA_OK;

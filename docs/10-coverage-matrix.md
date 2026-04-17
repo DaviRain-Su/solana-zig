@@ -20,10 +20,10 @@
 |---|---|---|---|---|---|
 | `solana-pubkey` | `core.Pubkey` | done | `src/solana/core/pubkey.zig` | `docs/03` 2.1 / `docs/05` 4.3 | 已支持 base58 roundtrip |
 | `solana-signature` | `core.Signature` | done | `src/solana/core/signature.zig` | `docs/03` 2.1 / `docs/05` 4.3 | 已支持 verify |
-| `solana-keypair` | `core.Keypair` | done | `src/solana/core/keypair.zig` | `docs/03` 3.1 / `docs/05` 4.3 | 固定 seed 签名向量已补齐（`#9`），oracle 向量通过 |
+| `solana-keypair` | `core.Keypair` | done | `src/solana/core/keypair.zig` | `docs/03` 3.1 / `docs/05` 4.3 | 固定 seed 签名向量已补齐（`#9`），oracle 向量通过；`ed25519.zig` 提供 dalek/libsodium/Zig-std 三层 backend 切换 |
 | `solana-hash` | `core.Hash` | done | `src/solana/core/hash.zig` | `docs/03` 2.1 / `docs/05` 4.3 | roundtrip/boundary 已覆盖 |
 | `solana-short-vec` | `core.shortvec` | done | `src/solana/core/shortvec.zig` | `docs/03` 2.2 / `docs/05` 4.2 | 基础覆盖 + 溢出边界已覆盖 |
-| base58 codec | `core.base58` | done | `src/solana/core/base58.zig` | `docs/03` 3.1 / `docs/05` 4.1 | roundtrip + 非法字符 + oracle 向量通过 |
+| base58 codec | `core.base58` | done | `src/solana/core/base58.zig` | `docs/03` 3.1 / `docs/05` 4.1 | roundtrip + 非法字符 + oracle 向量通过；`base58_fast.zig` 已覆盖 32/64-byte encode/decode fast path |
 
 ## 2. Transaction / Message Capabilities
 
@@ -174,7 +174,7 @@
 |---|---|---|---|
 | US-019 `Signer` 接口定义 | done | `src/solana/signers/signer.zig` | `Signer` vtable + `SignerError` 已落地 |
 | US-020 `InMemorySigner` | done | `src/solana/signers/in_memory.zig`, `src/solana/tx/transaction.zig` | signer-path/keypair-path 等价已覆盖，legacy 多签顺序无关证据已存在 |
-| US-021 `MockExternalSigner` | partial | `src/solana/signers/mock_external.zig` | 已覆盖 backend failure / rejected；仍需修复“忽略输入消息签名”与 `pubkey mismatch` 语义 |
+| US-021 `MockExternalSigner` | partial | `src/solana/signers/mock_external.zig` | 已覆盖 backend failure / rejected / mismatch 错误路径；`pubkey mismatch` 语义本身仍有 gap（当前通过 `MissingRequiredSignature` 间接覆盖），待后续修复 |
 | US-022 `signWithSigners(...)` | done | `src/solana/tx/transaction.zig` | 缺签错误与 keypair-path 单 signer 等价已覆盖 |
 | US-023 C ABI 核心类型 | done | `src/solana/cabi/core.zig`, `include/solana_zig.h` | header/core/test surface 对齐，C compile evidence 已通过 |
 | US-024 C ABI 交易构建 | done | `src/solana/cabi/transaction.zig` | instruction → message → tx → serialize 闭环已覆盖 |
@@ -188,7 +188,7 @@
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
 | `signers minimum closure` | closed | `#79` | — | `3460ac9`，`Signer` 抽象 + `InMemorySigner` + `MockExternalSigner` + `signWithSigners`，isolated canonical `205/205` | `src/solana/signers/*` + `src/solana/tx/transaction.zig` + `docs/06` + `docs/37` | `G-P3D-01` + `G-P3D-02` PASS |
-| `C ABI minimum closure` | closed | `#80` | — | `e9fd4ff`，`SOLANA_ZIG_ABI_VERSION` + `solana_zig_abi_version()` + header/export consistency + RPC 最小入口，isolated canonical `206/206` | `src/solana/cabi/*` + `include/solana_zig.h` + `docs/06` + `docs/37` | `G-P3D-01` + `G-P3D-03` PASS |
+| `C ABI minimum closure` | closed | `#80` | — | `SOLANA_ZIG_ABI_VERSION` + `solana_zig_abi_version()` + header/export consistency + RPC 最小入口；`build.zig` 已增加 `cabi-check` 与 `freestanding-check` 编译门控 | `src/solana/cabi/*` + `include/solana_zig.h` + `docs/06` + `docs/37` | `G-P3D-01` + `G-P3D-03` PASS |
 | `benchmark + verdict-upgrade input` | closed | `#81` | — | `bce967d`，`docs/13a` Run 2（signers/C ABI baseline）+ strict model verdict input，isolated canonical `208/208` | `docs/13a-benchmark-baseline-results.md` + `docs/15-phase1-execution-matrix.md` + `docs/37` | `G-P3D-04` PASS |
 | `batch4.docs/gate reconciliation` | closed | `#82` | — | 本轮回写 `docs/06+10+13a+15+37`；`docs/14a` 沿用既有 exception 证据链；conditional writeback 未触发 | 本矩阵 + `docs/37` | `G-P3D-05` PASS |
 
@@ -214,7 +214,7 @@
 | 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
 |---|---|---|---|---|---|---|
 | `exception final convergence` | closed | `#84` | — | `b02071b`，isolated canonical clean，`devnet-e2e 17/17` + `e2e 2/2` + `208/208`；最终输入：`partial_exception + accepted_exception_path` | `src/e2e/devnet_e2e.zig` + `docs/14a` Run 15 + `docs/39` | `G-P3E-01` + `G-P3E-02` PASS |
-| `C ABI RPC/live alignment` | closed | `#85` | — | `23d8cf4`，`cabi/rpc` 已切到真实 HTTP transport 路径（`initHttpTransport + std.Io.Threaded`），lifecycle/error model 证据齐 | `src/solana/cabi/rpc.zig` + `include/solana_zig.h` + `docs/39` | `G-P3E-03` PASS |
+| `C ABI RPC/live alignment` | closed | `#85` | — | `cabi/rpc` 已切到真实 HTTP transport 路径（`initHttpTransport + std.Io.default`），lifecycle/error model 证据齐 | `src/solana/cabi/rpc.zig` + `include/solana_zig.h` + `docs/39` | `G-P3E-03` PASS |
 | `stake create + negative-path closure` | closed | `#86` | — | `23d8cf4`，`buildCreateStakeAccountInstructions` 契约对齐（create-account + initialize），compile-sign/negative-path 证据齐 | `src/solana/interfaces/stake.zig` + `docs/39` | 作为 `G-P3E-04` 子项输入 PASS |
 | `rust baseline + aggregate verdict input` | closed | `#87` | — | `9f903e5`，Rust harness 入库 + Run 3 可复现，`G-P3E-04 PASS` | `scripts/oracle/rust_benchmark.rs` + `docs/13a` + `docs/39` | `G-P3E-04` PASS |
 | `batch5.docs/gate reconciliation + aggregate closeout` | closed | `#88` | — | `e913351`，G-P3E-05 PASS，verdict `有条件发布` | 本矩阵 + `docs/39` | `G-P3E-05` PASS |

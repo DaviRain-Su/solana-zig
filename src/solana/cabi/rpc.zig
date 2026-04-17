@@ -12,10 +12,16 @@ export fn solana_rpc_client_init(endpoint: [*c]const u8, endpoint_len: usize, ou
     const client = allocator.create(solana.rpc.RpcClient) catch return errors.SOLANA_ERR_INTERNAL;
     errdefer allocator.destroy(client);
 
-    const transport_ctx = allocator.create(DummyTransportCtx) catch return errors.SOLANA_ERR_INTERNAL;
-    transport_ctx.* = .{};
+    var threaded_io = allocator.create(std.Io.Threaded) catch return errors.SOLANA_ERR_INTERNAL;
+    threaded_io.* = std.Io.Threaded.init(allocator, .{});
+    errdefer allocator.destroy(threaded_io);
 
-    const transport = solana.rpc.Transport.init(transport_ctx, dummyPostJson, dummyDeinit);
+    const io = threaded_io.io();
+    const transport = solana.rpc.transport.initHttpTransport(allocator, io) catch {
+        allocator.destroy(threaded_io);
+        allocator.destroy(client);
+        return errors.SOLANA_ERR_INTERNAL;
+    };
     errdefer transport.deinit(allocator);
 
     client.* = solana.rpc.RpcClient.initWithTransport(allocator, endpoint_slice, transport) catch {
@@ -67,35 +73,12 @@ fn mapRpcErr(err: anyerror) c_int {
     };
 }
 
-const DummyTransportCtx = struct {};
-
-fn dummyPostJson(_: *anyopaque, _: std.mem.Allocator, _: []const u8, _: []const u8) !@import("../rpc/transport.zig").PostJsonResponse {
-    return error.RpcTransport;
-}
-
-fn dummyDeinit(ctx: *anyopaque, allocator: std.mem.Allocator) void {
-    const transport_ctx: *DummyTransportCtx = @ptrCast(@alignCast(ctx));
-    allocator.destroy(transport_ctx);
-}
-
-test "cabi rpc client uses dummy transport scaffold" {
+test "cabi rpc client init/deinit lifecycle" {
     var handle: ?*RpcClientHandle = null;
     try std.testing.expectEqual(
         errors.SOLANA_OK,
         solana_rpc_client_init("http://example.invalid".ptr, "http://example.invalid".len, &handle),
     );
     defer solana_rpc_client_deinit(&handle);
-
-    var blockhash: solana.core.Hash = undefined;
-    try std.testing.expectEqual(
-        errors.SOLANA_ERR_RPC_TRANSPORT,
-        solana_rpc_client_get_latest_blockhash(handle.?, &blockhash),
-    );
-
-    const pk = solana.core.Pubkey.init([_]u8{1} ** 32);
-    var lamports: u64 = 0;
-    try std.testing.expectEqual(
-        errors.SOLANA_ERR_RPC_TRANSPORT,
-        solana_rpc_client_get_balance(handle.?, &pk, &lamports),
-    );
+    try std.testing.expect(handle != null);
 }

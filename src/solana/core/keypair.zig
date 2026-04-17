@@ -26,8 +26,8 @@ pub const Keypair = struct {
     }
 
     pub fn sign(self: Keypair, msg: []const u8) !signature_mod.Signature {
-        const sig = try self.ed25519.sign(msg, null);
-        return .{ .bytes = sig.toBytes() };
+        const sig = try @import("ed25519.zig").sign(msg, &self.ed25519.secret_key.toBytes());
+        return .{ .bytes = sig };
     }
 
     pub fn verify(self: Keypair, msg: []const u8, signature: signature_mod.Signature) !void {

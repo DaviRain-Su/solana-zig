@@ -149,6 +149,22 @@ pub fn decodeAlloc(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
 }
 
 pub fn decodeFixed(comptime N: usize, input: []const u8) ![N]u8 {
+    switch (N) {
+        32 => {
+            var out: [32]u8 = undefined;
+            if (@import("base58_fast.zig").decode32(input, &out)) {
+                return out;
+            } else |_| {}
+        },
+        64 => {
+            var out: [64]u8 = undefined;
+            if (@import("base58_fast.zig").decode64(input, &out)) {
+                return out;
+            } else |_| {}
+        },
+        else => {},
+    }
+
     var gpa = std.heap.stackFallback(2048, std.heap.page_allocator);
     const allocator = gpa.get();
 

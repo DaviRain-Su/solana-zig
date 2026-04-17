@@ -669,6 +669,24 @@ pub fn main() !void {
     }
 
     {
+        const encoded = try pubkey.toBase58Alloc(allocator);
+        defer allocator.free(encoded);
+
+        for (0..WARMUP_ITERS) |_| {
+            var d: [32]u8 = undefined;
+            _ = @import("solana/core/base58_fast.zig").decode32(encoded, &d) catch continue;
+            std.mem.doNotOptimizeAway(&d);
+        }
+        const start = nowNs();
+        for (0..BENCH_ITERS) |_| {
+            var d: [32]u8 = undefined;
+            _ = @import("solana/core/base58_fast.zig").decode32(encoded, &d) catch continue;
+            std.mem.doNotOptimizeAway(&d);
+        }
+        printResult("pubkey_base58_decode_fast", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
+    }
+
+    {
         var buf: [64]u8 = undefined;
         for (0..WARMUP_ITERS) |_| {
             const len = pubkey.toBase58Buf(&buf) catch continue;
@@ -926,6 +944,23 @@ pub fn main() !void {
             @import("solana/cabi/core.zig").solana_string_free(str, len);
         }
         printResult("cabi_pubkey_to_base58", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
+    }
+    {
+        const sig = Signature.init([_]u8{0x0E} ** Signature.LENGTH);
+        for (0..WARMUP_ITERS) |_| {
+            var str: [*c]u8 = undefined;
+            var len: usize = 0;
+            _ = @import("solana/cabi/core.zig").solana_signature_to_base58(&sig, &str, &len);
+            @import("solana/cabi/core.zig").solana_string_free(str, len);
+        }
+        const start = nowNs();
+        for (0..BENCH_ITERS) |_| {
+            var str: [*c]u8 = undefined;
+            var len: usize = 0;
+            _ = @import("solana/cabi/core.zig").solana_signature_to_base58(&sig, &str, &len);
+            @import("solana/cabi/core.zig").solana_string_free(str, len);
+        }
+        printResult("cabi_signature_to_base58", PROFILE_SMALL, BENCH_ITERS, nowNs() - start);
     }
 
     std.debug.print("\n=== benchmark complete ===\n", .{});
