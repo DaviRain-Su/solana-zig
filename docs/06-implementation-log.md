@@ -1541,4 +1541,4 @@
   - `G-P3E-02` ✅
   - `G-P3E-03` ✅
   - `G-P3E-04` ✅
-  - `G-P3E-05` ✅（pending reviewer confirmation）
+  - `G-P3E-05` 🔄 In Review
