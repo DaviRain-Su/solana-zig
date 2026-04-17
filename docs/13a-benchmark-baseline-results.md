@@ -109,3 +109,43 @@
 - Batch 4 benchmark 扩展输入：已满足 `G-P3D-04`。
 - strict exception model 输入：仍存在 `partial_exception` + `accepted exception path`。
 - 当前结论：Batch 4 维持 `final: 有条件发布`，不可升级到 `可发布`。
+
+---
+
+## Run 3 — Phase 3 Batch 5 (Rust Baseline Comparison)
+
+### 1. Run Record
+
+- Run ID: `2026-04-17/p3e87-rust-baseline/small`
+- Commit: `9f903e5`
+- Date: `2026-04-17`
+- Operator: `@codex_5_3`
+- Host / CPU: Apple Silicon (arm64)
+- OS: Darwin 25.3.0
+- Zig Version: `0.16.0`
+- Rust Version: `rustc 1.89.0`
+- Target Triple: `aarch64-macos` (native)
+- Optimize Mode: `ReleaseFast` (Zig) / `--release` (Rust)
+- Notes: Rust benchmark harness located at `scripts/oracle/rust_benchmark.rs`, 10,000 iterations.
+
+### 2. Result Table (Rust)
+
+| op | profile | iterations | total time | avg/op | throughput | notes |
+|---|---|---:|---:|---:|---:|---|
+| rust_signer_sign | `small` | 10,000 | 108,370 us | 10,837 ns | 92,276 ops/s | `BENCH\|rust_signer_sign\|small\|10000\|108370\|10837\|92276` |
+| rust_pubkey_to_base58 | `small` | 10,000 | 833 us | 83 ns | 12,004,801 ops/s | `BENCH\|rust_pubkey_to_base58\|small\|10000\|833\|83\|12004801` |
+
+### 3. Zig vs Rust Delta (same host, same iteration scale)
+
+| op | Zig avg/op | Rust avg/op | Delta |
+|---|---:|---:|---:|
+| signer sign | 36,283 ns (`Run 2`) | 10,837 ns | Zig ~3.35x slower |
+| pubkey->base58 | 1,213 ns (`Run 2`, C ABI path) | 83 ns | Zig ~14.61x slower |
+
+### 4. Batch 5 Verdict Input Mapping
+
+- `#87 / G-P3E-04` 的 Rust baseline 输入已补齐；
+- 与 `#84` strict exception 输入合并后，当前 aggregate 输入仍为：
+  - `requestAirdrop = partial_exception`
+  - `getAddressLookupTable = accepted_exception_path`
+- 因仍存在 open exceptions，Batch 5 / Phase 3 aggregate 暂不满足升级到 `可发布` 的条件。

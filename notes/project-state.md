@@ -1,33 +1,40 @@
 # Project State — solana-zig
 
 ## Current Phase
-Phase 3 Batch 4 closeout planning / repo-wide review (task #78 P3-16)
+Phase 3 COMPLETE — all batches closed with `有条件发布` verdict.
 
-## Completed
-- Phase 3 Batch 2: #69..#72 Done (193/193 tests PASS)
-- Phase 2 Batch 3: #32, #34 Done; #33 transferred to @codex_5_3 / @codex_
+## Phase 3 Summary (2026-04-17)
+- **Batch 1** (#59-#63): System/Token interfaces, exception convergence — 163/163 PASS
+- **Batch 2** (#68-#72): ATA helper, assign+memo, exception convergence — 193/193 PASS
+- **Batch 3** (#73-#77): token-2022, stake delegate, exception convergence — 197/197 PASS
+- **Batch 4** (#78-#82): Signers, C ABI, benchmark baseline — 208/208 PASS
+- **Batch 5** (#83-#88): Exception final convergence, C ABI live, stake negative-path, Rust baseline, aggregate closeout — 239/239 PASS
 
-## Active Tasks
-- Phase 3 Batch 3 ✅ Closed as `有条件发布`
-  - `#73` P3-11 scope freeze / DoD ✅ Done (`82da1b0`)
-  - `#74` P3-12 token-2022 minimum builder ✅ Done (`da93cfb`)
-  - `#75` P3-13 stake delegate minimum builder ✅ Done (`4d35e30`)
-  - `#76` P3-14 exception convergence ✅ Done (`da93cfb`)
-  - `#77` P3-15 docs/gate reconciliation ✅ Done (`e3a3794`)
-- Phase 3 Batch 4 review-driven closeout (planning active)
-  - `#78` P3-16 scope freeze / DoD / follow-up plan
-  - P3-17: `MockExternalSigner` correctness closure
-  - P3-18: stake create helper contract + negative-path closure
-  - P3-19: C ABI reality alignment (header/core/tests/RPC story)
-  - P3-20: top-level docs/status reconciliation
+## Phase 3 Aggregate Verdict
+`final: 有条件发布`
 
-## Current Review Findings
-- `MockExternalSigner.signMessage(...)` currently signs an empty string instead of the input message
-- `buildCreateStakeAccountInstruction(...)` accepts `lamports` but currently only builds the initialize payload
-- C ABI core/tx surfaces exist, but RPC export still uses dummy transport and needs explicit scope alignment
-- Top-level docs previously overstated Phase 3 as fully complete; authority now centers on `docs/10`, `docs/36`, `docs/37`
+Open exceptions (strict model):
+- `requestAirdrop`: `partial_exception` (public devnet rate-limit + local-live success)
+- `getAddressLookupTable`: `accepted_exception_path` (method-not-found / RPC error evidence)
+
+## Deliverables
+- 7 interface modules: system / token / token_2022 / compute_budget / memo / stake / ata
+- Signer abstraction: vtable + InMemorySigner + MockExternalSigner
+- C ABI export: core + transaction + RPC (live transport)
+- Rust baseline comparison: signer ~3.35x, base58 ~14.61x (Zig slower)
+- 239 tests total
+
+## Authority Documents
+- Status truth: `docs/10-coverage-matrix.md`
+- Planning: `docs/38-phase3-batch5-planning.md`
+- Readiness/gate: `docs/39-phase3-batch5-release-readiness.md`
+- Narrative log: `docs/06-implementation-log.md`
+
+## Pending (post Phase 3)
+- #14 K7: Package rename
+- #15 npm publish SUSPENDED (credentials blocked)
+- Phase 4: on-chain SBF target (independent evaluation)
 
 ## Baseline
-- Freeze point: `e3a3794`
-- Canonical baseline before Batch 4 implementation: current mainline + repo-wide review
+- Latest commit: see `git log -1`
 - Zig version: 0.16.0

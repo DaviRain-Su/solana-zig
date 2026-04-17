@@ -84,12 +84,14 @@
   - 内存所有权约定文档（`docs/cabi-guide.md`）
 - Benchmark 扩展：signer + C ABI 基线
 
-**当前状态（2026-04-17 全量 review）**：
+**当前状态（2026-04-17 Phase 3 closeout）**：
 - 全部 7 个 interface 模块已交付：system / token / token_2022 / compute_budget / memo / stake / ata
 - Signer 抽象已交付：Signer vtable + InMemorySigner + MockExternalSigner
-- C ABI 导出层已交付：core + transaction 可用，RPC 为 scaffold 状态
+- C ABI 导出层已交付：core + transaction + RPC（live transport）
 - 头文件 `include/solana_zig.h` 已生成并一致
-- 后续关注：负路径测试补齐、C ABI RPC 真实 transport 绑定
+- Rust baseline 对比完成（Run 3：signer 3.35x slower, base58 14.61x slower）
+- Batch 1-5 全部 gate PASS，239/239 tests PASS
+- Phase 3 verdict: `有条件发布`（2 open exceptions: requestAirdrop partial, getAddressLookupTable accepted）
 
 ---
 

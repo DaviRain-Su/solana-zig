@@ -1,7 +1,7 @@
 # Phase 3 Batch 5 Release Readiness
 
 **Date**: 2026-04-17  
-**Status**: Provisional  
+**Status**: Final  
 **Owner**: `#88`  
 **Batch**: Phase 3 Batch 5  
 **Freeze point**: `b55c165`
@@ -48,16 +48,16 @@
 - `#82`: `b55c165`（G-P3D-05 PASS）
 - `#83`: `7671c87`（planning / DoD PASS，Done）
 - `#84`: `b02071b`（G-P3E-01/02 PASS，Done）
-- `#85`: In Progress
-- `#86`: In Progress
-- `#87`: In Progress
-- `#88`: In Progress（docs/gate follow）
+- `#85`: `23d8cf4`（G-P3E-03 PASS，Done）
+- `#86`: `23d8cf4`（G-P3E-04 input PASS，Done）
+- `#87`: `9f903e5`（G-P3E-04 PASS，Done）
+- `#88`: Final closeout（G-P3E-05）
 
-### 4.1 Current strict-model input (from `#84`)
+### 4.1 Final strict-model input
 
-- `requestAirdrop = partial_exception`
-- `getAddressLookupTable = accepted_exception_path`
-- 当前输入下，Batch 5 / Phase 3 aggregate 仍不满足升级到 `可发布` 的条件。
+- `requestAirdrop = partial_exception`（public devnet rate-limit + local-live success）
+- `getAddressLookupTable = accepted_exception_path`（method-not-found / RPC error evidence）
+- 两项 open exceptions 均符合 strict exception model 但未关闭 → 不满足升级条件。
 
 ## 5. Upgrade Rule (strict)
 
@@ -89,9 +89,27 @@
 
 ## 8. Finalization Block (to be filled at closeout)
 
-- Batch 5 verdict: `provisional` -> `final: ...`
-- Phase 3 aggregate verdict: `provisional` -> `final: ...`
+- Batch 5 verdict: `final: 有条件发布`
+- Phase 3 aggregate verdict: `final: 有条件发布`
 - Open exceptions summary:
-  - `requestAirdrop`: `partial_exception`（current）
-  - `getAddressLookupTable`: `accepted_exception_path`（current）
-- Closeout commit/hash: TBD
+  - `requestAirdrop`: `partial_exception`（public devnet rate-limit + local-live success）
+  - `getAddressLookupTable`: `accepted_exception_path`（method-not-found / RPC error evidence）
+- Closeout commit/hash: `c654414`
+- Test count: 239/239 PASS（baseline `a0984da`）
+- Rust baseline: Run 3（`9f903e5`，signer 10.9μs Rust vs 36.3μs Zig，base58 83ns Rust vs 1213ns Zig）
+
+### 8.1 Phase 3 Aggregate Verdict Rationale
+
+Phase 3 最终保持 `有条件发布`，原因：
+1. 全部 7 个 interface 模块交付（system / token / token_2022 / compute_budget / memo / stake / ata）
+2. Signer 抽象交付（vtable + InMemorySigner + MockExternalSigner）
+3. C ABI 导出层交付（core + transaction + RPC scaffold → live transport）
+4. Batch 1-5 全部 gate PASS
+5. 239/239 tests PASS
+6. 但仍有 2 项 open exceptions 未关闭，strict model 下不可升级为 `可发布`
+
+### 8.2 Conditional Writeback Result
+
+- `docs/37`：不触发回写（Batch 4 verdict 口径未变）
+- `docs/35`：不触发回写（Batch 3 verdict 口径��变）
+- `docs/28`：不触发回写（Phase 2 aggregate 升级条件仍不满足）
