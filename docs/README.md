@@ -66,5 +66,5 @@
 - `37-phase3-batch4-release-readiness.md`：Phase 3 Batch 4 专属发布就绪清单
 - `38-phase3-batch5-planning.md`：Product Phase 3 第五批规划（exception 最终收敛 + C ABI RPC/live 对齐 + stake create/negative-path + Rust 对比 + Phase 3 aggregate closeout）
 - `39-phase3-batch5-release-readiness.md`：Phase 3 Batch 5 专属发布就绪清单（包含 Phase 3 aggregate verdict）
-- `40-phase4-planning.md`：Phase 4 规划（链上程序支持 — Zig→SBF，scope / batch / gate / 决策项）
+- `40-phase4-planning.md`：Phase 4 规划（链上程序支持 — Zig→SBF, scope / batch / gate / 决策项）
 - `41-phase4-release-readiness.md`：Phase 4 发布就绪清单（gate 状态 / decision records / CU baseline / aggregate verdict）
