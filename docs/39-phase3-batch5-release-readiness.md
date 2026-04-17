@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-17  
 **Status**: Provisional  
-**Owner**: `#83`  
+**Owner**: `#88`  
 **Batch**: Phase 3 Batch 5  
 **Freeze point**: `b55c165`
 
@@ -46,7 +46,18 @@
 - `#80`: `e9fd4ff`（G-P3D-01/03 PASS）
 - `#81`: `bce967d`（G-P3D-04 PASS）
 - `#82`: `b55c165`（G-P3D-05 PASS）
-- `#83`（Batch 5 planning）: In Review
+- `#83`: `7671c87`（planning / DoD PASS，Done）
+- `#84`: `b02071b`（G-P3E-01/02 PASS，Done）
+- `#85`: In Progress
+- `#86`: In Progress
+- `#87`: In Progress
+- `#88`: In Progress（docs/gate follow）
+
+### 4.1 Current strict-model input (from `#84`)
+
+- `requestAirdrop = partial_exception`
+- `getAddressLookupTable = accepted_exception_path`
+- 当前输入下，Batch 5 / Phase 3 aggregate 仍不满足升级到 `可发布` 的条件。
 
 ## 5. Upgrade Rule (strict)
 
@@ -81,6 +92,6 @@
 - Batch 5 verdict: `provisional` -> `final: ...`
 - Phase 3 aggregate verdict: `provisional` -> `final: ...`
 - Open exceptions summary:
-  - `requestAirdrop`: TBD
-  - `getAddressLookupTable`: TBD
+  - `requestAirdrop`: `partial_exception`（current）
+  - `getAddressLookupTable`: `accepted_exception_path`（current）
 - Closeout commit/hash: TBD

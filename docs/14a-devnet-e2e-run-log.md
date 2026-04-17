@@ -740,3 +740,60 @@ SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8
 
 - 本次 run 对应 `#76` 的复审回合（commit `da93cfb`），用于关闭 `G-P3C-04` 的证据层缺口。
 - 本次 run 输出同时作为 Batch 3 `release verdict` 的输入：按 strict model 继续保持 `有条件发布`。
+
+---
+
+## Run 15 — Phase 3 Batch 5 Exception Final Convergence (`#84`)
+
+### 1. Run Metadata
+
+- Run ID: `2026-04-17/phase3-batch5/exception-final-convergence`
+- Commit: `b02071b`
+- Date: `2026-04-17`
+- Run Type: `gate-evidence`（strict model 最终判定输入）
+- Operator: `@codex_5_3`
+- Env:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com`
+  - `SURFPOOL_RPC_URL=http://127.0.0.1:8899`
+- Entry:
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all`
+  - `SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all`
+  - `SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all`
+- Exit Code: `0`
+
+### 2. Result Summary
+
+- Overall Result: **pass**
+- Failure Stage: none
+- Notes:
+  - devnet-e2e：`17/17 PASS`
+  - e2e：`2/2 PASS`
+  - 全量测试：`208/208 tests passed`
+  - strict model 输入固定为：
+    - `requestAirdrop = partial_exception`
+    - `getAddressLookupTable = accepted_exception_path`
+
+### 3. Evidence Checklist
+
+- [x] US-006 devnet live 对 rate-limit 文案（`airdrop limit` / `faucet has run dry`）已按 skip/partial 语义处理
+- [x] US-007 devnet live 对 `-32601 Method not found` 已按 `accepted_exception_path` 处理
+- [x] local-live 路径保持可复现成功侧证据
+- [x] 双 env + 全量测试基线通过（`17/17` + `2/2` + `208/208`）
+
+### 4. Console / Run Evidence
+
+```bash
+SOLANA_RPC_URL=https://api.devnet.solana.com zig build devnet-e2e --summary all
+... 17/17 tests passed
+
+SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build e2e --summary all
+... 2/2 tests passed
+
+SOLANA_RPC_URL=https://api.devnet.solana.com SURFPOOL_RPC_URL=http://127.0.0.1:8899 zig build test --summary all
+... 208/208 tests passed
+```
+
+### 5. Notes
+
+- 本次 run 对应 `#84` 的 reviewer PASS 回合（`G-P3E-01/G-P3E-02`）。
+- 本次目标是给出“最终可复现结论 + verdict-upgrade 输入”；不要求本批强制把 exception 关闭为 `closed`。

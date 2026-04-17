@@ -306,3 +306,27 @@
   原因：Batch 4 未改变 Batch 3 verdict 条件。
 - `docs/28-phase2-closeout-readiness.md`：本轮**不触发回写**。  
   原因：Phase 2 aggregate 升级前提（无 partial/accepted exception）仍不满足。
+
+## 17. Phase 3 Batch 5 Tracking (`#84~#88`)
+
+> 按 `docs/38-phase3-batch5-planning.md` 的冻结口径，Batch 5 同时承载 Phase 3 aggregate closeout。  
+> 当前 canonical board：`#84`（exception） / `#85`（C ABI RPC/live） / `#86`（stake negative-path） / `#87`（Rust baseline + aggregate input） / `#88`（docs/gate）。
+
+| 能力项 | 当前状态 | 对应任务 | 当前 blocker | 收口证据 | 证据落点 | Closeout 条件 |
+|---|---|---|---|---|---|---|
+| `exception final convergence` | closed | `#84` | — | `b02071b`，isolated canonical clean，`devnet-e2e 17/17` + `e2e 2/2` + `208/208`；最终输入：`partial_exception + accepted_exception_path` | `src/e2e/devnet_e2e.zig` + `docs/14a` Run 15 + `docs/39` | `G-P3E-01` + `G-P3E-02` PASS |
+| `C ABI RPC/live alignment` | in_progress | `#85` | 待可评审包 | header/export consistency + RPC 真实可调证据待补 | `src/solana/cabi/*` + `include/solana_zig.h` + `docs/39` | 待 `G-P3E-03` |
+| `stake create + negative-path closure` | in_progress | `#86` | 待可评审包 | create helper 契约一致性 + 负路径机械证据待补 | `src/solana/interfaces/stake.zig` + `docs/39` | 待 `G-P3E-04`（stake 子项） |
+| `rust baseline + aggregate verdict input` | in_progress | `#87` | 依赖 `#85/#86` 证据 | benchmark 对比与 aggregate verdict 输入并包待提审 | `docs/13a` + 本矩阵 + `docs/39` | 待 `G-P3E-04` |
+| `docs/gate reconciliation + aggregate closeout` | in_progress | `#88` | 依赖 `#85/#86/#87` | 中间态已纳入 `#84` 结论，final closeout 待实现线齐备 | `docs/06+10+13a+14a+15+39` | 待 `G-P3E-05` |
+
+### Phase 3 Batch 5 Exception Register（Current）
+
+- `requestAirdrop`
+  - 当前状态：`partial_exception`
+  - 证据：`#84`（`b02071b`，Run 15）
+- `getAddressLookupTable`
+  - 当前状态：`accepted_exception_path`
+  - 证据：`#84`（`b02071b`，Run 15）
+
+> 当前 aggregate 输入下，Batch 5 / Phase 3 仍不满足升级到 `可发布` 的条件；最终 verdict 由 `#88` 在 `G-P3E-05` 收口时锁定。
